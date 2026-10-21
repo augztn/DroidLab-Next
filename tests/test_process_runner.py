@@ -16,6 +16,14 @@ class ProcessRunnerTests(unittest.TestCase):
         self.assertIn("hello", result.stdout)
         self.assertIn("world", result.stdout)
 
+    def test_nonzero_exit_code_is_preserved(self):
+        result = run_streaming(
+            [sys.executable, "-c", "print('failed'); raise SystemExit(7)"],
+            timeout=5,
+        )
+        self.assertEqual(result.returncode, 7)
+        self.assertIn("failed", result.stdout)
+
     def test_timeout_terminates_quiet_process(self):
         with self.assertRaises(subprocess.TimeoutExpired):
             run_streaming(
@@ -45,6 +53,21 @@ class ProcessRunnerTests(unittest.TestCase):
                 )
         finally:
             timer.cancel()
+
+    def test_callback_exception_is_propagated_and_child_is_terminated(self):
+        def fail_callback(_line: str) -> None:
+            raise RuntimeError("consumer failed")
+
+        with self.assertRaisesRegex(RuntimeError, "consumer failed"):
+            run_streaming(
+                [
+                    sys.executable,
+                    "-c",
+                    "print('ready', flush=True); import time; time.sleep(10)",
+                ],
+                timeout=5,
+                on_line=fail_callback,
+            )
 
     def test_retained_output_is_bounded(self):
         result = run_streaming(
