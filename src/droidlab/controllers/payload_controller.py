@@ -16,6 +16,7 @@ import tkinter as tk
 import webbrowser
 from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
+from tkinterdnd2 import DND_FILES
 
 from droidlab.config.constants import APP_NAME, THEME_TOKENS
 from droidlab.core.command_guards import (
@@ -82,10 +83,21 @@ class PayloadControllerMixin:
         def _append(self, msg):
             message = str(msg)
             logging.log(logging.ERROR if message.startswith("ERROR:") else logging.INFO, "%s", message)
-            self.log.configure(state="normal")
-            self.log.insert("end", message + "\n")
-            self.log.see("end")
-            self.log.configure(state="disabled")
+
+            # Drag-and-drop can fail during widget construction, before the log
+            # widget exists. Keep the diagnostic in the logger without letting
+            # an unavailable UI widget turn startup recovery into another error.
+            log_widget = getattr(self, "log", None)
+            if log_widget is None:
+                return
+            try:
+                log_widget.configure(state="normal")
+                log_widget.insert("end", message + "\n")
+                log_widget.see("end")
+                log_widget.configure(state="disabled")
+            except (tk.TclError, AttributeError):
+                # The widget may also have been destroyed during shutdown.
+                logging.debug("Could not write message to the UI log widget", exc_info=True)
 
         def _busy(self,value):self.start_button.configure(state="disabled" if value else "normal"); self.cancel_button.configure(state="normal" if value else "disabled"); self.progress.start(12) if value else self.progress.stop()
 
