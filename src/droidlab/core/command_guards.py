@@ -64,6 +64,15 @@ def is_destructive_fastboot(tokens: list[str] | tuple[str, ...]) -> bool:
 def is_valid_partition_name(name: str) -> bool:
     """Partition names must begin with an ASCII letter or digit."""
     return bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name))
+
+
+def is_valid_device_serial(serial: str) -> bool:
+    """Accept a single conservative ADB/Fastboot serial token, never whitespace or options."""
+    return bool(
+        isinstance(serial, str)
+        and len(serial) <= 256
+        and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]*", serial)
+    )
 def explicit_device_selector(tokens: list[str] | tuple[str, ...], tool: str) -> str | None:
     """Return a host-side -s serial selector, rejecting malformed or ambiguous selectors.
 
@@ -127,6 +136,10 @@ def validate_device_selector(
 ) -> str | None:
     """Reject explicit target conflicts; return the explicit selector if present."""
     explicit = explicit_device_selector(tokens, tool)
+    if selected_serial is not None and not is_valid_device_serial(selected_serial):
+        raise ValueError("Selected device serial is malformed.")
+    if explicit is not None and not is_valid_device_serial(explicit):
+        raise ValueError("Command device serial is malformed.")
     if explicit is not None and selected_serial and explicit != selected_serial:
         raise ValueError(
             f"Command targets serial {explicit!r}, but the selected device is "
