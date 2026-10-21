@@ -46,6 +46,20 @@ class PartitionNameTests(unittest.TestCase):
 
 
 class DeviceSelectorTests(unittest.TestCase):
+    def test_device_serial_validation_rejects_empty_whitespace_and_option_like_values(self):
+        from src.command_guards import is_valid_device_serial
+        for serial in ("", " ", "-e", "device one", "device\\n1", "a" * 257):
+            with self.subTest(serial=serial):
+                self.assertFalse(is_valid_device_serial(serial))
+        for serial in ("device-1", "emulator-5554", "192.168.1.20:5555", "USB_123.abc"):
+            with self.subTest(serial=serial):
+                self.assertTrue(is_valid_device_serial(serial))
+
+    def test_invalid_selected_serial_is_rejected(self):
+        from src.command_guards import validate_device_selector
+        with self.assertRaisesRegex(ValueError, "malformed"):
+            validate_device_selector(["shell", "getprop"], "adb", "device one")
+
     def test_matching_selector_is_returned(self):
         from src.command_guards import explicit_device_selector, validate_device_selector
         self.assertEqual(explicit_device_selector(["-s", "device-1", "shell", "getprop"], "adb"), "device-1")
