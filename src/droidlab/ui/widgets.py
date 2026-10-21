@@ -1,9 +1,13 @@
 """Reusable Tk/ttk style setup and widget helpers."""
 from __future__ import annotations
+
 import os
 import tkinter as tk
-from tkinter import font as tkfont, ttk
-from .ui_metrics import column_width, tree_row_height
+from tkinter import font as tkfont
+from tkinter import ttk
+
+from .ui_metrics import tree_row_height
+
 
 class WidgetSupport:
     def _configure_widget_styles(self):

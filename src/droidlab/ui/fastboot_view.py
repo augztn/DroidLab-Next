@@ -1,7 +1,9 @@
 """Fastboot flashing workspace construction."""
 from __future__ import annotations
+
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import ttk
+
 
 class FastbootViewSupport:
     def _build_flash_tab(self, tab):

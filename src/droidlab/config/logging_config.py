@@ -1,12 +1,14 @@
 """Application logging configuration and uncaught-exception hooks."""
 from __future__ import annotations
+
 import logging
-import os
 import platform
 import sys
-from pathlib import Path
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
+
 from .constants import APP_NAME
+
 
 def log_directory():
     """Keep logs in a clearly visible DroidLab folder inside the user's home directory."""

@@ -2,20 +2,47 @@
 from __future__ import annotations
 
 import hashlib
+import logging
+import math
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
-import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
+
 if __package__:
+    from .command_guards import is_valid_partition_name
     from .process_runner import ProcessCancelledError, run_streaming, terminate_process
 else:
+    from command_guards import is_valid_partition_name
     from process_runner import ProcessCancelledError, run_streaming, terminate_process
 
 Progress = Callable[[str], None]
+
+
+def _configured_timeout(name: str, default: float) -> float:
+    """Read a finite positive timeout override, falling back safely on bad input."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        logging.warning("Ignoring invalid %s value %r; using %s seconds", name, raw, default)
+        return default
+    if not math.isfinite(value) or value <= 0:
+        logging.warning("Ignoring invalid %s value %r; using %s seconds", name, raw, default)
+        return default
+    if value > 86400:
+        logging.warning("Capping %s at 86400 seconds", name)
+        return 86400
+    return value
+
+
+INSPECTION_TIMEOUT_SECONDS = _configured_timeout("DROIDLAB_PAYLOAD_INSPECTION_TIMEOUT", 120)
+EXTRACTION_TIMEOUT_SECONDS = _configured_timeout("DROIDLAB_PAYLOAD_EXTRACTION_TIMEOUT", 3600)
 
 
 class BackendError(RuntimeError):
@@ -66,18 +93,23 @@ def _run_process(
     progress: Progress | None = None,
     cancel_event=None,
     operation: str = "Payload operation",
+    timeout: float = 3600,
 ) -> subprocess.CompletedProcess[str]:
-    """Run the backend through the shared bounded streaming runner."""
+    """Run the backend with a bounded lifetime and shared streaming controls."""
     command = cli + args
     try:
         return run_streaming(
             command,
+            timeout=timeout,
             cancel_event=cancel_event,
             on_line=(lambda line: progress(line.rstrip())) if progress else None,
             popen_kwargs={},
         )
     except ProcessCancelledError as exc:
         raise BackendError(f"{operation} cancelled by user.") from exc
+    except subprocess.TimeoutExpired as exc:
+        limit = timeout if exc.timeout is None else exc.timeout
+        raise BackendError(f"{operation} timed out after {limit:g} seconds.") from exc
     except OSError as exc:
         raise BackendError(f"Could not start payload-dumper-go: {exc}") from exc
 
@@ -90,7 +122,9 @@ def _run(
     cli = _find_cli()
     if not cli:
         raise BackendError("payload-dumper-go was not found. Install it or use the bundled AppImage.")
-    return _run_process(cli, args, progress, cancel_event, "Inspection")
+    return _run_process(
+        cli, args, progress, cancel_event, "Inspection", timeout=INSPECTION_TIMEOUT_SECONDS
+    )
 
 
 def inspect_source(
@@ -114,7 +148,10 @@ def inspect_source(
             size_bytes = int(size.strip()) * 1024
         except ValueError:
             continue
-        parts.append({"name": name.strip(), "size_bytes": size_bytes, "hash": ""})
+        partition_name = name.strip()
+        if not is_valid_partition_name(partition_name):
+            continue
+        parts.append({"name": partition_name, "size_bytes": size_bytes, "hash": ""})
     return parts
 
 
@@ -126,6 +163,8 @@ def extract(
     cancel_event=None,
 ) -> list[Path]:
     src = Path(source).expanduser().resolve()
+    if not output_dir or not output_dir.strip():
+        raise BackendError("Choose an output directory.")
     out = Path(output_dir).expanduser().resolve()
     if not src.is_file():
         raise BackendError(f"Input file does not exist: {src}")
@@ -134,6 +173,13 @@ def extract(
     cli = _find_cli()
     if not cli:
         raise BackendError("payload-dumper-go was not found. Install it or use the bundled AppImage.")
+    if selected:
+        invalid = [
+            name for name in selected
+            if not isinstance(name, str) or not is_valid_partition_name(name)
+        ]
+        if invalid:
+            raise BackendError("Invalid partition selection; refresh the partition list and try again.")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.mkdir(parents=True, exist_ok=True)
     # A unique sibling staging directory keeps backend output isolated while
@@ -147,7 +193,11 @@ def extract(
         args.append(str(src))
         if progress:
             progress("Starting payload-dumper-go in an isolated staging directory.")
-        result = _run_process(cli, args, progress, cancel_event, "Extraction")
+        # OTA extraction can legitimately take a long time on slow storage, but
+        # a stuck backend must not keep the worker alive indefinitely.
+        result = _run_process(
+            cli, args, progress, cancel_event, "Extraction", timeout=EXTRACTION_TIMEOUT_SECONDS
+        )
         if result.returncode:
             raise BackendError(
                 f"payload-dumper-go exited with status {result.returncode}. "
@@ -226,7 +276,14 @@ def extract(
         except FileNotFoundError:
             pass
         except OSError as exc:
-            raise BackendError(f"Extraction staging cleanup failed for {stage}: {exc}") from exc
+            # Cleanup failure must not mask the original extraction/cancellation
+            # exception, or turn a successful publication into a false failure.
+            logging.warning("Could not remove payload staging directory %s: %s", stage, exc)
+            if progress:
+                try:
+                    progress(f"Warning: could not remove temporary staging directory {stage}: {exc}")
+                except Exception:
+                    logging.debug("Could not report staging cleanup warning", exc_info=True)
 
 
 def sha256_file(path: str, chunk_size: int = 1024 * 1024) -> str:

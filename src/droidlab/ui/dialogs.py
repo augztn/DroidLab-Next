@@ -1,7 +1,10 @@
 """Standalone informational dialogs used by the main application window."""
 from __future__ import annotations
+
 import tkinter as tk
+import webbrowser
 from tkinter import ttk
+
 
 class DialogSupport:
     """Mixin containing self-contained application dialogs."""
@@ -12,7 +15,7 @@ class DialogSupport:
         dialog.configure(bg="#111827")
         dialog.transient(self)
         dialog.resizable(True, True)
-    
+
         self.update_idletasks()
         width = min(620, max(440, self.winfo_screenwidth() - 80))
         height = min(680, max(420, self.winfo_screenheight() - 100))
@@ -20,7 +23,7 @@ class DialogSupport:
         y = self.winfo_rooty() + max(0, (self.winfo_height() - height) // 2)
         dialog.geometry(f"{width}x{height}+{x}+{y}")
         dialog.minsize(min(420, width), min(360, height))
-    
+
         # Keep the title and close action fixed; scroll the complete content area.
         outer = ttk.Frame(dialog, padding=(14, 12))
         outer.pack(fill="both", expand=True)
@@ -28,7 +31,7 @@ class DialogSupport:
         header.pack(fill="x", pady=(0, 10))
         ttk.Label(header, text="About DroidLab", font=("Sans", 14, "bold")).pack(side="left")
         ttk.Button(header, text="Close", command=dialog.destroy).pack(side="right")
-    
+
         body = ttk.Frame(outer)
         body.pack(fill="both", expand=True)
         canvas = tk.Canvas(body, bg="#111827", highlightthickness=0, borderwidth=0)
@@ -38,16 +41,16 @@ class DialogSupport:
         canvas.pack(side="left", fill="both", expand=True)
         content_frame = ttk.Frame(canvas, padding=(2, 2, 10, 14))
         content_window = canvas.create_window((0, 0), window=content_frame, anchor="nw")
-    
+
         def update_scroll_region(_event=None):
             canvas.configure(scrollregion=canvas.bbox("all"))
-    
+
         def fit_content_width(event):
             canvas.itemconfigure(content_window, width=event.width)
-    
+
         content_frame.bind("<Configure>", update_scroll_region)
         canvas.bind("<Configure>", fit_content_width)
-    
+
         hero = tk.Frame(content_frame, bg="#1d4ed8", padx=18, pady=22)
         hero.pack(fill="x")
         tk.Label(hero, text="DL", bg="#1d4ed8", fg="#ffffff",
@@ -56,7 +59,7 @@ class DialogSupport:
                  font=("Sans", 25, "bold")).pack()
         tk.Label(hero, text="Android firmware toolkit", bg="#1d4ed8", fg="#dbeafe",
                  font=("Sans", 12)).pack(pady=(5, 0))
-    
+
         intro = ttk.Frame(content_frame, style="Panel.TFrame", padding=16)
         intro.pack(fill="x", pady=(12, 0))
         ttk.Label(intro, text="A toolkit for Android firmware workflows",
@@ -67,7 +70,7 @@ class DialogSupport:
                   background="#1f2937", foreground="#cbd5e1",
                   font=("Sans", 11), wraplength=500, justify="left").pack(
                       anchor="w", fill="x", pady=(7, 0))
-    
+
         features = ttk.Frame(content_frame, style="Panel.TFrame", padding=16)
         features.pack(fill="x", pady=(10, 0))
         ttk.Label(features, text="WHAT YOU CAN DO", background="#1f2937",
@@ -81,7 +84,7 @@ class DialogSupport:
             ttk.Label(features, text="•  " + item, background="#1f2937",
                       foreground="#e5e7eb", font=("Sans", 11),
                       wraplength=500, justify="left").pack(anchor="w", pady=(7, 0))
-    
+
         tech = ttk.Frame(content_frame, style="Panel.TFrame", padding=16)
         tech.pack(fill="x", pady=(10, 0))
         ttk.Label(tech, text="TOOLS & TECHNOLOGY", background="#1f2937",
@@ -98,7 +101,7 @@ class DialogSupport:
             ttk.Label(line, text=value, background="#1f2937",
                       foreground="#e5e7eb", font=("Sans", 11),
                       wraplength=500, justify="left").pack(anchor="w", pady=(2, 0))
-    
+
         details = ttk.Frame(content_frame, style="Panel.TFrame", padding=16)
         details.pack(fill="x", pady=(10, 0))
         ttk.Label(details, text="CREATED BY", background="#1f2937",
@@ -118,11 +121,11 @@ class DialogSupport:
                            font=("Sans", 11, "underline"))
         github.pack(side="left")
         github.bind("<Button-1>", lambda _event: webbrowser.open("https://github.com/nightx24"))
-    
+
         ttk.Label(content_frame, text="DroidLab · Community firmware utility",
                   style="Muted.TLabel", font=("Sans", 10)).pack(
                       anchor="center", pady=(14, 4))
-    
+
         # Trackpad and mouse-wheel scrolling: support Linux/X11 wheel events,
         # Windows/macOS delta events, and smooth touchpad deltas.
         def on_mousewheel(event):
@@ -139,7 +142,7 @@ class DialogSupport:
             elif getattr(event, "num", None) == 5:
                 canvas.yview_scroll(1, "units")
             return "break"
-    
+
         # Bind wheel events to the canvas and every child in the scrollable area,
         # since Tk widgets under the pointer otherwise consume the event.
         def bind_scroll_events(widget):
@@ -148,7 +151,7 @@ class DialogSupport:
                 widget.bind(sequence, on_mousewheel, add="+")
             for child in widget.winfo_children():
                 bind_scroll_events(child)
-    
+
         bind_scroll_events(content_frame)
         bind_scroll_events(hero)
         canvas.bind("<MouseWheel>", on_mousewheel, add="+")

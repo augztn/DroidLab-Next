@@ -1,7 +1,9 @@
 """ADB diagnostics, device information, and logcat workspace construction."""
 from __future__ import annotations
+
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import ttk
+
 
 class ADBViewSupport:
     def _build_adb_tab(self, tab):

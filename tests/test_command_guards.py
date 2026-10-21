@@ -1,5 +1,7 @@
 import unittest
+
 from src.command_guards import is_destructive_adb, is_destructive_fastboot, is_valid_partition_name
+
 
 class AdbGuardTests(unittest.TestCase):
     def test_destructive_adb_commands_are_flagged(self):

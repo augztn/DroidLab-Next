@@ -1,29 +1,38 @@
 #!/usr/bin/env python3
 """Cross-platform DroidLab desktop UI for Android firmware workflows."""
 from __future__ import annotations
-import os, queue, threading, tkinter as tk, shutil, re, shlex, sys, json
-import subprocess, webbrowser, logging, platform
-from tkinter import filedialog, font as tkfont, messagebox, ttk
-from tkinterdnd2 import DND_FILES, TkinterDnD
+
+import logging
+import os
+import platform
+import queue
+import shutil
+import subprocess
+import sys
+import threading
+import tkinter as tk
 from pathlib import Path
+from tkinter import filedialog, messagebox
+
+from tkinterdnd2 import TkinterDnD
+
 from droidlab.config.constants import APP_NAME, THEME_TOKENS
-from droidlab.config.logging_config import configure_logging as _configure_logging, log_directory as _log_directory, log_uncaught_exception as _log_uncaught_exception
+from droidlab.config.logging_config import configure_logging as _configure_logging
+from droidlab.config.logging_config import log_directory as _log_directory
+from droidlab.config.logging_config import log_uncaught_exception as _log_uncaught_exception
 from droidlab.config.settings import load_settings
-from droidlab.core.payload_dumper import BackendError, extract, inspect_source, sha256_file
-from droidlab.core.command_guards import (is_destructive_adb, is_destructive_fastboot, is_valid_partition_name,
-                            validate_device_selector, is_fastboot_target_connected)
-from droidlab.core.process_runner import ProcessCancelledError, run_streaming, terminate_process
-from droidlab.controllers.device_controller import DeviceControllerMixin
 from droidlab.controllers.adb_controller import ADBControllerMixin
+from droidlab.controllers.device_controller import DeviceControllerMixin
 from droidlab.controllers.fastboot_controller import FastbootControllerMixin
 from droidlab.controllers.payload_controller import PayloadControllerMixin
-from droidlab.ui.theme import ThemeSupport
+from droidlab.ui.adb_view import ADBViewSupport
 from droidlab.ui.dialogs import DialogSupport
-from droidlab.ui.widgets import WidgetSupport
+from droidlab.ui.fastboot_view import FastbootViewSupport
 from droidlab.ui.layout import LayoutSupport
 from droidlab.ui.payload_view import PayloadViewSupport
-from droidlab.ui.adb_view import ADBViewSupport
-from droidlab.ui.fastboot_view import FastbootViewSupport
+from droidlab.ui.theme import ThemeSupport
+from droidlab.ui.widgets import WidgetSupport
+
 
 # Compatibility note: UI sizing now lives in ui/widgets.py and ui/payload_view.py;
 # it still derives rowheight via tree_row_height(tkfont.Font(self, font=self._tree_font).metrics("linespace"))
