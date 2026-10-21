@@ -185,6 +185,12 @@ class PackageImportTests(unittest.TestCase):
 
 
 class ControllerSafetyCharacterizationTests(unittest.TestCase):
+    def test_payload_log_append_is_safe_before_log_widget_initialization(self):
+        from droidlab.controllers.payload_controller import PayloadControllerMixin
+
+        # During startup, DnD registration can fail before the UI creates self.log.
+        PayloadControllerMixin._append(object(), "early startup diagnostic")
+
     def test_fastboot_destructive_validation_precedes_confirmation_and_spawn(self):
         source = (_SRC_ROOT / "droidlab" / "controllers" / "fastboot_controller.py").read_text(encoding="utf-8")
         tree = ast.parse(source)
@@ -257,9 +263,13 @@ class BackendPathWiringTests(unittest.TestCase):
         from droidlab.core import payload_dumper
 
         # AppImage uses POSIX paths even when this wiring test runs on Windows.
-        # Pin the path implementation to POSIX semantics for this scenario.
-        executable = PurePosixPath("/tmp/Payload.AppDir/usr/bin/droidlab-gui-bin")
-        with patch.object(payload_dumper, "Path", PurePosixPath):
+        # Keep POSIX path semantics while providing Path.resolve() for the code under test.
+        class ResolvedPurePosixPath(PurePosixPath):
+            def resolve(self, *args, **kwargs):
+                return self
+
+        executable = ResolvedPurePosixPath("/tmp/Payload.AppDir/usr/bin/droidlab-gui-bin")
+        with patch.object(payload_dumper, "Path", ResolvedPurePosixPath):
             with patch("droidlab.core.payload_dumper.sys.frozen", True, create=True):
                 with patch("droidlab.core.payload_dumper.sys.executable", str(executable)):
                     self.assertEqual(payload_dumper._bundle_root(), PurePosixPath("/tmp/Payload.AppDir"))
