@@ -63,7 +63,7 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
         self.configure(bg=self.theme_tokens["bg"])
         self._ui_font = "Segoe UI" if os.name == "nt" else "Sans"
         self._mono_font = "Consolas" if os.name == "nt" else "Monospace"
-        self.events=queue.Queue(); self.worker=None; self.cancel_event=threading.Event()
+        self.events=queue.Queue(); self.worker=None; self.payload_cancel_event=threading.Event(); self.cancel_event=self.payload_cancel_event; self.command_cancel_event=threading.Event(); self._closing=False; self._active_operations={}; self._active_operations_guard=threading.Lock()
         # One active device-mutating/diagnostic command per serial. This avoids
         # overlapping operations against the same physical target.
         self._device_operation_locks = {}
@@ -79,8 +79,48 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
         self.source=tk.StringVar(); self.output=tk.StringVar(value=str(Path.home()/APP_NAME)); self.fingerprint=tk.BooleanVar(value=True); self.status=tk.StringVar(value="Ready")
         self.parts={}; self.part_vars={}; self._build()
         self.report_callback_exception = self._report_callback_exception
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
         logging.info("UI initialized")
         self.after(100,self._poll_events)
+
+    def _on_close(self):
+        """Stop active subprocess work before destroying the Tk interpreter."""
+        with self._active_operations_guard:
+            active = list(self._active_operations.values())
+        destructive = [kind for kind in active if kind in ("fastboot_flash", "fastboot_maintenance", "sideload")]
+        if destructive:
+            answer = messagebox.askyesno(
+                "Operation in progress",
+                "A potentially destructive device operation is still running ("
+                + ", ".join(sorted(set(destructive)))
+                + "). Closing DroidLab will request cancellation and may leave the device in an incomplete state. Close anyway?",
+                icon="warning",
+                parent=self,
+            )
+            if not answer:
+                return
+        elif active and not messagebox.askyesno(
+            "Operations in progress",
+            "DroidLab still has device commands running. Request cancellation and close?",
+            icon="warning",
+            parent=self,
+        ):
+            return
+        self._closing = True
+        self.payload_cancel_event.set()
+        self.command_cancel_event.set()
+        try:
+            self._stop_adb_logcat()
+        except (AttributeError, tk.TclError, OSError):
+            logging.debug("Could not stop logcat cleanly during shutdown", exc_info=True)
+        worker = getattr(self, "worker", None)
+        if worker is not None and worker.is_alive() and worker is not threading.current_thread():
+            worker.join(timeout=0.75)
+        try:
+            self.destroy()
+        except tk.TclError:
+            pass
+
     def _load_theme_name(self):
         """Load the saved theme, preserving the original fallback palette."""
         name = load_settings().get("theme")
