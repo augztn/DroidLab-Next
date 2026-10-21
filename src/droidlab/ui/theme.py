@@ -15,6 +15,8 @@ class ThemeSupport:
         old_tokens = getattr(self, "theme_tokens", THEME_TOKENS[name])
         self.theme_name = name
         self.theme_tokens = t = THEME_TOKENS[name]
+        # Rebuild shared ttk styles from the active tokens before recoloring widgets.
+        self._configure_widget_styles()
         self.configure(bg=t["bg"])
         style = ttk.Style(self)
         try:
@@ -36,9 +38,9 @@ class ThemeSupport:
         style.map("TButton", background=[("pressed", t["accent2"]), ("active", t["panel_alt"])],
                   foreground=[("disabled", t["muted"]), ("active", t["text"])],
                   bordercolor=[("focus", t["accent"])])
-        style.configure("Primary.TButton", background=t["accent2"], foreground="#ffffff",
+        style.configure("Primary.TButton", background=t["accent"], foreground="#ffffff",
                         padding=(14, 7), bordercolor=t["accent"])
-        style.map("Primary.TButton", background=[("active", t["accent"])])
+        style.map("Primary.TButton", background=[("active", t["accent2"]), ("disabled", t["panel_alt"])])
         style.configure("TEntry", fieldbackground=t["input"], foreground=t["text"],
                         insertcolor=t["text"], bordercolor=t["border"], padding=6)
         style.configure("TCombobox", fieldbackground=t["input"], background=t["button"],
