@@ -78,6 +78,8 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
         self.configure(menu=menu)
         self.source=tk.StringVar(); self.output=tk.StringVar(value=str(Path.home()/APP_NAME)); self.fingerprint=tk.BooleanVar(value=True); self.status=tk.StringVar(value="Ready")
         self.parts={}; self.part_vars={}; self._build()
+        # Ensure native Tk surfaces and ttk controls use the same selected palette.
+        self._apply_theme(self.theme_name)
         self.report_callback_exception = self._report_callback_exception
         logging.info("UI initialized")
         self.after(100,self._poll_events)
