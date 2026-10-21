@@ -209,7 +209,6 @@ class FastbootViewSupport:
         self.fastboot_console.pack(side="left", fill="both", expand=True)
         self._console_write(self.fastboot_console, "[DroidLab] Fastboot console ready. Commands and activity will appear here.\n")
 
-        self.flash_image.trace_add("write", lambda *_: self._on_flash_image_changed())
         self.flash_partition.trace_add("write", lambda *_: self._update_flash_preview())
         self.fastboot_device.trace_add("write", lambda *_: self._update_flash_preview())
 
