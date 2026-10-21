@@ -185,7 +185,6 @@ class FastbootViewSupport:
                   foreground="#fecaca", background="#2a1d27", wraplength=850, justify="left",
                   font=("Sans", 9), padding=8).grid(row=3, column=0, sticky="ew", pady=(0, 8))
 
-        self.flash_image.trace_add("write", lambda *_: self._on_flash_image_changed())
         self._enable_drop(tab)
 
         # The console owns the full right workspace height for continuous output visibility.
