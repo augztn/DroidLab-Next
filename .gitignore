@@ -34,3 +34,10 @@ compile_commands.json
 *.payload
 output/
 extracted/
+
+# Python bytecode, test caches, and local package metadata
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/

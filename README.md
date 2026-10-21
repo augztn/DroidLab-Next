@@ -1,58 +1,111 @@
 # DroidLab
 
-DroidLab is a desktop Android firmware toolkit for inspecting and extracting OTA `payload.bin` files and OTA ZIP packages, guarded Fastboot flashing, and ADB diagnostics and sideloading. It is not an Android app manager or bloatware-removal tool. Linux builds are distributed as AppImages; Windows builds are distributed as portable ZIP bundles.
+DroidLab is a cross-platform desktop toolkit for Android firmware inspection, payload extraction, ADB diagnostics, and guarded Fastboot workflows. It is a desktop application—not an Android app manager or debloating utility.
 
-## Current implementation
+DroidLab can inspect OTA `payload.bin` files and OTA ZIP packages, extract all or selected partition images, collect ADB diagnostics, stream and save logcat, sideload compatible ZIPs, and perform Fastboot maintenance and image flashing with explicit destructive-action confirmation.
 
-- Tkinter desktop interface with source and output pickers.
-- Inspect OTA metadata and show partition names/sizes with multi-select controls.
-- Extract all partitions or selected partitions.
-- Display backend output and provide cancellation by terminating the backend process.
-- Optional SHA-256 fingerprints for output files. These fingerprints are not a substitute for the OTA backend's own integrity checks.
-- **Payload Extractor:** inspect OTA packages and extract all or selected partition images.
-- **Fastboot & Flashing:** drag/drop `.img` files, filename-based partition suggestions, Fastboot device detection, command preview, and explicit confirmation before flashing.
-- **ADB & Sideload:** detect ADB device states, reboot normally or to bootloader/recovery, view and filter live `adb logcat`, pause/resume log display, save logs, create and verify bugreport ZIPs, run shell diagnostics, and sideload compatible ZIP packages.
-- Windows bundles include Google's ADB/Fastboot when compatible platform-tools binaries are available. The app prefers bundled tools and falls back to `PATH`; Linux builds use installed ADB/Fastboot from `PATH`.
-- The app requires explicit confirmation before rebooting, flashing, sideloading, or collecting a bugreport. Bugreports may contain sensitive device data.
-- The AppImage build script packages the GUI plus the `payload-dumper-go` backend.
+## Capabilities
 
-## Windows build
+- **Payload inspection and extraction:** inspect OTA metadata, view partition names and sizes, filter/select partitions, choose an output directory, cancel extraction, and optionally calculate SHA-256 fingerprints for output files.
+- **ADB diagnostics:** discover connected devices and their states; run shell diagnostics; reboot to normal, bootloader, or recovery; sideload compatible ZIP packages; stream, filter, pause, and save logcat; and create bugreport archives.
+- **Guarded Fastboot workflows:** detect Fastboot devices, preview commands, suggest partitions from image filenames, flash images, switch slots, and run supported maintenance actions. Destructive commands are validated and require confirmation.
+- **Portable packaging:** Linux AppImage and Windows portable ZIP bundles can include the payload extraction backend and compatible Android platform-tools binaries. If a bundled ADB/Fastboot binary is not available, DroidLab falls back to the user's `PATH`.
 
-Portable Windows `.exe` bundles are built by GitHub Actions for x64 (64-bit Intel/AMD) and ARM64. 32-bit Windows is currently unsupported because the upstream payload extraction backend does not provide a Windows 386 release and its dependencies do not compile for that target. Open the [Windows Actions](https://github.com/augztn/DroidLab/actions/workflows/windows.yml) page, select a successful build, and download `droidlab-windows-x64` or `droidlab-windows-arm64`. Extract the ZIP and run `DroidLab.exe`.
+Bugreports and device logs can contain sensitive personal or device information. Review their contents before sharing them. SHA-256 output fingerprints are useful for comparison but do not replace the OTA backend's own integrity checks.
 
-Each bundle includes `DroidLab.exe`, the matching `payload-dumper-go.exe` backend, and Google's `adb.exe`/`fastboot.exe` when compatible platform-tools binaries are available for that build. DroidLab checks its bundled `bin` folder first, then falls back to tools on `PATH`. If a bundle does not contain ADB/Fastboot, install compatible Android SDK Platform-Tools and add them to `PATH`. ARM64 requires a native Windows ARM64 runner and a matching upstream backend asset; that build may fail if either dependency is unavailable. These builds still need testing on real Windows devices before being considered stable.
+## Architecture
 
-## Build locally
+The application keeps a compatibility bootstrap at `src/app.py`; the package implementation is organized by responsibility:
 
-Build dependencies on Ubuntu/Debian:
-
-```bash
-sudo apt update
-sudo apt install python3 python3-tk python3-pip xz-utils wget file
-python3 -m pip install --user pyinstaller
+```text
+src/
+├── app.py                         # Legacy-compatible entrypoint
+├── command_guards.py              # Legacy import shim
+├── payload_dumper.py              # Legacy import shim
+├── process_runner.py              # Legacy import shim
+├── ui_metrics.py                  # Legacy import shim
+└── droidlab/
+    ├── __init__.py
+    ├── __main__.py                # python -m droidlab
+    ├── config/                    # App constants, settings, logging
+    ├── core/                      # UI-independent command guards, process runner,
+    │                              # and payload backend adapter
+    ├── controllers/               # Device, ADB, Fastboot, payload workflows
+    └── ui/                        # Main window, layout, views, dialogs, widgets,
+                                   # theme support, and UI sizing
 ```
 
-Then install `appimagetool` and run:
+Controller mixins preserve the existing `PayloadDumperApp` widget attributes, callback names, worker signatures, cancellation state, and UI event queue protocol. The core package is intentionally free of Tkinter dependencies. Legacy flat-module shims remain for existing tests, callers, and frozen-build compatibility.
+
+## Requirements
+
+- Python 3.10 or newer.
+- Tkinter support for the Python installation (on Debian/Ubuntu, install the matching `python3-tk` package).
+- `tkinterdnd2`, installed automatically by the project package.
+- Android `adb` and `fastboot` on `PATH`, unless a platform bundle supplies them.
+- A compatible `payload-dumper-go` backend for payload extraction; the portable build workflows package this backend.
+
+## Install and launch
+
+From the repository root, create and activate a virtual environment if desired, then install the project:
 
 ```bash
+python -m pip install -e .
+```
+
+Launch using any of the supported entrypoints:
+
+```bash
+python src/app.py       # compatibility entrypoint
+python -m droidlab      # package entrypoint (after installation)
+```
+
+For development and test dependencies:
+
+```bash
+python -m pip install -e ".[dev,build]"
+```
+
+## Tests and code checks
+
+Run both supported test suites from the repository root:
+
+```bash
+python -m pytest -q
+python -m unittest discover -s tests
+```
+
+The package-wiring tests validate module imports, controller/view mixin wiring, legacy entrypoints, tool/backend path discovery, worker event characteristics, and PyInstaller submodule collection settings. A headless test run may stub `tkinterdnd2` for import-only checks; that is not a substitute for launching the actual GUI or smoke-testing a frozen executable.
+
+If Ruff is installed, run:
+
+```bash
+ruff check src tests
+```
+
+## Portable builds
+
+### Linux AppImage
+
+The build script requires Python/Tkinter, PyInstaller, `wget`, `tar`, `xz`, and the AppImage packaging tools. On Ubuntu/Debian, install the system Tk package first. Then install the project's build dependencies and run:
+
+```bash
+python -m pip install -e ".[dev,build]"
 VERSION=0.1.0 bash scripts/build-linux.sh
 ```
 
-The build downloads the `payload-dumper-go` release binary and embeds its Apache-2.0 license notice in the AppDir. The AppImage build is currently x86_64 by default. The build script can create an AppDir if `appimagetool` is missing, but it will return a non-zero status rather than claim an AppImage was created.
+The script downloads the pinned payload backend, verifies its SHA-256 checksum, freezes the GUI with PyInstaller, and assembles an AppDir/AppImage. The build workflow documents the exact CI environment and performs a startup smoke test. AppImages should still be tested on supported target distributions before publishing a release.
 
-For development, run `bash scripts/run-portable.sh`. The local development mode requires Python 3 and Tkinter plus `payload-dumper-go` on `PATH`.
+### Windows portable ZIP
 
-## Backend
+Windows bundles are produced by the `Windows build` and `All-platforms bundle` GitHub Actions workflows. They package the GUI executable, payload backend, and compatible Android platform-tools when available. To build locally, use a supported Windows Python/Tkinter environment, install `.[dev,build]`, and run the PyInstaller command in `.github/workflows/windows.yml` or `.github/workflows/cross-platform-bundle.yml`; the workflows also assemble the portable ZIP layout.
 
-Backend project: [ssut/payload-dumper-go](https://github.com/ssut/payload-dumper-go), Apache License 2.0. It supports raw `payload.bin` and OTA ZIP inputs, listing partitions (`-l`), machine-readable listing (`-m`), selected partitions (`-p`), and output directories (`-o`).
+CI build outputs are useful validation artifacts, but should not be treated as a production release until startup and representative OTA/device workflows have been smoke-tested on clean systems.
 
-Known limitations inherited from the backend include unsupported `PUFFDIFF`, `ZUCCHINI`, and `LZ4DIFF_*` delta operations in affected partitions. Incremental/delta packages may require base images, and `xz` must be available. Read the backend's documentation before relying on extracted images for device flashing.
+## Known limitations
 
-## Status and validation
+The payload backend has inherited limitations for some delta operations, including `PUFFDIFF`, `ZUCCHINI`, and `LZ4DIFF_*`. Incremental OTA packages may require base images, and `xz` may be needed for applicable payloads. Read the upstream backend documentation before relying on extracted images for device flashing.
 
-This is an active implementation, not yet a claimed production release. CI checks Python compilation and unit tests. A version-tag build is responsible for making the AppImage and attaching a checksum, but the produced artifact still needs smoke testing on clean Ubuntu, Fedora, and Arch machines and with real full/incremental OTA samples before being considered release-ready.
+## License
 
-## Reference projects
-
-- [rhythmcache/droidlab-gui](https://github.com/rhythmcache/droidlab-gui)
-- [rajmani7584/Payload-Dumper-Android](https://github.com/rajmani7584/Payload-Dumper-Android)
+DroidLab is distributed under the Apache License, Version 2.0. See [LICENSE](LICENSE).

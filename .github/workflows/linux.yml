@@ -21,14 +21,16 @@ jobs:
       - name: Install GUI and packaging dependencies
         run: sudo apt-get update && sudo apt-get install -y python3-tk xz-utils wget file gir1.2-gtk-4.0 gir1.2-gtk-3.0 python3-gi
       - name: Install Python packaging tools
-        run: python -m pip install --upgrade pyinstaller "tkinterdnd2>=0.4.3,<1"
+        run: python -m pip install -e ".[dev,build]"
       - name: Compile-check Python
         run: python3 -m compileall -q src tests
       - name: Run tests
-        run: PYTHONPATH=. python3 -m unittest discover -s tests -v
+        run: |
+          PYTHONPATH=. python3 -m unittest discover -s tests -v
+          python3 -m pytest -q
       - name: Smoke-test frozen GUI bundle
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name droidlab-gui --distpath /tmp/pyinstaller-dist --workpath /tmp/pyinstaller-build --specpath /tmp --paths src --hidden-import=payload_dumper --hidden-import=ui_metrics --hidden-import=tkinter.ttk --collect-all tkinterdnd2 src/app.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name droidlab-gui --distpath /tmp/pyinstaller-dist --workpath /tmp/pyinstaller-build --specpath /tmp --paths src --collect-submodules droidlab --hidden-import=payload_dumper --hidden-import=ui_metrics --hidden-import=tkinter.ttk --collect-all tkinterdnd2 src/app.py
           test -x /tmp/pyinstaller-dist/droidlab-gui
 
   # Build and smoke-test the AppImage on PRs too, and make non-release test builds downloadable.
@@ -46,7 +48,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-tk xz-utils wget file libfuse2 xvfb gir1.2-gtk-4.0 gir1.2-gtk-3.0 python3-gi
-          python -m pip install --upgrade pyinstaller "tkinterdnd2>=0.4.3,<1"
+          python -m pip install -e ".[dev,build]"
           wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O /tmp/appimagetool
           echo "95cbe7cce9717fce90c484e34052ee7c7f1d7635b33c12525b4776826a7d29b6  /tmp/appimagetool" | sha256sum --check
           wget -q https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64 -O /tmp/runtime-x86_64
