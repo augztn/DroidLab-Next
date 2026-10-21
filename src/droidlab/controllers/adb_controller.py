@@ -16,6 +16,7 @@ import tkinter as tk
 import webbrowser
 from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
+from tkinterdnd2 import DND_FILES
 
 from droidlab.config.constants import APP_NAME, THEME_TOKENS
 from droidlab.core.command_guards import (

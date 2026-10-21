@@ -161,6 +161,7 @@ class ThemeSupport:
         except OSError as exc:
             logging.warning("Unable to save theme preference: %s", exc)
     
+    @staticmethod
     def _walk_widgets(parent):
         """Yield descendants safely; never alter callbacks or device operations."""
         for child in parent.winfo_children():
