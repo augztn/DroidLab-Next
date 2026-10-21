@@ -87,7 +87,7 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
         """Stop active subprocess work before destroying the Tk interpreter."""
         with self._active_operations_guard:
             active = list(self._active_operations.values())
-        destructive = [kind for kind in active if kind in ("fastboot_flash", "fastboot_maintenance", "sideload")]
+        destructive = [kind for kind in active if kind in ("fastboot_flash", "fastboot_maintenance", "fastboot_manual", "sideload")]
         if destructive:
             answer = messagebox.askyesno(
                 "Operation in progress",
