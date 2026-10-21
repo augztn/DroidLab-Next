@@ -255,7 +255,7 @@ class ADBControllerMixin:
                     serial = command[selector_index + 1]
             if "-s" in command and not is_valid_device_serial(serial or ""):
                 message = "Command rejected: device serial is missing or malformed."
-                self.events.put(("console_line", (kind, "[DroidLab] ERROR: " + message + "\\n")))
+                self.events.put(("console_line", (kind, "[DroidLab] ERROR: " + message + "\n")))
                 self.events.put(("adb_result", (kind, -1, message)))
                 return
             if not serial:
