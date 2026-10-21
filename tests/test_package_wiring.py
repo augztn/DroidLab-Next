@@ -65,6 +65,21 @@ class PackageImportTests(unittest.TestCase):
             with self.subTest(module=name):
                 self.assertIsNotNone(importlib.import_module(name))
 
+    def test_theme_widget_walk_supports_instance_call_and_nested_widgets(self):
+        from droidlab.ui.theme import ThemeSupport
+
+        class Widget:
+            def __init__(self, *children):
+                self.children = list(children)
+
+            def winfo_children(self):
+                return self.children
+
+        grandchild = Widget()
+        child = Widget(grandchild)
+        root = Widget(child)
+        self.assertEqual(list(ThemeSupport()._walk_widgets(root)), [child, grandchild])
+
     def test_payload_app_has_expected_view_and_support_mixins(self):
         app_module = importlib.import_module("app")
         from droidlab.ui.adb_view import ADBViewSupport
