@@ -1,0 +1,57 @@
+"""Stable application metadata and visual defaults."""
+
+APP_NAME = "DroidLab"  # Canonical product name.
+
+THEME_TOKENS = {
+    "cyberpunk_glass": {
+        "label": "Cyberpunk Neon",
+        "bg": "#0d1117",
+        "panel": "#161f30",
+        "panel_alt": "#1c2940",
+        "border": "#24415b",
+        "text": "#f8fafc",
+        "muted": "#94a3b8",
+        "input": "#0b1422",
+        "accent": "#00d2ff",
+        "accent2": "#8b5cf6",
+        "button": "#1c2940",
+        "console": "#080c12",
+        "success": "#10b981",
+        "warning": "#f59e0b",
+        "danger": "#f87171"
+    },
+    "standard_dark": {
+        "label": "Standard Dark",
+        "bg": "#121214",
+        "panel": "#1c1c20",
+        "panel_alt": "#25252c",
+        "border": "#2e2e36",
+        "text": "#e4e4e7",
+        "muted": "#a1a1aa",
+        "input": "#141418",
+        "accent": "#3b82f6",
+        "accent2": "#6366f1",
+        "button": "#25252c",
+        "console": "#09090b",
+        "success": "#10b981",
+        "warning": "#f59e0b",
+        "danger": "#f87171"
+    },
+    "oled_black": {
+        "label": "OLED Black",
+        "bg": "#000000",
+        "panel": "#0a0a0a",
+        "panel_alt": "#151515",
+        "border": "#222222",
+        "text": "#fafafa",
+        "muted": "#a3a3a3",
+        "input": "#050505",
+        "accent": "#e5e7eb",
+        "accent2": "#a1a1aa",
+        "button": "#171717",
+        "console": "#000000",
+        "success": "#34d399",
+        "warning": "#fbbf24",
+        "danger": "#f87171"
+    }
+}

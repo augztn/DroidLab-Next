@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "droidlab"
+version = "0.1.0"
+description = "Desktop Android firmware inspection, extraction, ADB diagnostics, and guarded Fastboot workflows."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+dependencies = [
+    "tkinterdnd2>=0.4.3,<1",
+]
+
+[project.optional-dependencies]
+build = [
+    "pyinstaller>=6.0,<7",
+]
+dev = [
+    "pytest>=8,<10",
+    "ruff>=0.11,<1",
+]
+
+[project.gui-scripts]
+droidlab = "droidlab.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["app", "command_guards", "payload_dumper", "process_runner", "ui_metrics"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["droidlab*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

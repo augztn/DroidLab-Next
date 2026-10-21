@@ -3,7 +3,6 @@
 from __future__ import annotations
 import os, queue, threading, tkinter as tk, shutil, re, shlex, sys, json
 import subprocess, webbrowser, logging, platform
-from logging.handlers import RotatingFileHandler
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 from tkinterdnd2 import DND_FILES, TkinterDnD
 from pathlib import Path
@@ -11,6 +10,11 @@ from payload_dumper import BackendError, extract, inspect_source, sha256_file
 from command_guards import (is_destructive_adb, is_destructive_fastboot, is_valid_partition_name,
                             validate_device_selector, is_fastboot_target_connected)
 from ui_metrics import column_width, tree_row_height
+from droidlab.config.constants import APP_NAME, THEME_TOKENS
+from droidlab.config.logging_config import configure_logging as _configure_logging, log_directory as _log_directory, log_uncaught_exception as _log_uncaught_exception
+from droidlab.config.settings import load_settings
+from droidlab.ui.theme import ThemeSupport
+from droidlab.ui.dialogs import DialogSupport
 try:
     from .process_runner import ProcessCancelledError, run_streaming, terminate_process
 except ImportError:  # direct execution from the src directory
@@ -29,115 +33,14 @@ def _windows_process_options():
     }
 
 
-APP_NAME = "DroidLab"  # Canonical product name.
-
-THEME_TOKENS = {
-    "cyberpunk_glass": {
-        "label": "Cyberpunk Neon",
-        "bg": "#0d1117",
-        "panel": "#161f30",
-        "panel_alt": "#1c2940",
-        "border": "#24415b",
-        "text": "#f8fafc",
-        "muted": "#94a3b8",
-        "input": "#0b1422",
-        "accent": "#00d2ff",
-        "accent2": "#8b5cf6",
-        "button": "#1c2940",
-        "console": "#080c12",
-        "success": "#10b981",
-        "warning": "#f59e0b",
-        "danger": "#f87171"
-    },
-    "standard_dark": {
-        "label": "Standard Dark",
-        "bg": "#121214",
-        "panel": "#1c1c20",
-        "panel_alt": "#25252c",
-        "border": "#2e2e36",
-        "text": "#e4e4e7",
-        "muted": "#a1a1aa",
-        "input": "#141418",
-        "accent": "#3b82f6",
-        "accent2": "#6366f1",
-        "button": "#25252c",
-        "console": "#09090b",
-        "success": "#10b981",
-        "warning": "#f59e0b",
-        "danger": "#f87171"
-    },
-    "oled_black": {
-        "label": "OLED Black",
-        "bg": "#000000",
-        "panel": "#0a0a0a",
-        "panel_alt": "#151515",
-        "border": "#222222",
-        "text": "#fafafa",
-        "muted": "#a3a3a3",
-        "input": "#050505",
-        "accent": "#e5e7eb",
-        "accent2": "#a1a1aa",
-        "button": "#171717",
-        "console": "#000000",
-        "success": "#34d399",
-        "warning": "#fbbf24",
-        "danger": "#f87171"
-    }
-}
 
 
-def _settings_path():
-    return Path.home() / "DroidLab" / "config.json"
 
-def _log_directory():
-    """Keep logs in a clearly visible DroidLab folder inside the user's home directory."""
-    return Path.home() / "DroidLab" / "logs"
 
-def _configure_logging():
-    directory = _log_directory()
-    log_file = directory / "droidlab.log"
-    logger = logging.getLogger()
-    try:
-        directory.mkdir(parents=True, exist_ok=True)
-        # Keep exactly one file handler for this path, even if an earlier
-        # startup path or packaged runtime installed duplicate handlers.
-        matching = [
-            handler for handler in logger.handlers
-            if isinstance(handler, RotatingFileHandler)
-            and Path(getattr(handler, "baseFilename", "")).resolve() == log_file.resolve()
-        ]
-        marked = [handler for handler in matching if getattr(handler, "_droidlab_handler", False)]
-        keep = marked[0] if marked else (matching[0] if matching else None)
-        for handler in matching:
-            if handler is not keep:
-                logger.removeHandler(handler)
-                try:
-                    handler.close()
-                except OSError:
-                    pass
-        if keep is None:
-            keep = RotatingFileHandler(log_file, maxBytes=2 * 1024 * 1024, backupCount=4, encoding="utf-8")
-            logger.addHandler(keep)
-        keep._droidlab_handler = True
-        keep.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(threadName)s | %(name)s | %(message)s"))
-        logger.setLevel(logging.INFO)
-        if not getattr(logger, "_droidlab_started", False):
-            logger._droidlab_started = True
-            logging.info("==== %s starting ====", APP_NAME)
-            logging.info("Platform: %s | Python: %s | frozen: %s", platform.platform(), sys.version.replace("\n", " "), bool(getattr(sys, "frozen", False)))
-        return log_file
-    except OSError:
-        logging.basicConfig(level=logging.INFO)
-        logging.exception("Could not initialize file logging at %s", directory)
-        return None
 
-def _log_uncaught_exception(exc_type, exc_value, exc_traceback):
-    if issubclass(exc_type, KeyboardInterrupt):
-        sys.__excepthook__(exc_type, exc_value, exc_traceback)
-        return
-    logging.critical("Uncaught application exception", exc_info=(exc_type, exc_value, exc_traceback))
 
-class PayloadDumperApp(TkinterDnD.Tk):
+
+class PayloadDumperApp(DialogSupport, ThemeSupport, TkinterDnD.Tk):
     def __init__(self):
         super().__init__()
         self.log_path = _configure_logging()
@@ -171,196 +74,9 @@ class PayloadDumperApp(TkinterDnD.Tk):
         logging.info("UI initialized")
         self.after(100,self._poll_events)
     def _load_theme_name(self):
-        try:
-            name = json.loads(_settings_path().read_text(encoding="utf-8")).get("theme")
-            return name if name in THEME_TOKENS else "cyberpunk_glass"
-        except (OSError, ValueError, AttributeError):
-            return "cyberpunk_glass"
-
-    def _apply_theme(self, name):
-        """Apply a palette live; intentionally does not touch device/backend logic."""
-        if name not in THEME_TOKENS:
-            return
-        old_tokens = getattr(self, "theme_tokens", THEME_TOKENS[name])
-        self.theme_name = name
-        self.theme_tokens = t = THEME_TOKENS[name]
-        self.configure(bg=t["bg"])
-        style = ttk.Style(self)
-        try:
-            if "clam" in style.theme_names():
-                style.theme_use("clam")
-        except tk.TclError:
-            pass
-        style.configure(".", background=t["bg"], foreground=t["text"])
-        style.configure("TFrame", background=t["bg"])
-        style.configure("Panel.TFrame", background=t["panel"], bordercolor=t["border"], relief="flat")
-        style.configure("TLabel", background=t["bg"], foreground=t["text"])
-        style.configure("PanelHeading.TLabel", background=t["panel"], foreground=t["accent"],
-                        font=(self._ui_font, 10, "bold"))
-        style.configure("PanelMuted.TLabel", background=t["panel"], foreground=t["muted"])
-        style.configure("Title.TLabel", background=t["bg"], foreground=t["text"])
-        style.configure("Muted.TLabel", background=t["bg"], foreground=t["muted"])
-        style.configure("TButton", background=t["button"], foreground=t["text"],
-                        padding=(12, 7), bordercolor=t["border"], relief="flat")
-        style.map("TButton", background=[("pressed", t["accent2"]), ("active", t["panel_alt"])],
-                  foreground=[("disabled", t["muted"]), ("active", t["text"])],
-                  bordercolor=[("focus", t["accent"])])
-        style.configure("Primary.TButton", background=t["accent2"], foreground="#ffffff",
-                        padding=(14, 7), bordercolor=t["accent"])
-        style.map("Primary.TButton", background=[("active", t["accent"])])
-        style.configure("TEntry", fieldbackground=t["input"], foreground=t["text"],
-                        insertcolor=t["text"], bordercolor=t["border"], padding=6)
-        style.configure("TCombobox", fieldbackground=t["input"], background=t["button"],
-                        foreground=t["text"], arrowcolor=t["accent"], padding=5)
-        style.map("TCombobox", fieldbackground=[("readonly", t["input"])],
-                  foreground=[("readonly", t["text"])])
-        style.configure("TCheckbutton", background=t["panel"], foreground=t["text"])
-        style.configure("TRadiobutton", background=t["panel"], foreground=t["text"])
-        style.configure("Treeview", background=t["input"], fieldbackground=t["input"],
-                        foreground=t["text"], bordercolor=t["border"])
-        style.configure("Treeview.Heading", background=t["panel_alt"], foreground=t["text"])
-        style.map("Treeview", background=[("selected", t["accent2"])],
-                  foreground=[("selected", "#ffffff")])
-        style.configure("TNotebook", background=t["bg"], borderwidth=0, tabmargins=(3, 5, 3, 0))
-        style.configure("TNotebook.Tab", background=t["panel"], foreground=t["muted"],
-                        padding=(16, 9), borderwidth=0)
-        style.map("TNotebook.Tab", background=[("selected", t["panel_alt"]), ("active", t["button"])],
-                  foreground=[("selected", t["accent"]), ("active", t["text"])])
-
-        # Recolor native Tk widgets as well as ttk. Preserve semantic colors
-        # (green/red/amber status indicators) and only replace known surfaces.
-        # Re-map legacy colors and the previous theme's token colors so repeated
-        # live theme switches continue to recolor existing native Tk widgets.
-        color_roles = ("bg", "panel", "panel_alt", "border", "text", "muted",
-                       "input", "accent", "accent2", "button", "console")
-        old_token_colors = {str(old_tokens[key]).lower(): t[key]
-                            for key in color_roles if key in old_tokens and key in t}
-        old_surface = {
-            "#161922": t["panel"], "#161b22": t["panel"], "#1e222d": t["panel"],
-            "#1f2937": t["panel"], "#111827": t["bg"], "#0b1220": t["console"],
-            "#0d1117": t["bg"], "#2a3040": t["border"], "#30363d": t["border"],
-            "#334155": t["panel_alt"], "#263449": t["button"],
-        }
-        old_surface.update({str(old_tokens[key]).lower(): t[key]
-                            for key in ("bg", "panel", "panel_alt", "border", "input", "console", "button")
-                            if key in old_tokens and key in t})
-        for widget in self._walk_widgets(self):
-            try:
-                kind = widget.winfo_class()
-                if kind in ("Frame", "Labelframe", "Toplevel"):
-                    current = str(widget.cget("bg")).lower()
-                    if current in old_surface:
-                        widget.configure(bg=old_surface[current])
-                    try:
-                        widget.configure(highlightbackground=t["border"])
-                    except tk.TclError:
-                        pass
-                elif kind == "Label":
-                    bg = str(widget.cget("bg")).lower()
-                    fg = str(widget.cget("fg")).lower()
-                    if bg in old_surface:
-                        widget.configure(bg=old_surface[bg])
-                    if fg in old_token_colors:
-                        widget.configure(fg=old_token_colors[fg])
-                    elif fg in ("#f3f4f6", "#f8fafc", "#e6edf3", "#d1d5db", "#cbd5e1"):
-                        widget.configure(fg=t["text"])
-                    elif fg in ("#94a3b8", "#8b949e"):
-                        widget.configure(fg=t["muted"])
-                elif kind == "Button":
-                    options = {}
-                    for option, mapping in (("bg", old_surface), ("activebackground", old_surface),
-                                            ("fg", old_token_colors), ("activeforeground", old_token_colors)):
-                        try:
-                            current = str(widget.cget(option)).lower()
-                            if current in mapping:
-                                options[option] = mapping[current]
-                        except tk.TclError:
-                            pass
-                    if options:
-                        widget.configure(**options)
-                elif kind in ("Text", "Entry", "Listbox"):
-                    try:
-                        widget.configure(
-                            bg=t["console"] if widget in (
-                                getattr(self, "log", None), getattr(self, "fastboot_console", None),
-                                getattr(self, "adb_console", None),
-                            ) else t["input"],
-                            fg=t["text"], insertbackground=t["accent"],
-                        )
-                    except tk.TclError:
-                        pass
-            except (tk.TclError, TypeError):
-                continue
-
-        for attr in ("log", "fastboot_console", "adb_console"):
-            widget = getattr(self, attr, None)
-            if widget:
-                try:
-                    widget.configure(bg=t["console"], fg=t["text"], insertbackground=t["accent"])
-                except tk.TclError:
-                    pass
-        if hasattr(self, "header_telemetry"):
-            try:
-                self.header_telemetry.configure(bg=t["panel"], highlightbackground=t["border"])
-            except tk.TclError:
-                pass
-        if hasattr(self, "header_status_label"):
-            try:
-                self.header_status_label.configure(bg=t["panel"], fg=t["text"])
-            except tk.TclError:
-                pass
-        if hasattr(self, "theme_button"):
-            try:
-                self.theme_button.configure(bg=t["panel"], fg=t["muted"],
-                                            activebackground=t["panel_alt"], activeforeground=t["accent"])
-            except tk.TclError:
-                pass
-        for slot, button in getattr(self, "header_slot_buttons", {}).items():
-            try:
-                active = getattr(self, "header_device_vars", {}).get("slot", tk.StringVar(value="")).get().lower().endswith(slot)
-                button.configure(bg=t["accent"] if active else t["button"],
-                                 fg="#07111B" if active and name == "cyberpunk_glass" else t["text"],
-                                 activebackground=t["accent2"])
-            except tk.TclError:
-                pass
-        try:
-            path = _settings_path()
-            path.parent.mkdir(parents=True, exist_ok=True)
-            try: config = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
-            except (OSError, ValueError): config = {}
-            config["theme"] = name
-            path.write_text(json.dumps(config, indent=2), encoding="utf-8")
-        except OSError as exc:
-            logging.warning("Unable to save theme preference: %s", exc)
-
-    @staticmethod
-    def _walk_widgets(parent):
-        """Yield descendants safely; never alter callbacks or device operations."""
-        for child in parent.winfo_children():
-            yield child
-            yield from PayloadDumperApp._walk_widgets(child)
-
-    def _open_theme_picker(self):
-        t = self.theme_tokens
-        dialog = tk.Toplevel(self)
-        dialog.title("DroidLab appearance")
-        dialog.transient(self)
-        dialog.configure(bg=t["bg"])
-        dialog.resizable(False, False)
-        panel = tk.Frame(dialog, bg=t["panel"], padx=18, pady=16, highlightthickness=1, highlightbackground=t["border"])
-        panel.pack(fill="both", expand=True, padx=12, pady=12)
-        tk.Label(panel, text="APPEARANCE", bg=t["panel"], fg=t["text"], font=(self._ui_font, 13, "bold")).pack(anchor="w")
-        tk.Label(panel, text="Changes apply immediately and persist across launches.", bg=t["panel"], fg=t["muted"]).pack(anchor="w", pady=(3, 12))
-        for name, tokens in THEME_TOKENS.items():
-            desc = tokens["label"]
-            tk.Button(panel, text=("✓  " if name == self.theme_name else "    ") + desc,
-                      command=lambda n=name, d=dialog: (self._apply_theme(n), d.destroy()),
-                      anchor="w", bg=t["button"], fg=t["text"], activebackground=t["accent2"],
-                      activeforeground="#ffffff", relief="flat", bd=0, padx=10, pady=9).pack(fill="x", pady=3)
-        ttk.Button(panel, text="Close", command=dialog.destroy).pack(anchor="e", pady=(10, 0))
-        dialog.update_idletasks()
-        dialog.geometry(f"+{self.winfo_rootx()+80}+{self.winfo_rooty()+80}")
-        dialog.grab_set()
+        """Load the saved theme, preserving the original fallback palette."""
+        name = load_settings().get("theme")
+        return name if name in THEME_TOKENS else "cyberpunk_glass"
 
     def _report_callback_exception(self, exc_type, exc_value, exc_traceback):
         logging.error("Unhandled Tkinter callback exception", exc_info=(exc_type, exc_value, exc_traceback))
@@ -416,163 +132,6 @@ class PayloadDumperApp(TkinterDnD.Tk):
                 return str(candidate)
         return shutil.which(name)
 
-    def _show_about(self):
-        """Show a responsive, scrollable About dialog."""
-        dialog = tk.Toplevel(self)
-        dialog.title("About DroidLab")
-        dialog.configure(bg="#111827")
-        dialog.transient(self)
-        dialog.resizable(True, True)
-
-        self.update_idletasks()
-        width = min(620, max(440, self.winfo_screenwidth() - 80))
-        height = min(680, max(420, self.winfo_screenheight() - 100))
-        x = self.winfo_rootx() + max(0, (self.winfo_width() - width) // 2)
-        y = self.winfo_rooty() + max(0, (self.winfo_height() - height) // 2)
-        dialog.geometry(f"{width}x{height}+{x}+{y}")
-        dialog.minsize(min(420, width), min(360, height))
-
-        # Keep the title and close action fixed; scroll the complete content area.
-        outer = ttk.Frame(dialog, padding=(14, 12))
-        outer.pack(fill="both", expand=True)
-        header = ttk.Frame(outer)
-        header.pack(fill="x", pady=(0, 10))
-        ttk.Label(header, text="About DroidLab", font=("Sans", 14, "bold")).pack(side="left")
-        ttk.Button(header, text="Close", command=dialog.destroy).pack(side="right")
-
-        body = ttk.Frame(outer)
-        body.pack(fill="both", expand=True)
-        canvas = tk.Canvas(body, bg="#111827", highlightthickness=0, borderwidth=0)
-        scrollbar = ttk.Scrollbar(body, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-        content_frame = ttk.Frame(canvas, padding=(2, 2, 10, 14))
-        content_window = canvas.create_window((0, 0), window=content_frame, anchor="nw")
-
-        def update_scroll_region(_event=None):
-            canvas.configure(scrollregion=canvas.bbox("all"))
-
-        def fit_content_width(event):
-            canvas.itemconfigure(content_window, width=event.width)
-
-        content_frame.bind("<Configure>", update_scroll_region)
-        canvas.bind("<Configure>", fit_content_width)
-
-        hero = tk.Frame(content_frame, bg="#1d4ed8", padx=18, pady=22)
-        hero.pack(fill="x")
-        tk.Label(hero, text="DL", bg="#1d4ed8", fg="#ffffff",
-                 font=("Sans", 18, "bold")).pack(pady=(0, 6))
-        tk.Label(hero, text="DroidLab", bg="#1d4ed8", fg="#ffffff",
-                 font=("Sans", 25, "bold")).pack()
-        tk.Label(hero, text="Android firmware toolkit", bg="#1d4ed8", fg="#dbeafe",
-                 font=("Sans", 12)).pack(pady=(5, 0))
-
-        intro = ttk.Frame(content_frame, style="Panel.TFrame", padding=16)
-        intro.pack(fill="x", pady=(12, 0))
-        ttk.Label(intro, text="A toolkit for Android firmware workflows",
-                  background="#1f2937", foreground="#f9fafb",
-                  font=("Sans", 13, "bold"), wraplength=500).pack(anchor="w")
-        ttk.Label(intro,
-                  text="Inspect and extract OTA payloads, review partition images, manage connected devices with ADB, and preview guarded Fastboot operations.",
-                  background="#1f2937", foreground="#cbd5e1",
-                  font=("Sans", 11), wraplength=500, justify="left").pack(
-                      anchor="w", fill="x", pady=(7, 0))
-
-        features = ttk.Frame(content_frame, style="Panel.TFrame", padding=16)
-        features.pack(fill="x", pady=(10, 0))
-        ttk.Label(features, text="WHAT YOU CAN DO", background="#1f2937",
-                  foreground="#93c5fd", font=("Sans", 10, "bold")).pack(anchor="w")
-        for item in (
-            "Extract all or selected partitions from OTA payloads",
-            "Generate optional SHA-256 fingerprints",
-            "Inspect images and preview Fastboot commands",
-            "Reboot, collect logs, run diagnostics, and sideload OTA ZIPs",
-        ):
-            ttk.Label(features, text="•  " + item, background="#1f2937",
-                      foreground="#e5e7eb", font=("Sans", 11),
-                      wraplength=500, justify="left").pack(anchor="w", pady=(7, 0))
-
-        tech = ttk.Frame(content_frame, style="Panel.TFrame", padding=16)
-        tech.pack(fill="x", pady=(10, 0))
-        ttk.Label(tech, text="TOOLS & TECHNOLOGY", background="#1f2937",
-                  foreground="#93c5fd", font=("Sans", 10, "bold")).pack(anchor="w")
-        for label, value in (
-            ("Desktop UI", "Python · Tkinter"),
-            ("Payload backend", "payload-dumper-go"),
-            ("Device tools", "Android SDK Platform-Tools · ADB & Fastboot"),
-        ):
-            line = ttk.Frame(tech, style="Panel.TFrame")
-            line.pack(fill="x", pady=(7, 0))
-            ttk.Label(line, text=label, background="#1f2937",
-                      foreground="#9ca3af", font=("Sans", 10)).pack(anchor="w")
-            ttk.Label(line, text=value, background="#1f2937",
-                      foreground="#e5e7eb", font=("Sans", 11),
-                      wraplength=500, justify="left").pack(anchor="w", pady=(2, 0))
-
-        details = ttk.Frame(content_frame, style="Panel.TFrame", padding=16)
-        details.pack(fill="x", pady=(10, 0))
-        ttk.Label(details, text="CREATED BY", background="#1f2937",
-                  foreground="#93c5fd", font=("Sans", 9, "bold")).pack(anchor="w")
-        ttk.Label(details, text="nightx24 (augztn)", background="#1f2937",
-                  foreground="#f9fafb", font=("Sans", 15, "bold")).pack(
-                      anchor="w", pady=(4, 10))
-        links = ttk.Frame(details, style="Panel.TFrame")
-        links.pack(fill="x")
-        instagram = ttk.Label(links, text="Instagram  ↗", background="#1f2937",
-                              foreground="#60a5fa", cursor="hand2",
-                              font=("Sans", 11, "underline"))
-        instagram.pack(side="left", padx=(0, 18))
-        instagram.bind("<Button-1>", lambda _event: webbrowser.open("https://www.instagram.com/augztn/"))
-        github = ttk.Label(links, text="GitHub  ↗", background="#1f2937",
-                           foreground="#60a5fa", cursor="hand2",
-                           font=("Sans", 11, "underline"))
-        github.pack(side="left")
-        github.bind("<Button-1>", lambda _event: webbrowser.open("https://github.com/nightx24"))
-
-        ttk.Label(content_frame, text="DroidLab · Community firmware utility",
-                  style="Muted.TLabel", font=("Sans", 10)).pack(
-                      anchor="center", pady=(14, 4))
-
-        # Trackpad and mouse-wheel scrolling: support Linux/X11 wheel events,
-        # Windows/macOS delta events, and smooth touchpad deltas.
-        def on_mousewheel(event):
-            delta = getattr(event, "delta", 0) or 0
-            if delta:
-                if abs(delta) >= 120:
-                    units = int(-delta / 120)
-                else:
-                    # Linux touchpads often send small deltas instead of 120-step wheel events.
-                    units = -1 if delta > 0 else 1
-                canvas.yview_scroll(units, "units")
-            elif getattr(event, "num", None) == 4:
-                canvas.yview_scroll(-1, "units")
-            elif getattr(event, "num", None) == 5:
-                canvas.yview_scroll(1, "units")
-            return "break"
-
-        # Bind wheel events to the canvas and every child in the scrollable area,
-        # since Tk widgets under the pointer otherwise consume the event.
-        def bind_scroll_events(widget):
-            for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>",
-                             "<Shift-MouseWheel>"):
-                widget.bind(sequence, on_mousewheel, add="+")
-            for child in widget.winfo_children():
-                bind_scroll_events(child)
-
-        bind_scroll_events(content_frame)
-        bind_scroll_events(hero)
-        canvas.bind("<MouseWheel>", on_mousewheel, add="+")
-        canvas.bind("<Button-4>", on_mousewheel, add="+")
-        canvas.bind("<Button-5>", on_mousewheel, add="+")
-        # Some desktop environments report touchpad gestures as XInput/Touchpad
-        # events; keeping focus on the scrollable surface helps keyboard navigation.
-        canvas.configure(takefocus=True)
-        canvas.bind("<Up>", lambda _e: canvas.yview_scroll(-1, "units"))
-        canvas.bind("<Down>", lambda _e: canvas.yview_scroll(1, "units"))
-        canvas.bind("<Prior>", lambda _e: canvas.yview_scroll(-1, "pages"))
-        canvas.bind("<Next>", lambda _e: canvas.yview_scroll(1, "pages"))
-        dialog.grab_set()
 
     def _build(self):
         s=ttk.Style(self)
@@ -2656,7 +2215,8 @@ class PayloadDumperApp(TkinterDnD.Tk):
         if logcat_changed and not self.adb_log_paused:
             self._render_adb_logcat()
         self.after(100,self._poll_events)
-if __name__ == "__main__":
+def main() -> None:
+    """Initialize logging and launch the existing Tk application."""
     _configure_logging()
     sys.excepthook = _log_uncaught_exception
     try:
@@ -2667,3 +2227,7 @@ if __name__ == "__main__":
     finally:
         logging.info("==== %s stopped ====", APP_NAME)
         logging.shutdown()
+
+
+if __name__ == "__main__":
+    main()
