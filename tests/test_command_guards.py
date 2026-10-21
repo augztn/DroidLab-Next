@@ -48,7 +48,7 @@ class PartitionNameTests(unittest.TestCase):
 class DeviceSelectorTests(unittest.TestCase):
     def test_device_serial_validation_rejects_empty_whitespace_and_option_like_values(self):
         from src.command_guards import is_valid_device_serial
-        for serial in ("", " ", "-e", "device one", "device\\n1", "a" * 257):
+        for serial in ("", " ", "-e", "device one", "device\n1", "a" * 257):
             with self.subTest(serial=serial):
                 self.assertFalse(is_valid_device_serial(serial))
         for serial in ("device-1", "emulator-5554", "192.168.1.20:5555", "USB_123.abc"):
