@@ -9,7 +9,7 @@ import sys
 import tkinter as tk
 import types
 import unittest
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from unittest.mock import patch
 
 
@@ -254,12 +254,15 @@ class BackendPathWiringTests(unittest.TestCase):
             self.assertEqual(_bundle_root(), Path(__file__).resolve().parent.parent)
 
     def test_appimage_bundle_root_remains_appdir(self):
-        from droidlab.core.payload_dumper import _bundle_root
+        from droidlab.core import payload_dumper
 
-        executable = Path("/tmp/Payload.AppDir/usr/bin/droidlab-gui-bin")
-        with patch("droidlab.core.payload_dumper.sys.frozen", True, create=True):
-            with patch("droidlab.core.payload_dumper.sys.executable", str(executable)):
-                self.assertEqual(_bundle_root(), Path("/tmp/Payload.AppDir"))
+        # AppImage uses POSIX paths even when this wiring test runs on Windows.
+        # Pin the path implementation to POSIX semantics for this scenario.
+        executable = PurePosixPath("/tmp/Payload.AppDir/usr/bin/droidlab-gui-bin")
+        with patch.object(payload_dumper, "Path", PurePosixPath):
+            with patch("droidlab.core.payload_dumper.sys.frozen", True, create=True):
+                with patch("droidlab.core.payload_dumper.sys.executable", str(executable)):
+                    self.assertEqual(payload_dumper._bundle_root(), PurePosixPath("/tmp/Payload.AppDir"))
 
     def test_binary_discovery_checks_project_bundle_locations(self):
         from droidlab.core import payload_dumper
