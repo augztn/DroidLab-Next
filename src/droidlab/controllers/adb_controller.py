@@ -225,7 +225,7 @@ class ADBControllerMixin:
                 result = run_streaming(
                     command,
                     timeout=timeout,
-                    cancel_event=self.cancel_event,
+                    cancel_event=self.command_cancel_event,
                     on_line=publish_line,
                     max_output_chars=2 * 1024 * 1024,
                     max_queue_lines=1000,
@@ -247,25 +247,32 @@ class ADBControllerMixin:
                 self.events.put(("adb_result", (kind, -1, message)))
 
         def _adb_task(self, command, timeout, kind):
-            serial = None
-            if "-s" in command:
-                selector_index = command.index("-s")
-                if selector_index + 1 < len(command):
-                    serial = command[selector_index + 1]
-            if not serial:
-                self._stream_process(command, timeout, kind)
-                return
-            with self._device_operation_locks_guard:
-                operation_lock = self._device_operation_locks.setdefault(serial, threading.Lock())
-            if not operation_lock.acquire(blocking=False):
-                message = "Another DroidLab operation is already running for device %s; this command was not started." % serial
-                self.events.put(("console_line", (kind, "[DroidLab] ERROR: " + message + "\n")))
-                self.events.put(("adb_result", (kind, -1, message)))
-                return
+            operation_id = threading.get_ident()
+            with self._active_operations_guard:
+                self._active_operations[operation_id] = kind
+            operation_lock = None
+            lock_acquired = False
             try:
+                serial = None
+                if "-s" in command:
+                    selector_index = command.index("-s")
+                    if selector_index + 1 < len(command):
+                        serial = command[selector_index + 1]
+                if serial:
+                    with self._device_operation_locks_guard:
+                        operation_lock = self._device_operation_locks.setdefault(serial, threading.Lock())
+                    lock_acquired = operation_lock.acquire(blocking=False)
+                    if not lock_acquired:
+                        message = "Another DroidLab operation is already running for device %s; this command was not started." % serial
+                        self.events.put(("console_line", (kind, "[DroidLab] ERROR: " + message + "\n")))
+                        self.events.put(("adb_result", (kind, -1, message)))
+                        return
                 self._stream_process(command, timeout, kind)
             finally:
-                operation_lock.release()
+                if operation_lock is not None and lock_acquired:
+                    operation_lock.release()
+                with self._active_operations_guard:
+                    self._active_operations.pop(operation_id, None)
 
         def _run_adb_shell(self):
             text = self.adb_shell_command.get().strip()
