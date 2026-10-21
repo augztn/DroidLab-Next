@@ -76,7 +76,7 @@ def run_streaming(
             while True:
                 try:
                     lines.put_nowait(None)
-                    return
+                    break
                 except queue.Full:
                     try:
                         lines.get_nowait()
@@ -122,7 +122,7 @@ def run_streaming(
             omitted += drops["count"]
         output = "".join(retained)
         if omitted:
-            output += "\n[DroidLab: %s additional output line(s) omitted]\n" % omitted
+            output += f"\n[DroidLab: {omitted} additional output line(s) omitted]\n"
         return subprocess.CompletedProcess(list(command), code, output, "")
     except BaseException:
         terminate_process(proc)
@@ -132,3 +132,7 @@ def run_streaming(
             proc.stdout.close()
         except (OSError, ValueError):
             pass
+        # Do not leave the output reader running after this call returns.
+        # Keep the wait bounded in case a descendant still holds the pipe.
+        if thread.is_alive():
+            thread.join(timeout=0.25)

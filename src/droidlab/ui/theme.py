@@ -1,10 +1,13 @@
 """Theme palette application and appearance picker for the Tk UI."""
 from __future__ import annotations
+
 import logging
 import tkinter as tk
 from tkinter import ttk
+
 from droidlab.config.constants import THEME_TOKENS
 from droidlab.config.settings import load_settings, save_settings
+
 
 class ThemeSupport:
     """Mixin providing the existing theme behavior to the main window."""
@@ -57,7 +60,7 @@ class ThemeSupport:
                         padding=(16, 9), borderwidth=0)
         style.map("TNotebook.Tab", background=[("selected", t["panel_alt"]), ("active", t["button"])],
                   foreground=[("selected", t["accent"]), ("active", t["text"])])
-    
+
         # Recolor native Tk widgets as well as ttk. Preserve semantic colors
         # (green/red/amber status indicators) and only replace known surfaces.
         # Re-map legacy colors and the previous theme's token colors so repeated
@@ -122,7 +125,7 @@ class ThemeSupport:
                         pass
             except (tk.TclError, TypeError):
                 continue
-    
+
         for attr in ("log", "fastboot_console", "adb_console"):
             widget = getattr(self, attr, None)
             if widget:
@@ -160,14 +163,14 @@ class ThemeSupport:
             save_settings(config)
         except OSError as exc:
             logging.warning("Unable to save theme preference: %s", exc)
-    
+
     @staticmethod
     def _walk_widgets(parent):
         """Yield descendants safely; never alter callbacks or device operations."""
         for child in parent.winfo_children():
             yield child
             yield from ThemeSupport._walk_widgets(child)
-    
+
     def _open_theme_picker(self):
         t = self.theme_tokens
         dialog = tk.Toplevel(self)

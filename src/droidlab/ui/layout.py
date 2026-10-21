@@ -1,8 +1,9 @@
 """Top-level window shell, header, status bar, and shared device workspace."""
 from __future__ import annotations
-import os
+
 import tkinter as tk
 from tkinter import ttk
+
 
 class LayoutSupport:
     def _build(self):

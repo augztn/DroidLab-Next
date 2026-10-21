@@ -1,9 +1,13 @@
 """Payload dumper tab construction and partition selection widgets."""
 from __future__ import annotations
+
 import os
 import tkinter as tk
-from tkinter import font as tkfont, ttk
+from tkinter import font as tkfont
+from tkinter import ttk
+
 from .ui_metrics import column_width
+
 
 class PayloadViewSupport:
     def _build_payload_view(self, root):

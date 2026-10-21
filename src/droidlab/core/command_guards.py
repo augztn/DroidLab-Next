@@ -1,5 +1,6 @@
 """Pure command safety checks shared by the UI and unit tests."""
 from __future__ import annotations
+
 import re
 from pathlib import PurePath
 

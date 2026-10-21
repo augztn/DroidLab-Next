@@ -1,33 +1,17 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
-import platform
-import queue
-import re
-import shlex
-import shutil
 import subprocess
 import sys
 import threading
-import time
 import tkinter as tk
-import webbrowser
 from pathlib import Path
-from tkinter import filedialog, font as tkfont, messagebox, ttk
+from tkinter import filedialog, messagebox
+
 from tkinterdnd2 import DND_FILES
 
-from droidlab.config.constants import APP_NAME, THEME_TOKENS
-from droidlab.core.command_guards import (
-    is_destructive_adb,
-    is_destructive_fastboot,
-    is_fastboot_target_connected,
-    is_valid_partition_name,
-    validate_device_selector,
-)
 from droidlab.core.payload_dumper import BackendError, extract, inspect_source, sha256_file
-from droidlab.core.process_runner import ProcessCancelledError, run_streaming, terminate_process
 
 
 def _windows_process_options():
@@ -297,7 +281,7 @@ class PayloadControllerMixin:
             if not src:
                 messagebox.showwarning("Input required", "Choose an OTA .bin or .zip file first.")
                 return
-            self.cancel_event.clear()
+            self.payload_cancel_event.clear()
             self._busy(True)
             self.status.set("Inspecting payload…")
             self.worker = threading.Thread(target=self._inspect_worker, args=(src,), daemon=True)
@@ -308,12 +292,12 @@ class PayloadControllerMixin:
                 parts = inspect_source(
                     src,
                     progress=lambda line: self.events.put(("log", line)),
-                    cancel_event=self.cancel_event,
+                    cancel_event=self.payload_cancel_event,
                 )
                 self.events.put(("parts", parts))
                 self.events.put(("info_done", "Inspection complete."))
             except BackendError as exc:
-                kind = "cancelled" if self.cancel_event.is_set() else "error"
+                kind = "cancelled" if self.payload_cancel_event.is_set() else "error"
                 self.events.put((kind, str(exc)))
             except Exception as exc:
                 logging.exception("Unexpected payload inspection failure")
@@ -373,19 +357,19 @@ class PayloadControllerMixin:
             src=self.source.get().strip();out=self.output.get().strip()
             if not src:messagebox.showwarning("Input required","Choose a payload .bin or OTA .zip file.");return
             if not out:messagebox.showwarning("Output required","Choose an output directory.");return
-            selected=[n for n,v in self.part_vars.items() if v.get()];self.cancel_event.clear();self._busy(True);self.status.set("Extracting…");self._append("Input: "+src);self._append("Output: "+out)
+            selected=[n for n,v in self.part_vars.items() if v.get()];self.payload_cancel_event.clear();self._busy(True);self.status.set("Extracting…");self._append("Input: "+src);self._append("Output: "+out)
             self.worker=threading.Thread(target=self._extract_worker,args=(src,out,self.fingerprint.get(),selected),daemon=True);self.worker.start()
 
         def _extract_worker(self,src,out,fingerprint,selected):
             try:
-                outputs=extract(src,out,selected or None,progress=lambda x:self.events.put(("log",x)),cancel_event=self.cancel_event)
+                outputs=extract(src,out,selected or None,progress=lambda x:self.events.put(("log",x)),cancel_event=self.payload_cancel_event)
                 for p in outputs:
                     self.events.put(("log",f"Created: {p}"))
                     if fingerprint:self.events.put(("log",f"SHA-256 fingerprint: {sha256_file(str(p))}  {p.name}"))
                 if not outputs:self.events.put(("log","No new files were detected in the output directory."))
                 self.events.put(("done",f"Finished. Output files detected: {len(outputs)}"))
-            except BackendError as e:self.events.put(("cancelled" if self.cancel_event.is_set() else "error",str(e)))
+            except BackendError as e:self.events.put(("cancelled" if self.payload_cancel_event.is_set() else "error",str(e)))
             except Exception as e:self.events.put(("error",f"Unexpected error: {e}"))
 
-        def _cancel(self):self.cancel_event.set();self.status.set("Cancelling…");self._append("Cancellation requested.")
+        def _cancel(self):self.payload_cancel_event.set();self.status.set("Cancelling…");self._append("Cancellation requested.")
 

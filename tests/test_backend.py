@@ -1,6 +1,7 @@
 import hashlib
 import io
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +12,7 @@ from src.payload_dumper import (
     BackendError,
     _bundle_root,
     _find_cli,
+    _run_process,
     extract,
     inspect_source,
     sha256_file,
@@ -56,7 +58,7 @@ class BackendTests(unittest.TestCase):
             result = CompletedProcess(
                 ["payload-dumper-go"],
                 0,
-                "header text\nboot:2048\nvendor:not-a-size\n:512\n",
+                "header text\nboot:2048\nvendor:not-a-size\n:512\nboot,system:1024\n--help:512\n",
                 "",
             )
             with patch("src.payload_dumper._run", return_value=result):
@@ -116,6 +118,38 @@ class BackendTests(unittest.TestCase):
                 with patch("src.payload_dumper.subprocess.Popen", return_value=FakeProcess()):
                     with self.assertRaisesRegex(BackendError, "exited with status 3"):
                         extract(str(src), str(Path(temp) / "out"))
+
+    def test_backend_timeout_is_reported_as_backend_error(self):
+        timeout = subprocess.TimeoutExpired(["payload-dumper-go"], 12)
+        with patch("src.payload_dumper.run_streaming", side_effect=timeout) as runner:
+            with self.assertRaisesRegex(BackendError, r"Extraction timed out after 12 seconds"):
+                _run_process(["payload-dumper-go"], ["payload.bin"], operation="Extraction", timeout=12)
+        self.assertEqual(runner.call_args.kwargs["timeout"], 12)
+
+    def test_timeout_environment_override_is_validated(self):
+        from src.payload_dumper import _configured_timeout
+
+        with patch.dict(os.environ, {"DROIDLAB_TEST_TIMEOUT": "42.5"}):
+            self.assertEqual(_configured_timeout("DROIDLAB_TEST_TIMEOUT", 10), 42.5)
+        with patch.dict(os.environ, {"DROIDLAB_TEST_TIMEOUT": "nan"}):
+            self.assertEqual(_configured_timeout("DROIDLAB_TEST_TIMEOUT", 10), 10)
+        with patch.dict(os.environ, {"DROIDLAB_TEST_TIMEOUT": "999999"}):
+            self.assertEqual(_configured_timeout("DROIDLAB_TEST_TIMEOUT", 10), 86400)
+
+    def test_extract_rejects_empty_output_directory(self):
+        with tempfile.TemporaryDirectory() as temp:
+            src = Path(temp) / "payload.bin"
+            src.write_bytes(b"stub")
+            with self.assertRaisesRegex(BackendError, "Choose an output directory"):
+                extract(str(src), "   ")
+
+    def test_extract_rejects_invalid_partition_selection(self):
+        with tempfile.TemporaryDirectory() as temp:
+            src = Path(temp) / "payload.bin"
+            src.write_bytes(b"stub")
+            with patch("src.payload_dumper._find_cli", return_value=["payload-dumper-go"]):
+                with self.assertRaisesRegex(BackendError, "Invalid partition selection"):
+                    extract(str(src), str(Path(temp) / "out"), ["boot,system"])
 
     @unittest.skipIf(os.name == "nt", "AppImage path resolution is Linux-specific")
     def test_frozen_appimage_resolves_appdir_root(self):
@@ -186,6 +220,59 @@ class ExtractIsolationTests(unittest.TestCase):
                     with self.assertRaisesRegex(BackendError, "will not be overwritten"):
                         extract(str(src), str(out))
             self.assertEqual(existing.read_bytes(), b"keep-me")
+
+
+    def test_extract_timeout_is_reported_and_staging_directory_is_removed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            src = root / "payload.bin"
+            src.write_bytes(b"stub")
+            out = root / "out"
+            with patch("src.payload_dumper._find_cli", return_value=["payload-dumper-go"]):
+                with patch("src.payload_dumper.run_streaming", side_effect=subprocess.TimeoutExpired(["payload-dumper-go"], 3600)):
+                    with self.assertRaisesRegex(BackendError, "Extraction timed out after 3600 seconds"):
+                        extract(str(src), str(out))
+            self.assertEqual(list(root.glob(".droidlab-extract-*")), [])
+            self.assertEqual(list(out.glob("*.img")), [])
+
+    def test_cleanup_failure_does_not_mask_extraction_failure(self):
+        class FakeProcess:
+            stdout = io.StringIO("backend failed\n")
+            def wait(self, timeout=None): return 3
+            def poll(self): return 3
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            src = root / "payload.bin"
+            src.write_bytes(b"stub")
+            with patch("src.payload_dumper._find_cli", return_value=["payload-dumper-go"]):
+                with patch("src.payload_dumper.subprocess.Popen", return_value=FakeProcess()):
+                    with patch("src.payload_dumper.shutil.rmtree", side_effect=PermissionError("denied")):
+                        with self.assertRaisesRegex(BackendError, "exited with status 3"):
+                            extract(str(src), str(root / "out"))
+
+    def test_cleanup_failure_does_not_mask_successful_publication(self):
+        class FakeProcess:
+            stdout = io.StringIO("extracted boot\n")
+            def wait(self, timeout=None): return 0
+            def poll(self): return 0
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            src = root / "payload.bin"
+            src.write_bytes(b"stub")
+            out = root / "out"
+            def fake_popen(command, **kwargs):
+                stage = Path(command[command.index("-o") + 1])
+                (stage / "boot.img").write_bytes(b"new-image")
+                return FakeProcess()
+            progress = []
+            with patch("src.payload_dumper._find_cli", return_value=["payload-dumper-go"]):
+                with patch("src.payload_dumper.subprocess.Popen", side_effect=fake_popen):
+                    with patch("src.payload_dumper.shutil.rmtree", side_effect=PermissionError("denied")):
+                        result = extract(str(src), str(out), progress=progress.append)
+            self.assertEqual(result, [out.resolve() / "boot.img"])
+            self.assertTrue(any("Warning: could not remove temporary staging directory" in line for line in progress))
 
 
 if __name__ == "__main__":

@@ -12,7 +12,6 @@ import unittest
 from pathlib import Path, PurePosixPath
 from unittest.mock import patch
 
-
 # Make package imports work from an uninstalled source checkout as well.
 _SRC_ROOT = Path(__file__).resolve().parent.parent / "src"
 if str(_SRC_ROOT) not in sys.path:
@@ -82,6 +81,10 @@ class PackageImportTests(unittest.TestCase):
 
     def test_payload_app_has_expected_view_and_support_mixins(self):
         app_module = importlib.import_module("app")
+        from droidlab.controllers.adb_controller import ADBControllerMixin
+        from droidlab.controllers.device_controller import DeviceControllerMixin
+        from droidlab.controllers.fastboot_controller import FastbootControllerMixin
+        from droidlab.controllers.payload_controller import PayloadControllerMixin
         from droidlab.ui.adb_view import ADBViewSupport
         from droidlab.ui.dialogs import DialogSupport
         from droidlab.ui.fastboot_view import FastbootViewSupport
@@ -89,10 +92,6 @@ class PackageImportTests(unittest.TestCase):
         from droidlab.ui.payload_view import PayloadViewSupport
         from droidlab.ui.theme import ThemeSupport
         from droidlab.ui.widgets import WidgetSupport
-        from droidlab.controllers.device_controller import DeviceControllerMixin
-        from droidlab.controllers.adb_controller import ADBControllerMixin
-        from droidlab.controllers.fastboot_controller import FastbootControllerMixin
-        from droidlab.controllers.payload_controller import PayloadControllerMixin
 
         app_class = app_module.PayloadDumperApp
         expected = {
