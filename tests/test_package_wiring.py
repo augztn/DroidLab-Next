@@ -53,6 +53,7 @@ class PackageImportTests(unittest.TestCase):
             "droidlab.ui.payload_view",
             "droidlab.ui.adb_view",
             "droidlab.ui.fastboot_view",
+            "droidlab.ui.main_window",
             "droidlab.ui.ui_metrics",
             "droidlab.controllers",
             "droidlab.controllers.device_controller",
@@ -137,6 +138,52 @@ class PackageImportTests(unittest.TestCase):
                         self.assertTrue(callable(getattr(app_class, callback, None)), callback)
 
 
+    def test_all_droidlab_modules_are_syntax_valid_and_importable(self):
+        import pkgutil
+        package = importlib.import_module("droidlab")
+        discovered = sorted(
+            item.name for item in pkgutil.walk_packages(package.__path__, package.__name__ + ".")
+        )
+        self.assertIn("droidlab.ui.main_window", discovered)
+        for name in discovered:
+            with self.subTest(module=name):
+                spec = importlib.util.find_spec(name)
+                self.assertIsNotNone(spec)
+                if spec and spec.origin and spec.origin.endswith(".py"):
+                    ast.parse(Path(spec.origin).read_text(encoding="utf-8"), filename=spec.origin)
+                self.assertIsNotNone(importlib.import_module(name))
+
+    def test_all_pyinstaller_commands_collect_droidlab_submodules(self):
+        project_root = _SRC_ROOT.parent
+        candidates = [
+            project_root / "scripts" / "build-linux.sh",
+            project_root / ".github" / "workflows" / "linux.yml",
+            project_root / ".github" / "workflows" / "windows.yml",
+            project_root / ".github" / "workflows" / "cross-platform-bundle.yml",
+        ]
+        for path in candidates:
+            source = path.read_text(encoding="utf-8")
+            if "PyInstaller" in source:
+                with self.subTest(file=str(path.relative_to(project_root))):
+                    self.assertIn("--collect-submodules droidlab", source)
+                    self.assertIn("--paths src", source)
+
+    def test_tool_path_searches_project_root_after_main_window_move(self):
+        from unittest.mock import patch
+        main_window = importlib.import_module("droidlab.ui.main_window")
+        seen = []
+        def record_candidate(candidate):
+            seen.append(candidate)
+            return False
+        with patch.object(main_window.Path, "is_file", record_candidate), patch.object(
+            main_window.shutil, "which", return_value=None
+        ):
+            result = main_window.PayloadDumperApp._tool_path(object(), "adb")
+        project_root = _SRC_ROOT.parent
+        self.assertIsNone(result)
+        self.assertEqual(seen, [project_root / "bin" / "adb", project_root / "platform-tools" / "adb"])
+
+
 class ControllerSafetyCharacterizationTests(unittest.TestCase):
     def test_fastboot_destructive_validation_precedes_confirmation_and_spawn(self):
         source = (_SRC_ROOT / "droidlab" / "controllers" / "fastboot_controller.py").read_text(encoding="utf-8")
@@ -159,7 +206,7 @@ class ControllerSafetyCharacterizationTests(unittest.TestCase):
                     self.assertLess(min(confirmation_positions), spawn, "confirmation must precede process spawn")
 
     def test_event_pump_remains_in_app_and_worker_event_shapes_are_characterized(self):
-        app_source = (_SRC_ROOT / "app.py").read_text(encoding="utf-8")
+        app_source = (_SRC_ROOT / "droidlab" / "ui" / "main_window.py").read_text(encoding="utf-8")
         app_tree = ast.parse(app_source)
         app_class = next(node for node in app_tree.body if isinstance(node, ast.ClassDef) and node.name == "PayloadDumperApp")
         self.assertTrue(any(isinstance(node, ast.FunctionDef) and node.name == "_poll_events" for node in app_class.body))

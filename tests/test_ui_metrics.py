@@ -4,7 +4,7 @@ from pathlib import Path
 
 from src.ui_metrics import column_width, tree_row_height
 
-APP_SOURCE = (Path(__file__).resolve().parent.parent / "src" / "app.py").read_text(encoding="utf-8")
+APP_SOURCE = (Path(__file__).resolve().parent.parent / "src" / "droidlab" / "ui" / "main_window.py").read_text(encoding="utf-8")
 
 
 class RowHeightTests(unittest.TestCase):
