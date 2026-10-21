@@ -80,7 +80,7 @@ class LayoutSupport:
         self._build_payload_view(root)
         # Apply the selected palette after every native Tk widget exists.
         # This changes presentation only; all controls and callbacks stay intact.
-        self._apply_theme(self.theme_name)
+        self._apply_theme(self.theme_name, persist=False)
 
     def _show_device_workspace(self, mode, manual=False):
         """Show selected workspace and synchronize the inline mode toggle."""

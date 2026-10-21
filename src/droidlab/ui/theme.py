@@ -8,7 +8,7 @@ from droidlab.config.settings import load_settings, save_settings
 
 class ThemeSupport:
     """Mixin providing the existing theme behavior to the main window."""
-    def _apply_theme(self, name):
+    def _apply_theme(self, name, persist=True):
         """Apply a palette live; intentionally does not touch device/backend logic."""
         if name not in THEME_TOKENS:
             return
@@ -156,12 +156,13 @@ class ThemeSupport:
                                  activebackground=t["accent2"])
             except tk.TclError:
                 pass
-        try:
-            config = load_settings()
-            config["theme"] = name
-            save_settings(config)
-        except OSError as exc:
-            logging.warning("Unable to save theme preference: %s", exc)
+        if persist:
+            try:
+                config = load_settings()
+                config["theme"] = name
+                save_settings(config)
+            except OSError as exc:
+                logging.warning("Unable to save theme preference: %s", exc)
     
     @staticmethod
     def _walk_widgets(parent):
