@@ -74,8 +74,8 @@ class PayloadDumperApp(
         self.title(APP_NAME)
         # Use a practical Windows-first size; ttk layouts and system fonts scale
         # more predictably than the oversized Linux-oriented defaults.
-        self.geometry("1500x940")
-        self.minsize(1100, 700)
+        self.geometry("1280x720")
+        self.minsize(1100, 650)
         self.theme_name = self._load_theme_name()
         self.theme_tokens = THEME_TOKENS[self.theme_name]
         self.configure(bg=self.theme_tokens["bg"])
