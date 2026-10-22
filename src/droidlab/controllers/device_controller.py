@@ -218,6 +218,8 @@ class DeviceControllerMixin:
 
         def _refresh_device_info(self):
             """Query selected device metadata asynchronously to keep the UI responsive."""
+            request_id = getattr(self, "_device_info_request_id", 0) + 1
+            self._device_info_request_id = request_id
             target = getattr(self, "_adb_targets", {}).get(self.adb_device.get())
             empty = {"Brand / Manufacturer": "—", "Device name / Model": "—", "Model code": "—",
                      "Codename": "—", "Active slot": "—", "Bootloader": "—",
@@ -229,8 +231,6 @@ class DeviceControllerMixin:
             serial, state = target
             self._set_device_info(empty, "LOADING…", "#4b5563")
             if hasattr(self, "adb_info_loading"): self.adb_info_loading.set("⟳ Reading device…")
-            request_id = getattr(self, "_device_info_request_id", 0) + 1
-            self._device_info_request_id = request_id
             def worker():
                 values = dict(empty)
                 if state == "fastboot":
@@ -271,10 +271,21 @@ class DeviceControllerMixin:
             threading.Thread(target=worker, name="DroidLab-DeviceInfo", daemon=True).start()
 
         def _apply_device_info_result(self, request_id, result):
-            if request_id != getattr(self, "_device_info_request_id", None): return
+            if request_id != getattr(self, "_device_info_request_id", None):
+                return
             values, mode, color = result
             self._set_device_info(values, mode, color)
-            if hasattr(self, "adb_info_loading"): self.adb_info_loading.set("")
+            selected = getattr(self, "_adb_targets", {}).get(self.adb_device.get())
+            if selected:
+                self.device_mode_status.set(
+                    "MODE DETECTOR: " + mode + " · Serial: " + selected[0]
+                )
+            else:
+                self.device_mode_status.set(
+                    "MODE DETECTOR: No device detected · Check USB, drivers/udev rules, and Platform-Tools"
+                )
+            if hasattr(self, "adb_info_loading"):
+                self.adb_info_loading.set("")
 
         def _set_active_slot(self, slot):
             """Switch the selected Fastboot device's active slot with a legacy fallback."""
