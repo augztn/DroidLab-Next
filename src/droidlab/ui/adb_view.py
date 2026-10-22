@@ -222,16 +222,41 @@ class ADBViewSupport:
         ttk.Button(
             row, text="Sideload ZIP…", command=self._run_adb_sideload, style="Primary.TButton"
         ).pack(side="left", padx=(7, 0))
-        drop_hint = ttk.Label(
+        drop_hint = tk.Frame(
             side,
-            text="⬇  Drop a flashable ZIP here or browse for a package.",
-            background="#161922",
-            foreground="#93c5fd",
-            padding=7,
-            wraplength=800,
+            bg="#161922",
+            padx=10,
+            pady=8,
+            highlightthickness=1,
+            highlightbackground="#303038",
         )
         drop_hint.pack(fill="x", pady=(6, 0))
-        for drop_widget in (side, self.sideload_entry, drop_hint):
+        tk.Label(
+            drop_hint,
+            text="⇧",
+            bg="#161922",
+            fg="#9696a3",
+            font=(self._ui_font, 18),
+        ).pack(side="left", padx=(2, 10))
+        drop_copy = tk.Frame(drop_hint, bg="#161922")
+        drop_copy.pack(side="left", fill="x", expand=True)
+        tk.Label(
+            drop_copy,
+            text="Drop a flashable ZIP here or browse for a package.",
+            bg="#161922",
+            fg="#e6edf3",
+            anchor="w",
+            font=(self._ui_font, 9),
+        ).pack(fill="x")
+        tk.Label(
+            drop_copy,
+            text="Recovery must support ADB sideload. Check package compatibility.",
+            bg="#161922",
+            fg="#94a3b8",
+            anchor="w",
+            font=(self._ui_font, 8),
+        ).pack(fill="x", pady=(2, 0))
+        for drop_widget in (side, self.sideload_entry, drop_hint, *drop_hint.winfo_children()):
             self._enable_sideload_drop(drop_widget)
         ttk.Label(
             side,
