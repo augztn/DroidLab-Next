@@ -399,7 +399,8 @@ class ADBControllerMixin:
                 self.adb_log_process = subprocess.Popen(
                     [binary, "-s", serial, "logcat", "-v", "threadtime"],
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                    encoding="utf-8", errors="replace", bufsize=1, **_windows_process_options())
+                    encoding="utf-8", errors="replace", bufsize=1, **_windows_process_options(),
+                    **({"start_new_session": True} if os.name == "posix" else {}))
             except OSError as exc:
                 logging.exception("Could not start live logcat for %s", serial)
                 window.destroy()
@@ -493,7 +494,16 @@ class ADBControllerMixin:
             process=None
             try:
                 with open(path,"w",encoding="utf-8") as output:
-                    process=subprocess.Popen([binary,"-s",serial,"logcat"],stdout=output,stderr=subprocess.PIPE,text=True,encoding="utf-8",errors="replace",**_windows_process_options())
+                    process=subprocess.Popen(
+                        [binary, "-s", serial, "logcat"],
+                        stdout=output,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        **_windows_process_options(),
+                        **({"start_new_session": True} if os.name == "posix" else {}),
+                    )
                     try:
                         _stdout,stderr=process.communicate(timeout=3600)
                         self.events.put(("adb_result",("logcat_file",process.returncode,"Saved logcat to "+path+(("\n"+stderr.strip()) if stderr and stderr.strip() else ""))))
