@@ -144,6 +144,9 @@ class DeviceControllerMixin:
                 else (fastboot_devices[0] if len(fastboot_devices) == 1 else "")
             )
 
+            # Invalidate any metadata lookup started for the previously selected
+            # device, including when the new scan finds no connected device.
+            self._device_info_request_id = getattr(self, "_device_info_request_id", 0) + 1
             self._on_shared_device_selected()
             self.adb_device_status.set(" | ".join(status_lines))
             selected = targets.get(self.adb_device.get())
