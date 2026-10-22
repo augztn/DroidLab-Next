@@ -20,7 +20,6 @@ build = [
 dev = [
     "pytest>=8,<10",
     "ruff>=0.11,<1",
-    "mypy>=1.14,<2",
 ]
 
 [project.gui-scripts]

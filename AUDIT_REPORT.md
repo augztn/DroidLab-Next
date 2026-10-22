@@ -16,8 +16,8 @@
 
 ## Static type-check gate
 
-- This follow-up adds strict mypy checking for the platform-independent safety primitives in `command_guards.py`, `operation_outcomes.py`, and `process_runner.py`.
-- The type-check gate must pass in the current PR before this report is considered fully current.
+- This follow-up adds a strict mypy gate on Linux CI for the platform-independent safety primitives in `command_guards.py`, `operation_outcomes.py`, and `process_runner.py`.
+- Mypy is installed only in the Linux workflow so the Windows ARM64 packaging environment does not depend on a platform-specific type-checker wheel.
 
 ## Remaining validation limits
 
