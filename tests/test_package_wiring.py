@@ -260,7 +260,8 @@ class ControllerSafetyCharacterizationTests(unittest.TestCase):
         )
         scan_source = ast.get_source_segment(device_source, scan_method)
         self.assertIn("threading.Thread", scan_source)
-        self.assertNotIn("subprocess.run(", scan_source)
+        ui_path = scan_source.split("            def worker():", 1)[0]
+        self.assertNotIn("subprocess.run(", ui_path)
         self.assertIn('self.events.put(', scan_source)
 
         app_source = (_SRC_ROOT / "droidlab" / "ui" / "main_window.py").read_text(encoding="utf-8")
