@@ -178,12 +178,25 @@ class ADBControllerMixin:
                 # execution. Revalidate a targeted Fastboot command immediately
                 # before spawning it, especially for flash/erase/unlock operations.
                 executable = Path(command[0]).name.lower() if command else ""
-                if executable in ("fastboot", "fastboot.exe") and "-s" in command:
-                    selector_index = command.index("-s")
-                    if selector_index + 1 >= len(command):
-                        raise ValueError("Fastboot command has a malformed -s selector.")
-                    target_serial = command[selector_index + 1]
-                    args_after_target = command[selector_index + 2:]
+                selector_index = next(
+                    (
+                        index for index, token in enumerate(command)
+                        if token == "-s" or token.startswith("-s=")
+                    ),
+                    None,
+                )
+                if executable in ("fastboot", "fastboot.exe") and selector_index is not None:
+                    selector = command[selector_index]
+                    if selector == "-s":
+                        if selector_index + 1 >= len(command) or not command[selector_index + 1]:
+                            raise ValueError("Fastboot command has a malformed -s selector.")
+                        target_serial = command[selector_index + 1]
+                        args_after_target = command[selector_index + 2:]
+                    else:
+                        target_serial = selector[3:]
+                        if not target_serial:
+                            raise ValueError("Fastboot command has a malformed -s selector.")
+                        args_after_target = command[selector_index + 1:]
                     is_discovery = bool(args_after_target and args_after_target[0].lower() in
                                         ("devices", "help", "--help", "--version", "version", "getvar"))
                     if not is_discovery:
@@ -237,10 +250,20 @@ class ADBControllerMixin:
             lock_acquired = False
             try:
                 serial = None
-                if "-s" in command:
-                    selector_index = command.index("-s")
-                    if selector_index + 1 < len(command):
-                        serial = command[selector_index + 1]
+                selector_index = next(
+                    (
+                        index for index, token in enumerate(command)
+                        if token == "-s" or token.startswith("-s=")
+                    ),
+                    None,
+                )
+                if selector_index is not None:
+                    selector = command[selector_index]
+                    if selector == "-s":
+                        if selector_index + 1 < len(command):
+                            serial = command[selector_index + 1]
+                    else:
+                        serial = selector[3:] or None
                 if serial:
                     with self._device_operation_locks_guard:
                         operation_lock = self._device_operation_locks.setdefault(serial, threading.Lock())
