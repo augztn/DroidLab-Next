@@ -9,9 +9,19 @@ from tkinter import ttk
 class ADBViewSupport:
     def _build_adb_tab(self, tab):
         tab.columnconfigure(0, weight=1)
-        tab.rowconfigure(2, weight=0, minsize=0)
-        tab.rowconfigure(3, weight=1)
-        modebar = ttk.Frame(tab)
+        tab.rowconfigure(0, weight=1)
+        # A two-column device canvas sits beside the persistent app sidebar:
+        # controls remain in the center while the console owns the right rail.
+        outer = ttk.Frame(tab)
+        outer.grid(row=0, column=0, sticky="nsew")
+        outer.columnconfigure(0, weight=62, uniform="device_canvas")
+        outer.columnconfigure(1, weight=38, uniform="device_canvas")
+        outer.rowconfigure(0, weight=1)
+        center = ttk.Frame(outer)
+        center.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        center.columnconfigure(0, weight=1)
+        center.rowconfigure(3, weight=1)
+        modebar = ttk.Frame(center)
         modebar.grid(row=0, column=0, sticky="ew", pady=(0, 4))
         ttk.Label(modebar, text="Device mode", font=(self._ui_font, 16, "bold")).pack(
             side="left", padx=(0, 12)
@@ -40,7 +50,7 @@ class ADBViewSupport:
             style="Muted.TLabel",
             wraplength=900,
         ).grid(row=1, column=0, sticky="w", pady=(0, 3))
-        device = ttk.Frame(tab, style="Panel.TFrame", padding=6)
+        device = ttk.Frame(center, style="Panel.TFrame", padding=6)
         device.grid(row=2, column=0, sticky="ew", pady=(0, 6))
         ttk.Label(device, text="ADB DEVICE", background="#1f2937", foreground="#93c5fd").pack(
             anchor="w"
@@ -74,18 +84,15 @@ class ADBViewSupport:
             wraplength=650,
         ).pack(anchor="w", pady=(2, 0))
         # Controls remain on the left; device info and an expanded console share the right column.
-        workspace = ttk.Frame(tab)
+        workspace = ttk.Frame(center)
         workspace.grid(row=3, column=0, sticky="nsew")
-        # Keep the controls as the dominant center column and reserve a stable
-        # right rail for the live console, matching the reference workspace.
-        workspace.columnconfigure(0, weight=62, uniform="adb_workspace")
-        workspace.columnconfigure(1, weight=38, uniform="adb_workspace")
+        workspace.columnconfigure(0, weight=1)
         workspace.rowconfigure(0, weight=1)
         lower = ttk.Frame(workspace)
-        lower.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        lower.grid(row=0, column=0, sticky="nsew")
         lower.columnconfigure(0, weight=1)
         lower.rowconfigure(2, weight=1)
-        right = ttk.Frame(workspace)
+        right = ttk.Frame(outer)
         right.grid(row=0, column=1, sticky="nsew")
         right.columnconfigure(0, weight=1)
         right.rowconfigure(1, weight=1)
