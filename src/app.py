@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Backward-compatible bootstrap for the DroidLab desktop application."""
+
 from droidlab.ui.main_window import *  # noqa: F403
 from droidlab.ui.main_window import (
     PayloadDumperApp,  # noqa: F401

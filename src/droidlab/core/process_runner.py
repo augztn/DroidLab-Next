@@ -1,4 +1,5 @@
 """Shared bounded subprocess streaming and termination primitives."""
+
 from __future__ import annotations
 
 import math

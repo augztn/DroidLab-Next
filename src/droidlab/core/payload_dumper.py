@@ -1,4 +1,5 @@
 """Adapter for the documented payload-dumper-go command-line backend."""
+
 from __future__ import annotations
 
 import hashlib
@@ -81,7 +82,6 @@ def _find_cli() -> list[str] | None:
     return None
 
 
-
 def _terminate_process(proc: subprocess.Popen, grace_seconds: float = 5.0) -> None:
     """Compatibility wrapper around the shared bounded termination helper."""
     terminate_process(proc, grace_seconds)
@@ -121,7 +121,9 @@ def _run(
 ) -> subprocess.CompletedProcess[str]:
     cli = _find_cli()
     if not cli:
-        raise BackendError("payload-dumper-go was not found. Install it or use the bundled AppImage.")
+        raise BackendError(
+            "payload-dumper-go was not found. Install it or use the bundled AppImage."
+        )
     return _run_process(
         cli, args, progress, cancel_event, "Inspection", timeout=INSPECTION_TIMEOUT_SECONDS
     )
@@ -177,14 +179,19 @@ def extract(
         raise BackendError("Choose a payload .bin file or OTA .zip file.")
     cli = _find_cli()
     if not cli:
-        raise BackendError("payload-dumper-go was not found. Install it or use the bundled AppImage.")
+        raise BackendError(
+            "payload-dumper-go was not found. Install it or use the bundled AppImage."
+        )
     if selected:
         invalid = [
-            name for name in selected
+            name
+            for name in selected
             if not isinstance(name, str) or not is_valid_partition_name(name)
         ]
         if invalid:
-            raise BackendError("Invalid partition selection; refresh the partition list and try again.")
+            raise BackendError(
+                "Invalid partition selection; refresh the partition list and try again."
+            )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.mkdir(parents=True, exist_ok=True)
     # A unique sibling staging directory keeps backend output isolated while
@@ -212,11 +219,14 @@ def extract(
             raise BackendError("Extraction cancelled by user.")
 
         artifacts = sorted(
-            path for path in stage.rglob("*.img")
+            path
+            for path in stage.rglob("*.img")
             if path.is_file() and not path.is_symlink() and path.stat().st_size > 0
         )
         if not artifacts:
-            raise BackendError("Extraction completed without producing any non-empty .img artifacts.")
+            raise BackendError(
+                "Extraction completed without producing any non-empty .img artifacts."
+            )
 
         if selected:
             actual = {path.stem.casefold() for path in artifacts}
@@ -237,7 +247,9 @@ def extract(
             try:
                 destination_parent.relative_to(output_root)
             except ValueError as exc:
-                raise BackendError("An extracted artifact resolves outside the output directory.") from exc
+                raise BackendError(
+                    "An extracted artifact resolves outside the output directory."
+                ) from exc
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination_parent = destination.parent.resolve()
             try:
@@ -257,7 +269,9 @@ def extract(
                     f"Output already exists and will not be overwritten: {destination}"
                 ) from exc
             except OSError as exc:
-                raise BackendError(f"Could not publish extracted artifact {destination}: {exc}") from exc
+                raise BackendError(
+                    f"Could not publish extracted artifact {destination}: {exc}"
+                ) from exc
             published.append(destination)
             artifact.unlink()
 
@@ -286,7 +300,9 @@ def extract(
             logging.warning("Could not remove payload staging directory %s: %s", stage, exc)
             if progress:
                 try:
-                    progress(f"Warning: could not remove temporary staging directory {stage}: {exc}")
+                    progress(
+                        f"Warning: could not remove temporary staging directory {stage}: {exc}"
+                    )
                 except Exception:
                     logging.debug("Could not report staging cleanup warning", exc_info=True)
 

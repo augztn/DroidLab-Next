@@ -23,9 +23,10 @@ class DeviceWorkerDispatchTests(unittest.TestCase):
         probe = subprocess.CompletedProcess(
             ["adb", "devices", "-l"], 0, "List of devices attached\nOTHER device\n", ""
         )
-        with patch.object(adb_controller.subprocess, "run", return_value=probe), patch.object(
-            adb_controller, "run_streaming"
-        ) as runner:
+        with (
+            patch.object(adb_controller.subprocess, "run", return_value=probe),
+            patch.object(adb_controller, "run_streaming") as runner,
+        ):
             ADBControllerMixin._stream_process(
                 controller, ["adb", "-s", "SERIAL", "shell", "getprop"], 10, "shell"
             )
@@ -47,9 +48,10 @@ class DeviceWorkerDispatchTests(unittest.TestCase):
         probe = subprocess.CompletedProcess(
             ["adb", "devices", "-l"], 0, "List of devices attached\nSERIAL device\n", ""
         )
-        with patch.object(adb_controller.subprocess, "run", return_value=probe), patch.object(
-            adb_controller, "run_streaming"
-        ) as runner:
+        with (
+            patch.object(adb_controller.subprocess, "run", return_value=probe),
+            patch.object(adb_controller, "run_streaming") as runner,
+        ):
             ADBControllerMixin._stream_process(
                 controller, ["adb", "-s", "SERIAL", "sideload", "update.zip"], 10, "sideload"
             )
@@ -165,9 +167,7 @@ class DeviceWorkerDispatchTests(unittest.TestCase):
         )
 
         self.assertEqual(controller._console_write.call_count, 2)
-        controller._console_write.assert_any_call(
-            controller.fastboot_console, "requested slot B\n"
-        )
+        controller._console_write.assert_any_call(controller.fastboot_console, "requested slot B\n")
         controller._refresh_device_info.assert_called_once_with()
 
     def test_failed_slot_result_reenables_slot_buttons(self):
@@ -178,9 +178,7 @@ class DeviceWorkerDispatchTests(unittest.TestCase):
         controller.fastboot_console = object()
         controller.header_slot_buttons = {"a": button_a, "b": button_b}
 
-        DeviceControllerMixin._finish_slot_switch(
-            controller, ["slot switch failed"], False
-        )
+        DeviceControllerMixin._finish_slot_switch(controller, ["slot switch failed"], False)
 
         button_a.configure.assert_called_once_with(state="normal")
         button_b.configure.assert_called_once_with(state="normal")
@@ -190,9 +188,7 @@ class DeviceWorkerDispatchTests(unittest.TestCase):
         controller = Mock()
         controller._closing = True
 
-        DeviceControllerMixin._finish_slot_switch(
-            controller, ["late worker result"], True
-        )
+        DeviceControllerMixin._finish_slot_switch(controller, ["late worker result"], True)
 
         controller._console_write.assert_not_called()
         controller._refresh_device_info.assert_not_called()

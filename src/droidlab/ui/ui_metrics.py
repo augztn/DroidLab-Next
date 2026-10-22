@@ -4,6 +4,7 @@ Tk font sizes are in points and grow with display scaling (HiDPI and fractional
 scaling), while ttk Treeview row heights and column widths are raw pixels.
 Derive these dimensions from the actual font instead of hard-coding them.
 """
+
 from __future__ import annotations
 
 

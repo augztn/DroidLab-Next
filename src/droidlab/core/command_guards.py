@@ -1,24 +1,56 @@
 """Pure command safety checks shared by the UI and unit tests."""
+
 from __future__ import annotations
 
 import re
 from pathlib import PurePath
 
-_ADB_DESTRUCTIVE_VERBS = {"reboot", "sideload", "root", "unroot", "remount", "disable-verity", "enable-verity", "uninstall", "erase", "format", "flash", "wipe"}
+_ADB_DESTRUCTIVE_VERBS = {
+    "reboot",
+    "sideload",
+    "root",
+    "unroot",
+    "remount",
+    "disable-verity",
+    "enable-verity",
+    "uninstall",
+    "erase",
+    "format",
+    "flash",
+    "wipe",
+}
 _SHELL_DESTRUCTIVE_PATTERNS = (
-    re.compile(r"(?:^|[;&|]\s*)rm\s+(?:-[a-z]*r[a-z]*f\b|-[a-z]*r\s+-[a-z]*f\b|-[a-z]*f\s+-[a-z]*r\b)", re.I),
-    re.compile(r"(?:^|[;&|]\s*)(?:mkfs(?:\.[\w-]+)?|dd|reboot|poweroff|shutdown|wipe|format)\b", re.I),
+    re.compile(
+        r"(?:^|[;&|]\s*)rm\s+(?:-[a-z]*r[a-z]*f\b|-[a-z]*r\s+-[a-z]*f\b|-[a-z]*f\s+-[a-z]*r\b)",
+        re.I,
+    ),
+    re.compile(
+        r"(?:^|[;&|]\s*)(?:mkfs(?:\.[\w-]+)?|dd|reboot|poweroff|shutdown|wipe|format)\b", re.I
+    ),
     re.compile(r"(?:^|[;&|]\s*)setprop\b", re.I),
     re.compile(r"(?:^|[;&|]\s*)pm\s+(?:uninstall|disable-user)\b", re.I),
     re.compile(r"(?:^|[;&|]\s*)svc\b[^;&|]*\bdisable\b", re.I),
 )
-_FASTBOOT_DESTRUCTIVE_VERBS = {"flash", "flashall", "erase", "format", "wipe", "set_active", "update", "delete-logical-partition", "create-logical-partition", "resize-logical-partition"}
+_FASTBOOT_DESTRUCTIVE_VERBS = {
+    "flash",
+    "flashall",
+    "erase",
+    "format",
+    "wipe",
+    "set_active",
+    "update",
+    "delete-logical-partition",
+    "create-logical-partition",
+    "resize-logical-partition",
+}
+
 
 def _strip_executable(tokens: list[str], names: set[str]) -> list[str]:
     values = list(tokens)
     if values and PurePath(values[0].strip('"')).name.lower() in names:
         values.pop(0)
     return values
+
 
 def _skip_device_options(tokens: list[str]) -> list[str]:
     values, index = list(tokens), 0
@@ -33,6 +65,7 @@ def _skip_device_options(tokens: list[str]) -> list[str]:
             break
     return values[index:]
 
+
 def is_destructive_adb(tokens: list[str] | tuple[str, ...]) -> bool:
     """Detect destructive ADB commands without relying on fragile raw-text regexes."""
     values = _skip_device_options(_strip_executable(list(tokens), {"adb", "adb.exe"}))
@@ -45,6 +78,7 @@ def is_destructive_adb(tokens: list[str] | tuple[str, ...]) -> bool:
         shell_text = " ".join(values[1:]).strip()
         return any(pattern.search(shell_text) for pattern in _SHELL_DESTRUCTIVE_PATTERNS)
     return False
+
 
 def is_destructive_fastboot(tokens: list[str] | tuple[str, ...]) -> bool:
     """Detect destructive Fastboot operations, including global flags and unlocks."""
@@ -60,11 +94,18 @@ def is_destructive_fastboot(tokens: list[str] | tuple[str, ...]) -> bool:
         return True
     if verb == "oem" and len(lowered) > 1 and lowered[1] == "unlock":
         return True
-    return verb == "flashing" and len(lowered) > 1 and lowered[1] in {"unlock", "unlock_critical", "lock", "lock_critical"}
+    return (
+        verb == "flashing"
+        and len(lowered) > 1
+        and lowered[1] in {"unlock", "unlock_critical", "lock", "lock_critical"}
+    )
+
 
 def is_valid_partition_name(name: str) -> bool:
     """Partition names must begin with an ASCII letter or digit."""
     return bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name))
+
+
 def explicit_device_selector(tokens: list[str] | tuple[str, ...], tool: str) -> str | None:
     """Return a host-side -s serial selector, rejecting malformed or ambiguous selectors.
 
@@ -73,7 +114,10 @@ def explicit_device_selector(tokens: list[str] | tuple[str, ...], tool: str) -> 
     """
     values = list(tokens)
     if values and PurePath(values[0].strip('"')).name.lower() in {
-        "adb", "adb.exe", "fastboot", "fastboot.exe"
+        "adb",
+        "adb.exe",
+        "fastboot",
+        "fastboot.exe",
     }:
         values.pop(0)
     tool_name = tool.lower()
@@ -98,7 +142,11 @@ def explicit_device_selector(tokens: list[str] | tuple[str, ...], tool: str) -> 
                 raise ValueError("Missing serial after -s")
             index += 1
         elif token == "-s":
-            if index + 1 >= len(values) or not values[index + 1] or values[index + 1].startswith("-"):
+            if (
+                index + 1 >= len(values)
+                or not values[index + 1]
+                or values[index + 1].startswith("-")
+            ):
                 raise ValueError("Missing serial after -s")
             candidate = values[index + 1]
             index += 2
