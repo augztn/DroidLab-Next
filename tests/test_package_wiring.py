@@ -246,6 +246,27 @@ class ControllerSafetyCharacterizationTests(unittest.TestCase):
         self.assertIn('self.events.put(("log",', payload_source)
 
 
+    def test_direct_logcat_processes_use_isolated_sessions_for_tree_cleanup(self):
+        source_path = _SRC_ROOT / "droidlab" / "controllers" / "adb_controller.py"
+        source = source_path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        cls = next(
+            node for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "ADBControllerMixin"
+        )
+        for method_name in ("_start_adb_logcat", "_capture_logcat_file"):
+            method = next(
+                node for node in cls.body
+                if isinstance(node, ast.FunctionDef) and node.name == method_name
+            )
+            method_source = ast.get_source_segment(source, method)
+            with self.subTest(method=method_name):
+                self.assertIn(
+                    '"start_new_session": True',
+                    method_source,
+                    "terminate_process expects POSIX process groups to be isolated",
+                )
+
     def test_view_button_and_event_bindings_resolve_to_app_callables(self):
         app_class = importlib.import_module("app").PayloadDumperApp
         source_root = _SRC_ROOT / "droidlab" / "ui"
