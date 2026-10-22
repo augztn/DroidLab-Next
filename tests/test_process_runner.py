@@ -1,7 +1,11 @@
+import os
 import subprocess
 import sys
+import tempfile
 import threading
+import time
 import unittest
+from pathlib import Path
 
 from src.process_runner import ProcessCancelledError, run_streaming
 
@@ -30,6 +34,49 @@ class ProcessRunnerTests(unittest.TestCase):
                 [sys.executable, "-c", "import time; time.sleep(10)"],
                 timeout=0.2,
             )
+
+    @unittest.skipUnless(os.name == "posix", "POSIX process-group behavior")
+    def test_timeout_terminates_descendant_holding_output_pipe(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pid_path = Path(directory) / "child.pid"
+            child_code = (
+                "import signal, time; "
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "time.sleep(30)"
+            )
+            parent_code = (
+                "import subprocess, sys, time; "
+                "child = subprocess.Popen([sys.executable, '-c', "
+                + repr(child_code)
+                + "]); "
+                + "open("
+                + repr(str(pid_path))
+                + ", 'w').write(str(child.pid)); "
+                + "time.sleep(30)"
+            )
+            with self.assertRaises(subprocess.TimeoutExpired):
+                run_streaming(
+                    [sys.executable, "-c", parent_code],
+                    timeout=0.5,
+                )
+
+            self.assertTrue(pid_path.is_file(), "child process should have started")
+            child_pid = int(pid_path.read_text(encoding="utf-8"))
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                try:
+                    os.kill(child_pid, 0)
+                except ProcessLookupError:
+                    break
+                # Treat an exited-but-not-yet-reaped process as terminated.
+                stat_path = Path("/proc") / str(child_pid) / "stat"
+                if stat_path.exists():
+                    fields = stat_path.read_text(encoding="utf-8").split()
+                    if len(fields) > 2 and fields[2] == "Z":
+                        break
+                time.sleep(0.05)
+            else:
+                self.fail("descendant process survived process-runner timeout")
 
     def test_cancel_before_launch_does_not_spawn_process(self):
         cancelled = threading.Event()
