@@ -21,6 +21,7 @@ from droidlab.config.logging_config import configure_logging as _configure_loggi
 from droidlab.config.logging_config import log_directory as _log_directory
 from droidlab.config.logging_config import log_uncaught_exception as _log_uncaught_exception
 from droidlab.config.settings import load_settings
+from droidlab.core.operation_outcomes import sideload_result_message
 from droidlab.controllers.adb_controller import ADBControllerMixin
 from droidlab.controllers.device_controller import DeviceControllerMixin
 from droidlab.controllers.fastboot_controller import FastbootControllerMixin
@@ -294,8 +295,11 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
                         for delay in (1800, 4000, 7500, 12000):
                             self.after(delay, self._refresh_adb_devices)
                     elif kind_name=="sideload":
-                        if code==0:messagebox.showinfo("Sideload complete","ADB reported that the sideload command completed.")
-                        else:messagebox.showerror("Sideload failed",output)
+                        title, message = sideload_result_message(code, output)
+                        if code == 0:
+                            messagebox.showinfo(title, message)
+                        else:
+                            messagebox.showwarning(title, message)
                     elif kind_name=="logcat_file":
                         if code==0:messagebox.showinfo("Logcat saved",output)
                         else:messagebox.showerror("Save logcat failed",output)
