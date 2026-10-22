@@ -5,6 +5,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from src.process_runner import ProcessCancelledError, run_streaming
@@ -27,6 +28,18 @@ class ProcessRunnerTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 7)
         self.assertIn("failed", result.stdout)
+
+    def test_posix_process_group_isolation_cannot_be_disabled_by_caller(self):
+        with patch(
+            "droidlab.core.process_runner.subprocess.Popen",
+            side_effect=OSError("spawn blocked for test"),
+        ) as popen:
+            with self.assertRaisesRegex(OSError, "spawn blocked"):
+                run_streaming(
+                    [sys.executable, "-c", "pass"],
+                    popen_kwargs={"start_new_session": False},
+                )
+        self.assertTrue(popen.call_args.kwargs["start_new_session"])
 
     def test_timeout_terminates_quiet_process(self):
         with self.assertRaises(subprocess.TimeoutExpired):
