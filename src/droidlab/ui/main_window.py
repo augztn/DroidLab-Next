@@ -312,10 +312,8 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
                         if code==0:messagebox.showinfo("Logcat saved",output)
                         else:messagebox.showerror("Save logcat failed",output)
                 elif kind=="device_scan_result":
-                    request_id, targets, status_lines, previous, previous_fastboot = payload
-                    self._apply_device_scan_result(
-                        request_id, targets, status_lines, previous, previous_fastboot
-                    )
+                    request_id, targets, status_lines = payload
+                    self._apply_device_scan_result(request_id, targets, status_lines)
                 elif kind=="device_info_result":
                     request_id, result = payload
                     self._apply_device_info_result(request_id, result)
