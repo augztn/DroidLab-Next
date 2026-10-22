@@ -29,6 +29,7 @@ class ProcessRunnerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 7)
         self.assertIn("failed", result.stdout)
 
+    @unittest.skipUnless(os.name == "posix", "POSIX process-group behavior")
     def test_posix_process_group_isolation_cannot_be_disabled_by_caller(self):
         with patch(
             "droidlab.core.process_runner.subprocess.Popen",
