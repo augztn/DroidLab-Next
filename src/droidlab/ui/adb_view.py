@@ -16,15 +16,17 @@ class ADBViewSupport:
         ttk.Label(modebar, text="Device mode", font=(self._ui_font, 16, "bold")).pack(
             side="left", padx=(0, 12)
         )
+        mode_switch = ttk.Frame(modebar, style="Panel.TFrame", padding=3)
+        mode_switch.pack(side="left")
         self.adb_workspace_mode_button = ttk.Button(
-            modebar,
+            mode_switch,
             text="ADB & Sideload",
             command=lambda: self._show_device_workspace("adb", manual=True),
             style="Primary.TButton",
         )
-        self.adb_workspace_mode_button.pack(side="left", padx=(0, 5))
+        self.adb_workspace_mode_button.pack(side="left", padx=(0, 3))
         self.fastboot_workspace_mode_button = ttk.Button(
-            modebar,
+            mode_switch,
             text="Fastboot & Flashing",
             command=lambda: self._show_device_workspace("fastboot", manual=True),
         )
