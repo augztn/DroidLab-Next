@@ -32,6 +32,64 @@ class DeviceWorkerDispatchTests(unittest.TestCase):
         controller._set_device_info.assert_called_once_with(*result)
         controller.adb_info_loading.set.assert_called_once_with("")
 
+    def test_missing_device_invalidates_inflight_metadata_result(self):
+        controller = Mock()
+        controller._device_info_request_id = 4
+        controller._adb_targets = {}
+        controller.adb_device.get.return_value = ""
+        controller.adb_info_loading = Mock()
+
+        DeviceControllerMixin._refresh_device_info(controller)
+
+        self.assertEqual(controller._device_info_request_id, 5)
+        controller._set_device_info.assert_called_once()
+        controller.adb_info_loading.set.assert_called_once_with("")
+
+    def test_device_scan_starts_in_worker_instead_of_blocking_ui(self):
+        controller = Mock()
+        controller._closing = False
+        controller._device_scan_running = False
+        controller._device_scan_request_id = 0
+        controller.adb_device.get.return_value = "old-adb"
+        controller.fastboot_device.get.return_value = "old-fastboot"
+        controller.events = Mock()
+        controller.adb_device_status = Mock()
+
+        with patch("droidlab.controllers.device_controller.threading.Thread") as thread:
+            DeviceControllerMixin._refresh_adb_devices(controller)
+
+        self.assertTrue(controller._device_scan_running)
+        thread.assert_called_once()
+        thread.return_value.start.assert_called_once_with()
+
+    def test_device_scan_result_updates_both_selectors_and_invalidates_old_info(self):
+        controller = Mock()
+        controller._device_scan_request_id = 7
+        controller._device_scan_running = True
+        controller._device_info_request_id = 3
+        controller._device_scan_again = False
+        controller._closing = False
+        controller._adb_targets = {}
+        controller.adb_device.get.return_value = ""
+        controller.fastboot_device.get.return_value = ""
+        controller.adb_device_combo = Mock()
+        controller.device_combo = Mock()
+        controller.adb_device_status = Mock()
+        controller.device_mode_status = Mock()
+
+        targets = {"serial-1 [Fastboot]": ("serial-1", "fastboot")}
+        DeviceControllerMixin._apply_device_scan_result(
+            controller, 7, targets, ["ADB: no devices", "Fastboot: serial-1"], "", ""
+        )
+
+        self.assertFalse(controller._device_scan_running)
+        self.assertEqual(controller._device_info_request_id, 4)
+        controller.adb_device_combo.__setitem__.assert_called_once_with(
+            "values", ["serial-1 [Fastboot]"]
+        )
+        controller.device_combo.__setitem__.assert_called_once_with("values", ["serial-1"])
+        controller._on_shared_device_selected.assert_called_once_with()
+
     def test_successful_slot_result_writes_lines_and_refreshes_info(self):
         controller = Mock()
         controller._closing = False
