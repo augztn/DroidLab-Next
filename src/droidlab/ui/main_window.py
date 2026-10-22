@@ -79,8 +79,16 @@ class PayloadDumperApp(
         self.theme_name = self._load_theme_name()
         self.theme_tokens = THEME_TOKENS[self.theme_name]
         self.configure(bg=self.theme_tokens["bg"])
-        self._ui_font = "Segoe UI" if os.name == "nt" else ("SF Pro Text" if sys.platform == "darwin" else "Inter")
-        self._mono_font = "Cascadia Code" if os.name == "nt" else ("SF Mono" if sys.platform == "darwin" else "DejaVu Sans Mono")
+        self._ui_font = (
+            "Segoe UI"
+            if os.name == "nt"
+            else ("SF Pro Text" if sys.platform == "darwin" else "Inter")
+        )
+        self._mono_font = (
+            "Cascadia Code"
+            if os.name == "nt"
+            else ("SF Mono" if sys.platform == "darwin" else "DejaVu Sans Mono")
+        )
         self.events = queue.Queue()
         self.worker = None
         self.payload_cancel_event = threading.Event()
