@@ -212,7 +212,7 @@ def run_streaming(
             omitted += drops["count"]
         output = "".join(retained)
         if omitted:
-            output += f"\\n[DroidLab: {omitted} additional output line(s) omitted]\\n"
+            output += f"\n[DroidLab: {omitted} additional output line(s) omitted]\n"
         return subprocess.CompletedProcess(list(command), code, output, "")
     except BaseException:
         terminate_process(proc)
