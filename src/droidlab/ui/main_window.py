@@ -37,8 +37,8 @@ from droidlab.ui.widgets import WidgetSupport
 
 
 # Compatibility note: UI sizing now lives in ui/widgets.py and ui/payload_view.py;
-# it still derives rowheight from the font metrics used by tree_row_height:
-# tkfont.Font(self, font=self._tree_font).metrics("linespace")
+# it still derives rowheight via tree_row_height(
+#     tkfont.Font(self, font=self._tree_font).metrics("linespace"))
 # and wires the partition tree scrollbar with yscrollcommand=tree_scroll.set.
 def _windows_process_options():
     """Keep ADB/Fastboot subprocesses from flashing console windows on Windows."""
