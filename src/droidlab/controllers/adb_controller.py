@@ -221,7 +221,7 @@ class ADBControllerMixin:
                             "ADB target %r is not present in an allowed state in a successful "
                             "fresh device scan. No command was sent. Refresh devices, verify "
                             "the target/mode, and retry. Probe output: %s"
-                            % (target_serial, (probe.stdout + "\\n" + probe.stderr).strip())
+                            % (target_serial, (probe.stdout + "\n" + probe.stderr).strip())
                         )
                 if executable in ("fastboot", "fastboot.exe") and selector_index is not None:
                     selector = command[selector_index]
