@@ -9,7 +9,7 @@ _SRC_ROOT = Path(__file__).resolve().parent.parent / "src"
 if str(_SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(_SRC_ROOT))
 
-from droidlab.controllers.fastboot_controller import FastbootControllerMixin
+from droidlab.controllers.fastboot_controller import FastbootControllerMixin  # noqa: E402
 
 
 class FastbootPreflightTests(unittest.TestCase):
