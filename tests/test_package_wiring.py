@@ -10,7 +10,7 @@ import tkinter as tk
 import types
 import unittest
 from pathlib import Path, PurePosixPath
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 # Make package imports work from an uninstalled source checkout as well.
 _SRC_ROOT = Path(__file__).resolve().parent.parent / "src"
@@ -199,6 +199,28 @@ class PackageImportTests(unittest.TestCase):
 
 
 class ControllerSafetyCharacterizationTests(unittest.TestCase):
+    def test_fingerprint_read_error_does_not_fail_successful_extraction(self):
+        from droidlab.controllers import payload_controller
+        from droidlab.controllers.payload_controller import PayloadControllerMixin
+
+        controller = Mock()
+        controller.events = Mock()
+        controller.payload_cancel_event = object()
+        with patch.object(payload_controller, "extract", return_value=[Path("boot.img")]), patch.object(
+            payload_controller, "sha256_file", side_effect=OSError("file became unreadable")
+        ):
+            PayloadControllerMixin._extract_worker(
+                controller, "payload.bin", "out", True, []
+            )
+
+        events = [call.args[0] for call in controller.events.put.call_args_list]
+        self.assertTrue(any(event[0] == "done" for event in events))
+        self.assertFalse(any(event[0] == "error" for event in events))
+        self.assertTrue(
+            any(event[0] == "log" and "Warning: could not calculate SHA-256" in event[1]
+                for event in events)
+        )
+
     def test_payload_log_append_is_safe_before_log_widget_initialization(self):
         from droidlab.controllers.payload_controller import PayloadControllerMixin
 
@@ -229,12 +251,77 @@ class ControllerSafetyCharacterizationTests(unittest.TestCase):
         app_source = (_SRC_ROOT / "droidlab" / "ui" / "main_window.py").read_text(encoding="utf-8")
         app_tree = ast.parse(app_source)
         app_class = next(node for node in app_tree.body if isinstance(node, ast.ClassDef) and node.name == "PayloadDumperApp")
-        self.assertTrue(any(isinstance(node, ast.FunctionDef) and node.name == "_poll_events" for node in app_class.body))
+        poll_method = next(
+            node for node in app_class.body
+            if isinstance(node, ast.FunctionDef) and node.name == "_poll_events"
+        )
+        poll_source = ast.get_source_segment(app_source, poll_method)
+        self.assertIsNotNone(poll_source)
+        self.assertLess(
+            poll_source.index("self.after(100, self._poll_events)"),
+            poll_source.index("self.events.get_nowait()"),
+            "schedule the next poll before dispatching events so one bad event cannot stop polling",
+        )
         payload_source = (_SRC_ROOT / "droidlab" / "controllers" / "payload_controller.py").read_text(encoding="utf-8")
         self.assertIn('self.events.put(("parts", parts))', payload_source)
         self.assertIn('self.events.put(("done",', payload_source)
         self.assertIn('self.events.put(("log",', payload_source)
 
+
+    def test_device_discovery_is_backgrounded_and_results_use_ui_queue(self):
+        device_path = _SRC_ROOT / "droidlab" / "controllers" / "device_controller.py"
+        device_source = device_path.read_text(encoding="utf-8")
+        device_tree = ast.parse(device_source)
+        device_class = next(
+            node for node in device_tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "DeviceControllerMixin"
+        )
+        scan_method = next(
+            node for node in device_class.body
+            if isinstance(node, ast.FunctionDef) and node.name == "_refresh_adb_devices"
+        )
+        scan_source = ast.get_source_segment(device_source, scan_method)
+        self.assertIn("threading.Thread", scan_source)
+        ui_path = scan_source.split("            def worker():", 1)[0]
+        self.assertNotIn("subprocess.run(", ui_path)
+        self.assertIn('self.events.put(', scan_source)
+
+        app_source = (_SRC_ROOT / "droidlab" / "ui" / "main_window.py").read_text(encoding="utf-8")
+        self.assertIn('elif kind=="device_scan_result":', app_source)
+
+        fastboot_source = (
+            _SRC_ROOT / "droidlab" / "controllers" / "fastboot_controller.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("def _refresh_fastboot_devices(self):", fastboot_source)
+        self.assertIn("self._refresh_adb_devices()", fastboot_source)
+
+    def test_fastboot_equals_form_selector_keeps_preflight_and_locking(self):
+        source = (
+            _SRC_ROOT / "droidlab" / "controllers" / "adb_controller.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('token.startswith("-s=")', source)
+        self.assertNotIn('if "-s" in command:', source)
+
+    def test_direct_logcat_processes_use_isolated_sessions_for_tree_cleanup(self):
+        source_path = _SRC_ROOT / "droidlab" / "controllers" / "adb_controller.py"
+        source = source_path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        cls = next(
+            node for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "ADBControllerMixin"
+        )
+        for method_name in ("_start_adb_logcat", "_capture_logcat_file"):
+            method = next(
+                node for node in cls.body
+                if isinstance(node, ast.FunctionDef) and node.name == method_name
+            )
+            method_source = ast.get_source_segment(source, method)
+            with self.subTest(method=method_name):
+                self.assertIn(
+                    '"start_new_session": True',
+                    method_source,
+                    "terminate_process expects POSIX process groups to be isolated",
+                )
 
     def test_view_button_and_event_bindings_resolve_to_app_callables(self):
         app_class = importlib.import_module("app").PayloadDumperApp

@@ -140,6 +140,23 @@ def validate_device_selector(
     return explicit
 
 
+def is_adb_target_connected(
+    serial: str,
+    devices_output: str,
+    returncode: int = 0,
+    allowed_states: tuple[str, ...] = ("device",),
+) -> bool:
+    """Return whether a successful ADB scan lists serial in an allowed state."""
+    if returncode != 0 or not serial:
+        return False
+    allowed = set(allowed_states)
+    for line in devices_output.splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and fields[0] == serial and fields[1] in allowed:
+            return True
+    return False
+
+
 def is_fastboot_target_connected(serial: str, devices_output: str, returncode: int = 0) -> bool:
     """Return whether a successful fresh 'fastboot devices -l' scan lists serial."""
     if returncode != 0 or not serial:

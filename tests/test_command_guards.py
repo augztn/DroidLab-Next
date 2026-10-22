@@ -69,6 +69,32 @@ class DeviceSelectorTests(unittest.TestCase):
         from src.command_guards import explicit_device_selector
         self.assertIsNone(explicit_device_selector(["shell", "echo", "-s", "not-a-host-selector"], "adb"))
 
+class AdbTargetValidationTests(unittest.TestCase):
+    def test_target_must_be_present_in_an_allowed_state(self):
+        from src.command_guards import is_adb_target_connected
+
+        output = (
+            "List of devices attached\n"
+            "SERIAL-1 device product:device\n"
+            "SERIAL-2 sideload\n"
+            "SERIAL-3 unauthorized\n"
+            "SERIAL-4 offline\n"
+        )
+        self.assertTrue(is_adb_target_connected("SERIAL-1", output))
+        self.assertTrue(
+            is_adb_target_connected("SERIAL-2", output, allowed_states=("sideload",))
+        )
+        self.assertFalse(is_adb_target_connected("SERIAL-3", output))
+        self.assertFalse(is_adb_target_connected("SERIAL-4", output))
+        self.assertFalse(is_adb_target_connected("SERIAL-1", output, returncode=1))
+
+    def test_missing_or_empty_serial_is_rejected(self):
+        from src.command_guards import is_adb_target_connected
+
+        self.assertFalse(is_adb_target_connected("", "SERIAL-1 device"))
+        self.assertFalse(is_adb_target_connected("MISSING", "SERIAL-1 device"))
+
+
 class FastbootTargetValidationTests(unittest.TestCase):
     def test_target_must_be_present_in_successful_fresh_scan(self):
         from src.command_guards import is_fastboot_target_connected

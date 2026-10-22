@@ -152,6 +152,11 @@ def inspect_source(
         if not is_valid_partition_name(partition_name):
             continue
         parts.append({"name": partition_name, "size_bytes": size_bytes, "hash": ""})
+    if not parts:
+        raise BackendError(
+            "The payload backend returned no valid partition metadata. "
+            "Verify that the input is a supported OTA payload and review the backend output."
+        )
     return parts
 
 

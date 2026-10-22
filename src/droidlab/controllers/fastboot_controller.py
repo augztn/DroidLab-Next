@@ -200,21 +200,8 @@ class FastbootControllerMixin:
             if path: self.flash_image.set(path)
 
         def _refresh_fastboot_devices(self):
-            binary = self._tool_path("fastboot.exe" if os.name == "nt" else "fastboot") or self._tool_path("fastboot")
-            if not binary: messagebox.showerror("Fastboot not found", "Install Android platform-tools and ensure fastboot is on PATH."); return
-            try: result = subprocess.run([binary, "devices", "-l"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=8, check=False, **_windows_process_options())
-            except (OSError, subprocess.TimeoutExpired) as exc: messagebox.showerror("Device detection failed", str(exc)); return
-            devices = [line.split()[0] for line in result.stdout.splitlines() if len(line.split()) >= 2 and line.split()[1] == "fastboot"]
-            self.device_combo["values"] = devices
-            shared = getattr(self, "_adb_targets", {})
-            shared_fastboot = next((label for label, target in shared.items() if target[1] == "fastboot" and target[0] in devices), "")
-            chosen = shared_fastboot or (devices[0] if len(devices) == 1 else "")
-            self.fastboot_device.set(chosen.split(" [Fastboot]")[0] if chosen.endswith(" [Fastboot]") else chosen)
-            self._append("Fastboot scan: " + (", ".join(devices) if devices else "no devices found"))
-            if devices:
-                self._show_device_workspace("fastboot")
-            # Refresh telemetry (including fastboot getvar current-slot) after every scan.
-            self._refresh_device_info()
+            """Refresh both selectors using the shared background device scanner."""
+            self._refresh_adb_devices()
 
         def _update_flash_preview(self):
             image = self.flash_image.get().strip().strip(chr(34)).strip(chr(39)); part = self.flash_partition.get().strip(); serial = self.fastboot_device.get().strip()

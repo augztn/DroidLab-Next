@@ -237,9 +237,11 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
 
 
     def _poll_events(self):
-        # Scheduled callbacks can outlive worker threads during shutdown.
+        # Schedule the next poll before dispatching queued work. A malformed event
+        # or unexpected widget error must not permanently stop result delivery.
         if getattr(self, "_closing", False):
             return
+        self.after(100, self._poll_events)
         logcat_changed = False
         log_queue = getattr(self, "adb_log_queue", None)
         if log_queue is not None and self.adb_log_text and self.adb_log_window and self.adb_log_window.winfo_exists():
@@ -297,12 +299,21 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
                     elif kind_name=="sideload":
                         title, message = sideload_result_message(code, output)
                         if code == 0:
+                            self.adb_device_status.set(
+                                "Sideload command finished. Verify device state before retrying."
+                            )
                             messagebox.showinfo(title, message)
                         else:
+                            self.adb_device_status.set(
+                                "Sideload outcome uncertain. Verify device state before retrying."
+                            )
                             messagebox.showwarning(title, message)
                     elif kind_name=="logcat_file":
                         if code==0:messagebox.showinfo("Logcat saved",output)
                         else:messagebox.showerror("Save logcat failed",output)
+                elif kind=="device_scan_result":
+                    request_id, targets, status_lines = payload
+                    self._apply_device_scan_result(request_id, targets, status_lines)
                 elif kind=="device_info_result":
                     request_id, result = payload
                     self._apply_device_info_result(request_id, result)
@@ -318,8 +329,6 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
         except queue.Empty:pass
         if logcat_changed and not self.adb_log_paused:
             self._render_adb_logcat()
-        if not getattr(self, "_closing", False):
-            self.after(100, self._poll_events)
 def main() -> None:
     """Initialize logging and launch the existing Tk application."""
     _configure_logging()

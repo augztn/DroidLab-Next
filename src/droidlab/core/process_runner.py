@@ -137,7 +137,9 @@ def run_streaming(
 
     launch_options = dict(popen_kwargs or {})
     if os.name == "posix":
-        launch_options.setdefault("start_new_session", True)
+        # Process-tree termination relies on this operation owning its process group.
+        # Do not let caller-supplied Popen options silently disable that guarantee.
+        launch_options["start_new_session"] = True
 
     proc = subprocess.Popen(
         list(command),

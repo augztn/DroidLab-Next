@@ -13,6 +13,7 @@ from tkinter import filedialog, messagebox, ttk
 from tkinterdnd2 import DND_FILES
 
 from droidlab.core.command_guards import (
+    is_adb_target_connected,
     is_fastboot_target_connected,
     validate_device_selector,
 )
@@ -178,12 +179,62 @@ class ADBControllerMixin:
                 # execution. Revalidate a targeted Fastboot command immediately
                 # before spawning it, especially for flash/erase/unlock operations.
                 executable = Path(command[0]).name.lower() if command else ""
-                if executable in ("fastboot", "fastboot.exe") and "-s" in command:
-                    selector_index = command.index("-s")
-                    if selector_index + 1 >= len(command):
-                        raise ValueError("Fastboot command has a malformed -s selector.")
-                    target_serial = command[selector_index + 1]
-                    args_after_target = command[selector_index + 2:]
+                selector_index = next(
+                    (
+                        index for index, token in enumerate(command)
+                        if token == "-s" or token.startswith("-s=")
+                    ),
+                    None,
+                )
+                if executable in ("adb", "adb.exe") and selector_index is not None:
+                    selector = command[selector_index]
+                    if selector == "-s":
+                        if selector_index + 1 >= len(command) or not command[selector_index + 1]:
+                            raise ValueError("ADB command has a malformed -s selector.")
+                        target_serial = command[selector_index + 1]
+                        args_after_target = command[selector_index + 2:]
+                    else:
+                        target_serial = selector[3:]
+                        if not target_serial:
+                            raise ValueError("ADB command has a malformed -s selector.")
+                        args_after_target = command[selector_index + 1:]
+                    verb = args_after_target[0].lower() if args_after_target else ""
+                    allowed_states = (
+                        ("sideload",) if verb == "sideload"
+                        else ("device", "recovery") if verb == "reboot"
+                        else ("device",)
+                    )
+                    probe = subprocess.run(
+                        [command[0], "devices", "-l"],
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        timeout=8,
+                        check=False,
+                        **_windows_process_options(),
+                    )
+                    if not is_adb_target_connected(
+                        target_serial, probe.stdout, probe.returncode, allowed_states
+                    ):
+                        raise RuntimeError(
+                            "ADB target %r is not present in an allowed state in a successful "
+                            "fresh device scan. No command was sent. Refresh devices, verify "
+                            "the target/mode, and retry. Probe output: %s"
+                            % (target_serial, (probe.stdout + "\n" + probe.stderr).strip())
+                        )
+                if executable in ("fastboot", "fastboot.exe") and selector_index is not None:
+                    selector = command[selector_index]
+                    if selector == "-s":
+                        if selector_index + 1 >= len(command) or not command[selector_index + 1]:
+                            raise ValueError("Fastboot command has a malformed -s selector.")
+                        target_serial = command[selector_index + 1]
+                        args_after_target = command[selector_index + 2:]
+                    else:
+                        target_serial = selector[3:]
+                        if not target_serial:
+                            raise ValueError("Fastboot command has a malformed -s selector.")
+                        args_after_target = command[selector_index + 1:]
                     is_discovery = bool(args_after_target and args_after_target[0].lower() in
                                         ("devices", "help", "--help", "--version", "version", "getvar"))
                     if not is_discovery:
@@ -237,10 +288,20 @@ class ADBControllerMixin:
             lock_acquired = False
             try:
                 serial = None
-                if "-s" in command:
-                    selector_index = command.index("-s")
-                    if selector_index + 1 < len(command):
-                        serial = command[selector_index + 1]
+                selector_index = next(
+                    (
+                        index for index, token in enumerate(command)
+                        if token == "-s" or token.startswith("-s=")
+                    ),
+                    None,
+                )
+                if selector_index is not None:
+                    selector = command[selector_index]
+                    if selector == "-s":
+                        if selector_index + 1 < len(command):
+                            serial = command[selector_index + 1]
+                    else:
+                        serial = selector[3:] or None
                 if serial:
                     with self._device_operation_locks_guard:
                         operation_lock = self._device_operation_locks.setdefault(serial, threading.Lock())
@@ -399,7 +460,8 @@ class ADBControllerMixin:
                 self.adb_log_process = subprocess.Popen(
                     [binary, "-s", serial, "logcat", "-v", "threadtime"],
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                    encoding="utf-8", errors="replace", bufsize=1, **_windows_process_options())
+                    encoding="utf-8", errors="replace", bufsize=1, **_windows_process_options(),
+                    **({"start_new_session": True} if os.name == "posix" else {}))
             except OSError as exc:
                 logging.exception("Could not start live logcat for %s", serial)
                 window.destroy()
@@ -493,7 +555,16 @@ class ADBControllerMixin:
             process=None
             try:
                 with open(path,"w",encoding="utf-8") as output:
-                    process=subprocess.Popen([binary,"-s",serial,"logcat"],stdout=output,stderr=subprocess.PIPE,text=True,encoding="utf-8",errors="replace",**_windows_process_options())
+                    process=subprocess.Popen(
+                        [binary, "-s", serial, "logcat"],
+                        stdout=output,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        **_windows_process_options(),
+                        **({"start_new_session": True} if os.name == "posix" else {}),
+                    )
                     try:
                         _stdout,stderr=process.communicate(timeout=3600)
                         self.events.put(("adb_result",("logcat_file",process.returncode,"Saved logcat to "+path+(("\n"+stderr.strip()) if stderr and stderr.strip() else ""))))
