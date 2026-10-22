@@ -42,16 +42,24 @@ class DeviceControllerMixin:
             self.adb_device_status.set("Scanning ADB and Fastboot devices…")
 
             def worker():
-                adb_binary = (
-                    self._tool_path("adb.exe" if os.name == "nt" else "adb")
-                    or self._tool_path("adb")
-                )
-                fastboot_binary = (
-                    self._tool_path("fastboot.exe" if os.name == "nt" else "fastboot")
-                    or self._tool_path("fastboot")
-                )
                 targets = {}
                 status_lines = []
+                try:
+                    adb_binary = (
+                        self._tool_path("adb.exe" if os.name == "nt" else "adb")
+                        or self._tool_path("adb")
+                    )
+                    fastboot_binary = (
+                        self._tool_path("fastboot.exe" if os.name == "nt" else "fastboot")
+                        or self._tool_path("fastboot")
+                    )
+                except Exception as exc:
+                    status_lines.append("Device tool discovery failed: " + str(exc))
+                    if not getattr(self, "_closing", False):
+                        self.events.put(
+                            ("device_scan_result", (request_id, targets, status_lines))
+                        )
+                    return
 
                 if adb_binary:
                     try:
@@ -65,19 +73,22 @@ class DeviceControllerMixin:
                             check=False,
                             **_windows_process_options(),
                         )
-                        for line in result.stdout.splitlines()[1:]:
-                            fields = line.split()
-                            if len(fields) >= 2 and fields[1] in (
-                                "device", "sideload", "recovery", "unauthorized", "offline"
-                            ):
-                                targets[fields[0] + " [ADB: " + fields[1] + "]"] = (
-                                    fields[0], "adb:" + fields[1]
-                                )
-                        adb_labels = [
-                            label for label, target in targets.items()
-                            if target[1].startswith("adb:")
-                        ]
-                        status_lines.append("ADB: " + (", ".join(adb_labels) or "no devices"))
+                        if result.returncode != 0:
+                            status_lines.append("ADB scan failed (exit code %s)" % result.returncode)
+                        else:
+                            for line in result.stdout.splitlines()[1:]:
+                                fields = line.split()
+                                if len(fields) >= 2 and fields[1] in (
+                                    "device", "sideload", "recovery", "unauthorized", "offline"
+                                ):
+                                    targets[fields[0] + " [ADB: " + fields[1] + "]"] = (
+                                        fields[0], "adb:" + fields[1]
+                                    )
+                            adb_labels = [
+                                label for label, target in targets.items()
+                                if target[1].startswith("adb:")
+                            ]
+                            status_lines.append("ADB: " + (", ".join(adb_labels) or "no devices"))
                     except (OSError, subprocess.TimeoutExpired) as exc:
                         status_lines.append("ADB scan failed: " + str(exc))
                 else:
@@ -95,14 +106,19 @@ class DeviceControllerMixin:
                             check=False,
                             **_windows_process_options(),
                         )
-                        found = []
-                        for line in result.stdout.splitlines():
-                            fields = line.split()
-                            if len(fields) >= 2 and fields[1].lower() == "fastboot":
-                                label = fields[0] + " [Fastboot]"
-                                targets[label] = (fields[0], "fastboot")
-                                found.append(label)
-                        status_lines.append("Fastboot: " + (", ".join(found) or "no devices"))
+                        if result.returncode != 0:
+                            status_lines.append(
+                                "Fastboot scan failed (exit code %s)" % result.returncode
+                            )
+                        else:
+                            found = []
+                            for line in result.stdout.splitlines():
+                                fields = line.split()
+                                if len(fields) >= 2 and fields[1].lower() == "fastboot":
+                                    label = fields[0] + " [Fastboot]"
+                                    targets[label] = (fields[0], "fastboot")
+                                    found.append(label)
+                            status_lines.append("Fastboot: " + (", ".join(found) or "no devices"))
                     except (OSError, subprocess.TimeoutExpired) as exc:
                         status_lines.append("Fastboot scan failed: " + str(exc))
                 else:
@@ -116,7 +132,13 @@ class DeviceControllerMixin:
                         )
                     )
 
-            threading.Thread(target=worker, name="DroidLab-DeviceScan", daemon=True).start()
+            try:
+                threading.Thread(
+                    target=worker, name="DroidLab-DeviceScan", daemon=True
+                ).start()
+            except RuntimeError as exc:
+                self._device_scan_running = False
+                self.adb_device_status.set("Could not start device scan: " + str(exc))
 
         def _apply_device_scan_result(self, request_id, targets, status_lines):
             """Apply a completed background device scan on the Tk main thread."""
