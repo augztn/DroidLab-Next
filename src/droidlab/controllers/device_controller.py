@@ -28,62 +28,153 @@ def _windows_process_options():
 
 class DeviceControllerMixin:
         def _refresh_adb_devices(self):
-            """Refresh one selector with devices visible to either ADB or Fastboot."""
-            adb_binary = self._tool_path("adb.exe" if os.name == "nt" else "adb") or self._tool_path("adb")
-            fastboot_binary = self._tool_path("fastboot.exe" if os.name == "nt" else "fastboot") or self._tool_path("fastboot")
-            targets = {}
-            status_lines = []
-            if adb_binary:
-                try:
-                    result = subprocess.run([adb_binary, "devices", "-l"], capture_output=True, text=True,
-                        encoding="utf-8", errors="replace", timeout=10, check=False, **_windows_process_options())
-                    for line in result.stdout.splitlines()[1:]:
-                        fields = line.split()
-                        if len(fields) >= 2 and fields[1] in ("device", "sideload", "recovery", "unauthorized", "offline"):
-                            targets[fields[0] + " [ADB: " + fields[1] + "]"] = (fields[0], "adb:" + fields[1])
-                    status_lines.append("ADB: " + (", ".join(k for k,v in targets.items() if v[1].startswith("adb:")) or "no devices"))
-                except (OSError, subprocess.TimeoutExpired) as exc:
-                    status_lines.append("ADB scan failed: " + str(exc))
-            else:
-                status_lines.append("ADB tools not found")
-            if fastboot_binary:
-                try:
-                    result = subprocess.run([fastboot_binary, "devices", "-l"], capture_output=True, text=True,
-                        encoding="utf-8", errors="replace", timeout=8, check=False, **_windows_process_options())
-                    found = []
-                    for line in result.stdout.splitlines():
-                        fields = line.split()
-                        if len(fields) >= 2 and fields[1].lower() == "fastboot":
-                            label = fields[0] + " [Fastboot]"
-                            targets[label] = (fields[0], "fastboot")
-                            found.append(label)
-                    status_lines.append("Fastboot: " + (", ".join(found) or "no devices"))
-                except (OSError, subprocess.TimeoutExpired) as exc:
-                    status_lines.append("Fastboot scan failed: " + str(exc))
-            else:
-                status_lines.append("Fastboot tools not found")
+            """Scan ADB and Fastboot in a worker so a missing device cannot freeze Tk."""
+            if getattr(self, "_closing", False):
+                return
+            if getattr(self, "_device_scan_running", False):
+                self._device_scan_again = True
+                return
+
+            self._device_scan_running = True
+            self._device_scan_again = False
+            request_id = getattr(self, "_device_scan_request_id", 0) + 1
+            self._device_scan_request_id = request_id
             previous = self.adb_device.get()
-            # Classify the selected device before enabling mode-specific actions.
+            previous_fastboot = self.fastboot_device.get()
+            self.adb_device_status.set("Scanning ADB and Fastboot devices…")
+
+            def worker():
+                adb_binary = (
+                    self._tool_path("adb.exe" if os.name == "nt" else "adb")
+                    or self._tool_path("adb")
+                )
+                fastboot_binary = (
+                    self._tool_path("fastboot.exe" if os.name == "nt" else "fastboot")
+                    or self._tool_path("fastboot")
+                )
+                targets = {}
+                status_lines = []
+
+                if adb_binary:
+                    try:
+                        result = subprocess.run(
+                            [adb_binary, "devices", "-l"],
+                            capture_output=True,
+                            text=True,
+                            encoding="utf-8",
+                            errors="replace",
+                            timeout=10,
+                            check=False,
+                            **_windows_process_options(),
+                        )
+                        for line in result.stdout.splitlines()[1:]:
+                            fields = line.split()
+                            if len(fields) >= 2 and fields[1] in (
+                                "device", "sideload", "recovery", "unauthorized", "offline"
+                            ):
+                                targets[fields[0] + " [ADB: " + fields[1] + "]"] = (
+                                    fields[0], "adb:" + fields[1]
+                                )
+                        adb_labels = [
+                            label for label, target in targets.items()
+                            if target[1].startswith("adb:")
+                        ]
+                        status_lines.append("ADB: " + (", ".join(adb_labels) or "no devices"))
+                    except (OSError, subprocess.TimeoutExpired) as exc:
+                        status_lines.append("ADB scan failed: " + str(exc))
+                else:
+                    status_lines.append("ADB tools not found")
+
+                if fastboot_binary:
+                    try:
+                        result = subprocess.run(
+                            [fastboot_binary, "devices", "-l"],
+                            capture_output=True,
+                            text=True,
+                            encoding="utf-8",
+                            errors="replace",
+                            timeout=8,
+                            check=False,
+                            **_windows_process_options(),
+                        )
+                        found = []
+                        for line in result.stdout.splitlines():
+                            fields = line.split()
+                            if len(fields) >= 2 and fields[1].lower() == "fastboot":
+                                label = fields[0] + " [Fastboot]"
+                                targets[label] = (fields[0], "fastboot")
+                                found.append(label)
+                        status_lines.append("Fastboot: " + (", ".join(found) or "no devices"))
+                    except (OSError, subprocess.TimeoutExpired) as exc:
+                        status_lines.append("Fastboot scan failed: " + str(exc))
+                else:
+                    status_lines.append("Fastboot tools not found")
+
+                if not getattr(self, "_closing", False):
+                    self.events.put(
+                        (
+                            "device_scan_result",
+                            (request_id, targets, status_lines, previous, previous_fastboot),
+                        )
+                    )
+
+            threading.Thread(target=worker, name="DroidLab-DeviceScan", daemon=True).start()
+
+        def _apply_device_scan_result(
+            self, request_id, targets, status_lines, previous, previous_fastboot
+        ):
+            """Apply a completed background device scan on the Tk main thread."""
+            if request_id != getattr(self, "_device_scan_request_id", None):
+                return
+            self._device_scan_running = False
             self._adb_targets = targets
             labels = list(targets)
             self.adb_device_combo["values"] = labels
-            self.adb_device.set(previous if previous in targets else (labels[0] if len(labels) == 1 else ""))
+            self.adb_device.set(
+                previous if previous in targets else (labels[0] if len(labels) == 1 else "")
+            )
+
+            fastboot_devices = [
+                serial for serial, state in targets.values() if state == "fastboot"
+            ]
+            self.device_combo["values"] = fastboot_devices
+            self.fastboot_device.set(
+                previous_fastboot
+                if previous_fastboot in fastboot_devices
+                else (fastboot_devices[0] if len(fastboot_devices) == 1 else "")
+            )
+
             self._on_shared_device_selected()
             self.adb_device_status.set(" | ".join(status_lines))
             selected = targets.get(self.adb_device.get())
-            if selected:
-                serial, state = selected
-                if state == "fastboot":
-                    mode_detail = self._detect_fastboot_submode(fastboot_binary, serial)
-                    self.device_mode_status.set("MODE DETECTOR: " + mode_detail + " · Serial: " + serial)
-                elif state.startswith("adb:"):
-                    adb_state = state.split(":", 1)[1]
-                    mode = {"device": "ADB / Android", "recovery": "ADB Recovery", "sideload": "ADB Sideload", "unauthorized": "ADB Unauthorized", "offline": "ADB Offline"}.get(adb_state, "ADB (" + adb_state + ")")
-                    self.device_mode_status.set("MODE DETECTOR: " + mode + " · Serial: " + serial)
+            if selected and selected[1] == "fastboot":
+                self.device_mode_status.set(
+                    "MODE DETECTOR: Fastboot (checking mode) · Serial: " + selected[0]
+                )
+            elif selected and selected[1].startswith("adb:"):
+                adb_state = selected[1].split(":", 1)[1]
+                mode = {
+                    "device": "ADB / Android",
+                    "recovery": "ADB Recovery",
+                    "sideload": "ADB Sideload",
+                    "unauthorized": "ADB Unauthorized",
+                    "offline": "ADB Offline",
+                }.get(adb_state, "ADB (" + adb_state + ")")
+                self.device_mode_status.set(
+                    "MODE DETECTOR: " + mode + " · Serial: " + selected[0]
+                )
             else:
-                self.device_mode_status.set("MODE DETECTOR: No device detected · Check USB, drivers/udev rules, and Platform-Tools")
-            self._refresh_device_info()
-            self._append("Combined device scan: " + (", ".join(labels) if labels else "no ADB or Fastboot devices found"))
+                self.device_mode_status.set(
+                    "MODE DETECTOR: No device detected · Check USB, drivers/udev rules, and Platform-Tools"
+                )
+            self._append(
+                "Combined device scan: "
+                + (", ".join(labels) if labels else "no ADB or Fastboot devices found")
+            )
+
+            if getattr(self, "_device_scan_again", False) and not getattr(self, "_closing", False):
+                self._device_scan_again = False
+                self.after(0, self._refresh_adb_devices)
 
         def _set_device_info(self, values, mode, color):
             for vars_name, mode_name, label_name in (
