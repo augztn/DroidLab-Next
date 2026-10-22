@@ -362,12 +362,34 @@ class PayloadControllerMixin:
 
         def _extract_worker(self,src,out,fingerprint,selected):
             try:
-                outputs=extract(src,out,selected or None,progress=lambda x:self.events.put(("log",x)),cancel_event=self.payload_cancel_event)
-                for p in outputs:
-                    self.events.put(("log",f"Created: {p}"))
-                    if fingerprint:self.events.put(("log",f"SHA-256 fingerprint: {sha256_file(str(p))}  {p.name}"))
-                if not outputs:self.events.put(("log","No new files were detected in the output directory."))
-                self.events.put(("done",f"Finished. Output files detected: {len(outputs)}"))
+                outputs = extract(
+                    src,
+                    out,
+                    selected or None,
+                    progress=lambda line: self.events.put(("log", line)),
+                    cancel_event=self.payload_cancel_event,
+                )
+                for path in outputs:
+                    self.events.put(("log", f"Created: {path}"))
+                    if fingerprint:
+                        try:
+                            digest = sha256_file(str(path))
+                        except OSError as exc:
+                            # Fingerprinting is optional; a read error must not turn
+                            # successfully published images into a reported extraction failure.
+                            self.events.put(
+                                (
+                                    "log",
+                                    f"Warning: could not calculate SHA-256 for {path.name}: {exc}",
+                                )
+                            )
+                        else:
+                            self.events.put(
+                                ("log", f"SHA-256 fingerprint: {digest}  {path.name}")
+                            )
+                if not outputs:
+                    self.events.put(("log", "No new files were detected in the output directory."))
+                self.events.put(("done", f"Finished. Output files detected: {len(outputs)}"))
             except BackendError as e:self.events.put(("cancelled" if self.payload_cancel_event.is_set() else "error",str(e)))
             except Exception as e:self.events.put(("error",f"Unexpected error: {e}"))
 
