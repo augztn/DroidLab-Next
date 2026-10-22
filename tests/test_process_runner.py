@@ -16,6 +16,14 @@ class ProcessRunnerTests(unittest.TestCase):
         self.assertIn("hello", result.stdout)
         self.assertIn("world", result.stdout)
 
+    def test_nonzero_exit_code_is_preserved(self):
+        result = run_streaming(
+            [sys.executable, "-c", "print('failed'); raise SystemExit(7)"],
+            timeout=5,
+        )
+        self.assertEqual(result.returncode, 7)
+        self.assertIn("failed", result.stdout)
+
     def test_timeout_terminates_quiet_process(self):
         with self.assertRaises(subprocess.TimeoutExpired):
             run_streaming(
@@ -46,6 +54,21 @@ class ProcessRunnerTests(unittest.TestCase):
         finally:
             timer.cancel()
 
+    def test_callback_exception_is_propagated_and_child_is_terminated(self):
+        def fail_callback(_line: str) -> None:
+            raise RuntimeError("consumer failed")
+
+        with self.assertRaisesRegex(RuntimeError, "consumer failed"):
+            run_streaming(
+                [
+                    sys.executable,
+                    "-c",
+                    "print('ready', flush=True); import time; time.sleep(10)",
+                ],
+                timeout=5,
+                on_line=fail_callback,
+            )
+
     def test_retained_output_is_bounded(self):
         result = run_streaming(
             [sys.executable, "-c", "print('x' * 2000)"],
@@ -54,6 +77,27 @@ class ProcessRunnerTests(unittest.TestCase):
         )
         self.assertLess(len(result.stdout), 250)
         self.assertIn("additional output line(s) omitted", result.stdout)
+
+    def test_empty_command_is_rejected_before_launch(self):
+        with self.assertRaisesRegex(ValueError, "executable"):
+            run_streaming([])
+
+    def test_non_finite_or_negative_timeout_is_rejected(self):
+        for timeout in (float("nan"), float("inf"), -1):
+            with self.subTest(timeout=timeout), self.assertRaises(ValueError):
+                run_streaming([sys.executable, "-c", "pass"], timeout=timeout)
+
+    def test_negative_output_limit_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "max_output_chars"):
+            run_streaming([sys.executable, "-c", "pass"], max_output_chars=-1)
+
+    def test_non_positive_queue_limit_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "max_queue_lines"):
+            run_streaming([sys.executable, "-c", "pass"], max_queue_lines=0)
+
+    def test_non_string_command_argument_is_rejected(self):
+        with self.assertRaisesRegex(TypeError, "strings"):
+            run_streaming([sys.executable, 1])  # type: ignore[list-item]
 
 
 if __name__ == "__main__":

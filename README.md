@@ -13,6 +13,14 @@ DroidLab can inspect OTA `payload.bin` files and OTA ZIP packages, extract all o
 
 Bugreports and device logs can contain sensitive personal or device information. Review their contents before sharing them. SHA-256 output fingerprints are useful for comparison but do not replace the OTA backend's own integrity checks.
 
+## Safety guidance
+
+- Verify the selected device serial and current mode before running device-mutating commands. If more than one device is connected, do not assume the first listed device is the intended target.
+- Read the command preview and destructive-action confirmation carefully. Pattern-based command checks are best-effort warnings, not a security sandbox.
+- Do not close the application or disconnect the device during a flash, erase, wipe, or sideload unless you understand the recovery procedure. Cancellation can interrupt the host process without guaranteeing that the device operation completed safely.
+- If a device command is interrupted or its result is ambiguous, reconnect and inspect the device state before retrying. Do not blindly repeat a destructive command.
+- Test unfamiliar firmware and recovery procedures on a controlled device with known-good images. Keep an independent copy of important data.
+
 ## Architecture
 
 The application keeps a compatibility bootstrap at `src/app.py`; the package implementation is organized by responsibility:
@@ -73,15 +81,20 @@ Run both supported test suites from the repository root:
 ```bash
 python -m pytest -q
 python -m unittest discover -s tests
-```
-
-The package-wiring tests validate module imports, controller/view mixin wiring, legacy entrypoints, tool/backend path discovery, worker event characteristics, and PyInstaller submodule collection settings. A headless test run may stub `tkinterdnd2` for import-only checks; that is not a substitute for launching the actual GUI or smoke-testing a frozen executable.
-
-If Ruff is installed, run:
-
-```bash
+python -m compileall -q src tests
 ruff check src tests
 ```
+
+The package-wiring tests validate module imports, controller/view mixin wiring, legacy entrypoints, tool/backend path discovery, worker event characteristics, and PyInstaller submodule collection settings. A headless test run may stub `tkinterdnd2` for import-only checks; that is not a substitute for launching the actual GUI or smoke-testing a frozen executable. Ruff is configured for Python 3.10, the declared minimum supported version. The existing lint backlog still needs to be addressed; a successful test run alone does not imply that Ruff is clean.
+
+## Payload backend timeouts
+
+The payload adapter applies bounded defaults so a stalled backend does not run indefinitely:
+
+- Inspection: 120 seconds.
+- Extraction: 3,600 seconds (one hour).
+
+Set `DROIDLAB_PAYLOAD_INSPECTION_TIMEOUT` or `DROIDLAB_PAYLOAD_EXTRACTION_TIMEOUT` to override the corresponding limit. Overrides must be finite positive numbers; invalid values fall back to the default and values above 86,400 seconds are capped. If an operation regularly reaches the timeout, inspect the backend output and payload size before increasing the limit.
 
 ## Portable builds
 
