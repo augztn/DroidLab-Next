@@ -1,4 +1,5 @@
 """Standalone informational dialogs used by the main application window."""
+
 from __future__ import annotations
 
 import tkinter as tk
@@ -8,6 +9,7 @@ from tkinter import ttk
 
 class DialogSupport:
     """Mixin containing self-contained application dialogs."""
+
     def _show_about(self):
         """Show a responsive, scrollable About dialog."""
         dialog = tk.Toplevel(self)
@@ -53,42 +55,73 @@ class DialogSupport:
 
         hero = tk.Frame(content_frame, bg="#1d4ed8", padx=18, pady=22)
         hero.pack(fill="x")
-        tk.Label(hero, text="DL", bg="#1d4ed8", fg="#ffffff",
-                 font=("Sans", 18, "bold")).pack(pady=(0, 6))
-        tk.Label(hero, text="DroidLab", bg="#1d4ed8", fg="#ffffff",
-                 font=("Sans", 25, "bold")).pack()
-        tk.Label(hero, text="Android firmware toolkit", bg="#1d4ed8", fg="#dbeafe",
-                 font=("Sans", 12)).pack(pady=(5, 0))
+        tk.Label(hero, text="DL", bg="#1d4ed8", fg="#ffffff", font=("Sans", 18, "bold")).pack(
+            pady=(0, 6)
+        )
+        tk.Label(
+            hero, text="DroidLab", bg="#1d4ed8", fg="#ffffff", font=("Sans", 25, "bold")
+        ).pack()
+        tk.Label(
+            hero, text="Android firmware toolkit", bg="#1d4ed8", fg="#dbeafe", font=("Sans", 12)
+        ).pack(pady=(5, 0))
 
         intro = ttk.Frame(content_frame, style="Panel.TFrame", padding=16)
         intro.pack(fill="x", pady=(12, 0))
-        ttk.Label(intro, text="A toolkit for Android firmware workflows",
-                  background="#1f2937", foreground="#f9fafb",
-                  font=("Sans", 13, "bold"), wraplength=500).pack(anchor="w")
-        ttk.Label(intro,
-                  text="Inspect and extract OTA payloads, review partition images, manage connected devices with ADB, and preview guarded Fastboot operations.",
-                  background="#1f2937", foreground="#cbd5e1",
-                  font=("Sans", 11), wraplength=500, justify="left").pack(
-                      anchor="w", fill="x", pady=(7, 0))
+        ttk.Label(
+            intro,
+            text="A toolkit for Android firmware workflows",
+            background="#1f2937",
+            foreground="#f9fafb",
+            font=("Sans", 13, "bold"),
+            wraplength=500,
+        ).pack(anchor="w")
+        ttk.Label(
+            intro,
+            text=(
+                "Inspect and extract OTA payloads, review partition images, manage connected "
+                "devices with ADB, and preview guarded Fastboot operations."
+            ),
+            background="#1f2937",
+            foreground="#cbd5e1",
+            font=("Sans", 11),
+            wraplength=500,
+            justify="left",
+        ).pack(anchor="w", fill="x", pady=(7, 0))
 
         features = ttk.Frame(content_frame, style="Panel.TFrame", padding=16)
         features.pack(fill="x", pady=(10, 0))
-        ttk.Label(features, text="WHAT YOU CAN DO", background="#1f2937",
-                  foreground="#93c5fd", font=("Sans", 10, "bold")).pack(anchor="w")
+        ttk.Label(
+            features,
+            text="WHAT YOU CAN DO",
+            background="#1f2937",
+            foreground="#93c5fd",
+            font=("Sans", 10, "bold"),
+        ).pack(anchor="w")
         for item in (
             "Extract all or selected partitions from OTA payloads",
             "Generate optional SHA-256 fingerprints",
             "Inspect images and preview Fastboot commands",
             "Reboot, collect logs, run diagnostics, and sideload OTA ZIPs",
         ):
-            ttk.Label(features, text="•  " + item, background="#1f2937",
-                      foreground="#e5e7eb", font=("Sans", 11),
-                      wraplength=500, justify="left").pack(anchor="w", pady=(7, 0))
+            ttk.Label(
+                features,
+                text="•  " + item,
+                background="#1f2937",
+                foreground="#e5e7eb",
+                font=("Sans", 11),
+                wraplength=500,
+                justify="left",
+            ).pack(anchor="w", pady=(7, 0))
 
         tech = ttk.Frame(content_frame, style="Panel.TFrame", padding=16)
         tech.pack(fill="x", pady=(10, 0))
-        ttk.Label(tech, text="TOOLS & TECHNOLOGY", background="#1f2937",
-                  foreground="#93c5fd", font=("Sans", 10, "bold")).pack(anchor="w")
+        ttk.Label(
+            tech,
+            text="TOOLS & TECHNOLOGY",
+            background="#1f2937",
+            foreground="#93c5fd",
+            font=("Sans", 10, "bold"),
+        ).pack(anchor="w")
         for label, value in (
             ("Desktop UI", "Python · Tkinter"),
             ("Payload backend", "payload-dumper-go"),
@@ -96,35 +129,66 @@ class DialogSupport:
         ):
             line = ttk.Frame(tech, style="Panel.TFrame")
             line.pack(fill="x", pady=(7, 0))
-            ttk.Label(line, text=label, background="#1f2937",
-                      foreground="#9ca3af", font=("Sans", 10)).pack(anchor="w")
-            ttk.Label(line, text=value, background="#1f2937",
-                      foreground="#e5e7eb", font=("Sans", 11),
-                      wraplength=500, justify="left").pack(anchor="w", pady=(2, 0))
+            ttk.Label(
+                line, text=label, background="#1f2937", foreground="#9ca3af", font=("Sans", 10)
+            ).pack(anchor="w")
+            ttk.Label(
+                line,
+                text=value,
+                background="#1f2937",
+                foreground="#e5e7eb",
+                font=("Sans", 11),
+                wraplength=500,
+                justify="left",
+            ).pack(anchor="w", pady=(2, 0))
 
         details = ttk.Frame(content_frame, style="Panel.TFrame", padding=16)
         details.pack(fill="x", pady=(10, 0))
-        ttk.Label(details, text="CREATED BY", background="#1f2937",
-                  foreground="#93c5fd", font=("Sans", 9, "bold")).pack(anchor="w")
-        ttk.Label(details, text="nightx24 (augztn)", background="#1f2937",
-                  foreground="#f9fafb", font=("Sans", 15, "bold")).pack(
-                      anchor="w", pady=(4, 10))
+        ttk.Label(
+            details,
+            text="CREATED BY",
+            background="#1f2937",
+            foreground="#93c5fd",
+            font=("Sans", 9, "bold"),
+        ).pack(anchor="w")
+        ttk.Label(
+            details,
+            text="nightx24 (augztn)",
+            background="#1f2937",
+            foreground="#f9fafb",
+            font=("Sans", 15, "bold"),
+        ).pack(anchor="w", pady=(4, 10))
         links = ttk.Frame(details, style="Panel.TFrame")
         links.pack(fill="x")
-        instagram = ttk.Label(links, text="Instagram  ↗", background="#1f2937",
-                              foreground="#60a5fa", cursor="hand2",
-                              font=("Sans", 11, "underline"))
+        instagram = ttk.Label(
+            links,
+            text="Instagram  ↗",
+            background="#1f2937",
+            foreground="#60a5fa",
+            cursor="hand2",
+            font=("Sans", 11, "underline"),
+        )
         instagram.pack(side="left", padx=(0, 18))
-        instagram.bind("<Button-1>", lambda _event: webbrowser.open("https://www.instagram.com/augztn/"))
-        github = ttk.Label(links, text="GitHub  ↗", background="#1f2937",
-                           foreground="#60a5fa", cursor="hand2",
-                           font=("Sans", 11, "underline"))
+        instagram.bind(
+            "<Button-1>", lambda _event: webbrowser.open("https://www.instagram.com/augztn/")
+        )
+        github = ttk.Label(
+            links,
+            text="GitHub  ↗",
+            background="#1f2937",
+            foreground="#60a5fa",
+            cursor="hand2",
+            font=("Sans", 11, "underline"),
+        )
         github.pack(side="left")
         github.bind("<Button-1>", lambda _event: webbrowser.open("https://github.com/nightx24"))
 
-        ttk.Label(content_frame, text="DroidLab · Community firmware utility",
-                  style="Muted.TLabel", font=("Sans", 10)).pack(
-                      anchor="center", pady=(14, 4))
+        ttk.Label(
+            content_frame,
+            text="DroidLab · Community firmware utility",
+            style="Muted.TLabel",
+            font=("Sans", 10),
+        ).pack(anchor="center", pady=(14, 4))
 
         # Trackpad and mouse-wheel scrolling: support Linux/X11 wheel events,
         # Windows/macOS delta events, and smooth touchpad deltas.
@@ -146,8 +210,7 @@ class DialogSupport:
         # Bind wheel events to the canvas and every child in the scrollable area,
         # since Tk widgets under the pointer otherwise consume the event.
         def bind_scroll_events(widget):
-            for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>",
-                             "<Shift-MouseWheel>"):
+            for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>", "<Shift-MouseWheel>"):
                 widget.bind(sequence, on_mousewheel, add="+")
             for child in widget.winfo_children():
                 bind_scroll_events(child)

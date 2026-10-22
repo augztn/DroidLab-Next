@@ -12,10 +12,10 @@ def sideload_result_message(returncode: int, output: str) -> tuple[str, str]:
         )
     return (
         "Sideload outcome uncertain",
-        "ADB did not report successful completion (exit status %s). The update may "
+        f"ADB did not report successful completion (exit status {returncode}). The update may "
         "have been rejected, interrupted, or left in an uncertain state; this result "
         "does not prove that no changes were made. Do not immediately retry the ZIP. "
         "Check the device's recovery screen and command output, confirm the device "
         "state, and follow the package/device vendor's recovery guidance before "
-        "retrying.\n\nOutput:\n%s" % (returncode, details),
+        f"retrying.\n\nOutput:\n{details}",
     )

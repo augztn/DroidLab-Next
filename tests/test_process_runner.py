@@ -5,8 +5,8 @@ import tempfile
 import threading
 import time
 import unittest
-from unittest.mock import patch
 from pathlib import Path
+from unittest.mock import patch
 
 from src.process_runner import ProcessCancelledError, run_streaming
 
@@ -54,9 +54,7 @@ class ProcessRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             pid_path = Path(directory) / "child.pid"
             child_code = (
-                "import signal, time; "
-                "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
-                "time.sleep(30)"
+                "import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)"
             )
             parent_code = (
                 "import subprocess, sys, time; "

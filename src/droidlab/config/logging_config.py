@@ -1,4 +1,5 @@
 """Application logging configuration and uncaught-exception hooks."""
+
 from __future__ import annotations
 
 import logging
@@ -14,6 +15,7 @@ def log_directory():
     """Keep logs in a clearly visible DroidLab folder inside the user's home directory."""
     return Path.home() / "DroidLab" / "logs"
 
+
 def configure_logging():
     directory = log_directory()
     log_file = directory / "droidlab.log"
@@ -23,7 +25,8 @@ def configure_logging():
         # Keep exactly one file handler for this path, even if an earlier
         # startup path or packaged runtime installed duplicate handlers.
         matching = [
-            handler for handler in logger.handlers
+            handler
+            for handler in logger.handlers
             if isinstance(handler, RotatingFileHandler)
             and Path(getattr(handler, "baseFilename", "")).resolve() == log_file.resolve()
         ]
@@ -37,23 +40,37 @@ def configure_logging():
                 except OSError:
                     pass
         if keep is None:
-            keep = RotatingFileHandler(log_file, maxBytes=2 * 1024 * 1024, backupCount=4, encoding="utf-8")
+            keep = RotatingFileHandler(
+                log_file, maxBytes=2 * 1024 * 1024, backupCount=4, encoding="utf-8"
+            )
             logger.addHandler(keep)
         keep._droidlab_handler = True
-        keep.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(threadName)s | %(name)s | %(message)s"))
+        keep.setFormatter(
+            logging.Formatter(
+                "%(asctime)s | %(levelname)s | %(threadName)s | %(name)s | %(message)s"
+            )
+        )
         logger.setLevel(logging.INFO)
         if not getattr(logger, "_droidlab_started", False):
             logger._droidlab_started = True
             logging.info("==== %s starting ====", APP_NAME)
-            logging.info("Platform: %s | Python: %s | frozen: %s", platform.platform(), sys.version.replace("\n", " "), bool(getattr(sys, "frozen", False)))
+            logging.info(
+                "Platform: %s | Python: %s | frozen: %s",
+                platform.platform(),
+                sys.version.replace("\n", " "),
+                bool(getattr(sys, "frozen", False)),
+            )
         return log_file
     except OSError:
         logging.basicConfig(level=logging.INFO)
         logging.exception("Could not initialize file logging at %s", directory)
         return None
 
+
 def log_uncaught_exception(exc_type, exc_value, exc_traceback):
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
-    logging.critical("Uncaught application exception", exc_info=(exc_type, exc_value, exc_traceback))
+    logging.critical(
+        "Uncaught application exception", exc_info=(exc_type, exc_value, exc_traceback)
+    )

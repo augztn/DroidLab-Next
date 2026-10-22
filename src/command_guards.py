@@ -1,4 +1,5 @@
 """Backward-compatible module alias for :mod:`droidlab.core.command_guards`."""
+
 from __future__ import annotations
 
 import sys as _sys

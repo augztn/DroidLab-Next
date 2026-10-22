@@ -18,7 +18,7 @@ THEME_TOKENS = {
         "console": "#080c12",
         "success": "#10b981",
         "warning": "#f59e0b",
-        "danger": "#f87171"
+        "danger": "#f87171",
     },
     "standard_dark": {
         "label": "Standard Dark",
@@ -35,7 +35,7 @@ THEME_TOKENS = {
         "console": "#09090b",
         "success": "#10b981",
         "warning": "#f59e0b",
-        "danger": "#f87171"
+        "danger": "#f87171",
     },
     "oled_black": {
         "label": "OLED Black",
@@ -52,6 +52,6 @@ THEME_TOKENS = {
         "console": "#000000",
         "success": "#34d399",
         "warning": "#fbbf24",
-        "danger": "#f87171"
-    }
+        "danger": "#f87171",
+    },
 }
