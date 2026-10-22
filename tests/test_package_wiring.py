@@ -356,7 +356,7 @@ class ControllerSafetyCharacterizationTests(unittest.TestCase):
         self.assertIn("self.events.put(", scan_source)
 
         app_source = (_SRC_ROOT / "droidlab" / "ui" / "main_window.py").read_text(encoding="utf-8")
-        self.assertIn('elif kind=="device_scan_result":', app_source)
+        self.assertIn('elif kind == "device_scan_result":', app_source)
 
         fastboot_source = (
             _SRC_ROOT / "droidlab" / "controllers" / "fastboot_controller.py"
