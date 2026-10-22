@@ -246,6 +246,32 @@ class ControllerSafetyCharacterizationTests(unittest.TestCase):
         self.assertIn('self.events.put(("log",', payload_source)
 
 
+    def test_device_discovery_is_backgrounded_and_results_use_ui_queue(self):
+        device_path = _SRC_ROOT / "droidlab" / "controllers" / "device_controller.py"
+        device_source = device_path.read_text(encoding="utf-8")
+        device_tree = ast.parse(device_source)
+        device_class = next(
+            node for node in device_tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "DeviceControllerMixin"
+        )
+        scan_method = next(
+            node for node in device_class.body
+            if isinstance(node, ast.FunctionDef) and node.name == "_refresh_adb_devices"
+        )
+        scan_source = ast.get_source_segment(device_source, scan_method)
+        self.assertIn("threading.Thread", scan_source)
+        self.assertNotIn("subprocess.run(", scan_source)
+        self.assertIn('self.events.put(', scan_source)
+
+        app_source = (_SRC_ROOT / "droidlab" / "ui" / "main_window.py").read_text(encoding="utf-8")
+        self.assertIn('elif kind=="device_scan_result":', app_source)
+
+        fastboot_source = (
+            _SRC_ROOT / "droidlab" / "controllers" / "fastboot_controller.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("def _refresh_fastboot_devices(self):", fastboot_source)
+        self.assertIn("self._refresh_adb_devices()", fastboot_source)
+
     def test_fastboot_equals_form_selector_keeps_preflight_and_locking(self):
         source = (
             _SRC_ROOT / "droidlab" / "controllers" / "adb_controller.py"
