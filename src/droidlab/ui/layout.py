@@ -159,6 +159,36 @@ class LayoutSupport:
         )
         sidebar.grid(row=0, column=0, sticky="nsw", padx=(0, 1))
         sidebar.grid_propagate(False)
+        # Compact product identity mirrors the reference's left-rail branding.
+        sidebar_brand = tk.Frame(sidebar, bg="#19191d")
+        sidebar_brand.pack(fill="x", padx=3, pady=(0, 20))
+        tk.Label(
+            sidebar_brand,
+            text="DL",
+            bg="#2868d7",
+            fg="#ffffff",
+            font=(font, 13, "bold"),
+            width=3,
+            pady=5,
+        ).pack(side="left", padx=(4, 9))
+        brand_copy = tk.Frame(sidebar_brand, bg="#19191d")
+        brand_copy.pack(side="left", fill="x", expand=True)
+        tk.Label(
+            brand_copy,
+            text="DroidLab",
+            bg="#19191d",
+            fg="#f2f2f5",
+            font=(font, 12, "bold"),
+            anchor="w",
+        ).pack(fill="x")
+        tk.Label(
+            brand_copy,
+            text="Android firmware toolkit",
+            bg="#19191d",
+            fg="#9696a3",
+            font=(font, 8),
+            anchor="w",
+        ).pack(fill="x", pady=(2, 0))
         tk.Label(
             sidebar,
             text="WORKSPACE",
