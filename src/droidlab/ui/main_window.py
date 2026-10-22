@@ -299,8 +299,14 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
                     elif kind_name=="sideload":
                         title, message = sideload_result_message(code, output)
                         if code == 0:
+                            self.adb_device_status.set(
+                                "Sideload command finished. Verify device state before retrying."
+                            )
                             messagebox.showinfo(title, message)
                         else:
+                            self.adb_device_status.set(
+                                "Sideload outcome uncertain. Verify device state before retrying."
+                            )
                             messagebox.showwarning(title, message)
                     elif kind_name=="logcat_file":
                         if code==0:messagebox.showinfo("Logcat saved",output)
