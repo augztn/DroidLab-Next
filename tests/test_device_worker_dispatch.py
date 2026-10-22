@@ -79,7 +79,7 @@ class DeviceWorkerDispatchTests(unittest.TestCase):
 
         targets = {"serial-1 [Fastboot]": ("serial-1", "fastboot")}
         DeviceControllerMixin._apply_device_scan_result(
-            controller, 7, targets, ["ADB: no devices", "Fastboot: serial-1"], "", ""
+            controller, 7, targets, ["ADB: no devices", "Fastboot: serial-1"]
         )
 
         self.assertFalse(controller._device_scan_running)
