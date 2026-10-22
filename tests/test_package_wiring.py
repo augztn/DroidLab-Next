@@ -351,7 +351,7 @@ class ControllerSafetyCharacterizationTests(unittest.TestCase):
         )
         scan_source = ast.get_source_segment(device_source, scan_method)
         self.assertIn("threading.Thread", scan_source)
-        ui_path = scan_source.split("            def worker():", 1)[0]
+        ui_path = scan_source.split("def worker():", 1)[0]
         self.assertNotIn("subprocess.run(", ui_path)
         self.assertIn("self.events.put(", scan_source)
 
