@@ -173,8 +173,10 @@ class DeviceControllerMixin:
                         match = re.search(r"(?m)^\s*level:\s*(\d+)", battery)
                         if match: values["Battery"] = match.group(1) + "%"
                     result = (values, mode, color)
-                try: self.after(0, lambda: self._apply_device_info_result(request_id, result))
-                except (RuntimeError, tk.TclError): pass
+                # Worker threads must not call Tkinter APIs, including after().
+                # Hand results to the main thread's existing event-queue poller.
+                if not getattr(self, "_closing", False):
+                    self.events.put(("device_info_result", (request_id, result)))
             threading.Thread(target=worker, name="DroidLab-DeviceInfo", daemon=True).start()
 
         def _apply_device_info_result(self, request_id, result):
@@ -245,19 +247,23 @@ class DeviceControllerMixin:
                     finally:
                         operation_lock.release()
                 lines.append("[DroidLab] Slot switch " + ("succeeded." if success else "failed."))
-                def finish():
-                    for line in lines:
-                        self._console_write(self.fastboot_console, line + "\n")
-                    if success:
-                        self._refresh_device_info()
-                    else:
-                        for button in self.header_slot_buttons.values():
-                            button.configure(state="normal")
-                try:
-                    self.after(0, finish)
-                except (RuntimeError, tk.TclError):
-                    pass
+                # Do not schedule Tk callbacks from this worker. The UI thread
+                # consumes the result and performs all widget updates.
+                if not getattr(self, "_closing", False):
+                    self.events.put(("slot_switch_result", (lines, success)))
             threading.Thread(target=worker, name="DroidLab-SetActiveSlot", daemon=True).start()
+
+        def _finish_slot_switch(self, lines, success):
+            """Apply a completed slot-switch result on the Tk main thread."""
+            if getattr(self, "_closing", False):
+                return
+            for line in lines:
+                self._console_write(self.fastboot_console, line + "\n")
+            if success:
+                self._refresh_device_info()
+            else:
+                for button in self.header_slot_buttons.values():
+                    button.configure(state="normal")
 
         def _adb_read_value(self, binary, serial, args):
             try:
