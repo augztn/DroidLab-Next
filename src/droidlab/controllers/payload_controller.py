@@ -113,7 +113,8 @@ class PayloadControllerMixin:
             self._append(f"File picker failed: {exc}")
             messagebox.showerror(
                 "File picker error",
-                f"Windows could not open the file picker. You can paste the full path into the input field instead.\n\n{exc}",
+                f"Windows could not open the file picker. You can paste the full path into "
+                f"the input field instead.\n\n{exc}",
                 parent=self,
             )
             return
@@ -308,7 +309,8 @@ class PayloadControllerMixin:
             self._append(f"Output folder picker failed: {exc}")
             messagebox.showerror(
                 "Folder picker error",
-                f"Could not open the folder picker. Enter the output path manually instead.\n\n{exc}",
+                f"Could not open the folder picker. Enter the output path "
+                f"manually instead.\n\n{exc}",
                 parent=self,
             )
             return
@@ -395,7 +397,8 @@ class PayloadControllerMixin:
         selected_bytes = sum(int(self.parts[name].get("size_bytes") or 0) for name in selected)
         visible = len(self.tree.get_children())
         self.partition_summary.set(
-            f"{visible}/{total} shown · {len(selected)} selected · {self._size(selected_bytes)} selected"
+            f"{visible}/{total} shown · {len(selected)} selected · "
+            f"{self._size(selected_bytes)} selected"
         )
 
     def _toggle(self, event):

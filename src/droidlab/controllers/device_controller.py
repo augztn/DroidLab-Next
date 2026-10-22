@@ -69,7 +69,7 @@ class DeviceControllerMixin:
                         **_windows_process_options(),
                     )
                     if result.returncode != 0:
-                        status_lines.append("ADB scan failed (exit code %s)" % result.returncode)
+                        status_lines.append(f"ADB scan failed (exit code {result.returncode})")
                     else:
                         for line in result.stdout.splitlines()[1:]:
                             fields = line.split()
@@ -109,7 +109,7 @@ class DeviceControllerMixin:
                     )
                     if result.returncode != 0:
                         status_lines.append(
-                            "Fastboot scan failed (exit code %s)" % result.returncode
+                            f"Fastboot scan failed (exit code {result.returncode})"
                         )
                     else:
                         found = []
@@ -183,7 +183,8 @@ class DeviceControllerMixin:
             self.device_mode_status.set("MODE DETECTOR: " + mode + " · Serial: " + selected[0])
         else:
             self.device_mode_status.set(
-                "MODE DETECTOR: No device detected · Check USB, drivers/udev rules, and Platform-Tools"
+                "MODE DETECTOR: No device detected · Check USB, drivers/udev rules, "
+                "and Platform-Tools"
             )
         self._append(
             "Combined device scan: "
@@ -338,7 +339,8 @@ class DeviceControllerMixin:
             self.device_mode_status.set("MODE DETECTOR: " + mode + " · Serial: " + selected[0])
         else:
             self.device_mode_status.set(
-                "MODE DETECTOR: No device detected · Check USB, drivers/udev rules, and Platform-Tools"
+                "MODE DETECTOR: No device detected · Check USB, drivers/udev rules, "
+                "and Platform-Tools"
             )
         if hasattr(self, "adb_info_loading"):
             self.adb_info_loading.set("")
@@ -379,7 +381,7 @@ class DeviceControllerMixin:
                 operation_lock = self._device_operation_locks.setdefault(serial, threading.Lock())
             if not operation_lock.acquire(blocking=False):
                 lines.append(
-                    "[DroidLab] Another operation is already running for device %s." % serial
+                    f"[DroidLab] Another operation is already running for device {serial}."
                 )
             else:
                 try:
@@ -403,8 +405,8 @@ class DeviceControllerMixin:
                                 serial, probe.stdout, probe.returncode
                             ):
                                 raise RuntimeError(
-                                    "Fastboot target %r is no longer present in the fresh device scan."
-                                    % serial
+                                    f"Fastboot target {serial!r} is no longer present in the "
+                                    "fresh device scan."
                                 )
                             result = subprocess.run(
                                 command,
@@ -527,5 +529,6 @@ class DeviceControllerMixin:
             self.recovery_button.configure(text="Reboot recovery" if is_fastboot else "Recovery")
         if is_fastboot:
             self.adb_device_status.set(
-                "Fastboot/bootloader mode detected. Bootloader action is disabled; reboot actions use Fastboot."
+                "Fastboot/bootloader mode detected. Bootloader action is disabled; "
+                "reboot actions use Fastboot."
             )

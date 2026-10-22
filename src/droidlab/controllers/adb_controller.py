@@ -165,7 +165,8 @@ class ADBControllerMixin:
             logging.exception("Native ADB sideload ZIP picker failed")
             messagebox.showerror(
                 "Browse ZIP failed",
-                "Windows/Linux could not open the file picker. You can paste the full ZIP path into the package field.\n\n"
+                "Windows/Linux could not open the file picker. You can paste the full ZIP "
+                "path into the package field.\n\n"
                 + str(exc),
                 parent=self,
             )
@@ -275,11 +276,11 @@ class ADBControllerMixin:
                 if not is_adb_target_connected(
                     target_serial, probe.stdout, probe.returncode, allowed_states
                 ):
+                    probe_output = (probe.stdout + "\n" + probe.stderr).strip()
                     raise RuntimeError(
-                        "ADB target %r is not present in an allowed state in a successful "
-                        "fresh device scan. No command was sent. Refresh devices, verify "
-                        "the target/mode, and retry. Probe output: %s"
-                        % (target_serial, (probe.stdout + "\n" + probe.stderr).strip())
+                        f"ADB target {target_serial!r} is not present in an allowed state "
+                        "in a successful fresh device scan. No command was sent. Refresh "
+                        f"devices, verify the target/mode, and retry. Probe output: {probe_output}"
                     )
             if executable in ("fastboot", "fastboot.exe") and selector_index is not None:
                 selector = command[selector_index]
@@ -312,10 +313,11 @@ class ADBControllerMixin:
                     if not is_fastboot_target_connected(
                         target_serial, probe.stdout, probe.returncode
                     ):
+                        probe_output = (probe.stdout + "\n" + probe.stderr).strip()
                         raise RuntimeError(
-                            "Fastboot target %r is no longer present in the fresh device scan. "
-                            "Refresh devices, verify the target, and retry. Probe output: %s"
-                            % (target_serial, (probe.stdout + "\n" + probe.stderr).strip())
+                            f"Fastboot target {target_serial!r} is no longer present in the "
+                            f"fresh device scan. Refresh devices, verify the target, and retry. "
+                            f"Probe output: {probe_output}"
                         )
             console_lines_sent = 0
 
@@ -388,8 +390,8 @@ class ADBControllerMixin:
                 lock_acquired = operation_lock.acquire(blocking=False)
                 if not lock_acquired:
                     message = (
-                        "Another DroidLab operation is already running for device %s; this command was not started."
-                        % serial
+                        f"Another DroidLab operation is already running for device {serial}; "
+                        "this command was not started."
                     )
                     self.events.put(("console_line", (kind, "[DroidLab] ERROR: " + message + "\n")))
                     self.events.put(("adb_result", (kind, -1, message)))
@@ -780,7 +782,8 @@ class ADBControllerMixin:
         binary, serial = selected
         if not messagebox.askyesno(
             "Create bugreport",
-            "The report may include device identifiers, logs, and app activity.\nSave diagnostics from "
+            "The report may include device identifiers, logs, and app activity.\n"
+            "Save diagnostics from "
             + serial
             + " to:\n"
             + path

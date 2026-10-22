@@ -204,7 +204,10 @@ class FastbootControllerMixin:
             warning = (
                 "This will wipe user data and cache on device "
                 + serial
-                + ". This is destructive and may remove your apps, accounts, photos, and files. Continue only if you have a backup and intend to factory-reset this device."
+                + (
+                    ". This is destructive and may remove your apps, accounts, photos, and files. "
+                    "Continue only if you have a backup and intend to factory-reset this device."
+                )
             )
         else:
             command = [binary, "-s", serial, operation, partition]
@@ -213,13 +216,19 @@ class FastbootControllerMixin:
                 warning = (
                     "This will erase the cache partition on "
                     + serial
-                    + ", if this device has one. Some devices do not have a separate cache partition. Continue?"
+                    + (
+                        ", if this device has one. Some devices do not have a separate cache "
+                        "partition. Continue?"
+                    )
                 )
             else:
                 warning = (
                     "This will erase the userdata partition on "
                     + serial
-                    + " and permanently delete user data. This can make data unrecoverable. Ensure you have a backup. Continue?"
+                    + (
+                        " and permanently delete user data. This can make data unrecoverable. "
+                        "Ensure you have a backup. Continue?"
+                    )
                 )
         rendered = " ".join(shlex.quote(part) for part in command)
         self.maintenance_command.set(rendered)
@@ -484,7 +493,10 @@ class FastbootControllerMixin:
         ).pack(side="left", anchor="n", padx=(0, 9))
         tk.Label(
             warning,
-            text="An incompatible image or wrong partition can make the device unbootable. Verify the image matches this exact device and partition.",
+            text=(
+                "An incompatible image or wrong partition can make the device unbootable. "
+                "Verify the image matches this exact device and partition."
+            ),
             bg=self.theme_tokens["panel_alt"],
             fg=self.theme_tokens["text"],
             font=("Sans", 9),
