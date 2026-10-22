@@ -237,9 +237,11 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
 
 
     def _poll_events(self):
-        # Scheduled callbacks can outlive worker threads during shutdown.
+        # Schedule the next poll before dispatching queued work. A malformed event
+        # or unexpected widget error must not permanently stop result delivery.
         if getattr(self, "_closing", False):
             return
+        self.after(100, self._poll_events)
         logcat_changed = False
         log_queue = getattr(self, "adb_log_queue", None)
         if log_queue is not None and self.adb_log_text and self.adb_log_window and self.adb_log_window.winfo_exists():
@@ -318,8 +320,6 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
         except queue.Empty:pass
         if logcat_changed and not self.adb_log_paused:
             self._render_adb_logcat()
-        if not getattr(self, "_closing", False):
-            self.after(100, self._poll_events)
 def main() -> None:
     """Initialize logging and launch the existing Tk application."""
     _configure_logging()
