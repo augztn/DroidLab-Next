@@ -9,6 +9,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from droidlab.core.command_guards import (
+    is_fastboot_target_connected,
     is_valid_partition_name,
     validate_device_selector,
 )
@@ -29,6 +30,36 @@ def _windows_process_options():
 
 
 class FastbootControllerMixin:
+        def _ensure_fastboot_target_connected(self, binary, serial):
+            """Require a successful, fresh Fastboot scan before device-mutating commands."""
+            try:
+                result = subprocess.run(
+                    [binary, "devices", "-l"],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=4,
+                    check=False,
+                    **_windows_process_options(),
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                messagebox.showerror(
+                    "Fastboot device check failed",
+                    "Could not verify the selected device immediately before execution. "
+                    "No command was sent.\n\n" + str(exc),
+                )
+                return False
+            if not is_fastboot_target_connected(serial, result.stdout, result.returncode):
+                messagebox.showerror(
+                    "Fastboot device unavailable",
+                    "The selected device " + repr(serial)
+                    + " was not present in a successful fresh Fastboot scan. "
+                    "No command was sent. Refresh devices and try again.",
+                )
+                return False
+            return True
+
         def _fastboot_quick_action(self, args):
             """Run a confirmed Fastboot reboot action through the live streaming runner."""
             serial = self.fastboot_device.get().strip()
@@ -43,6 +74,8 @@ class FastbootControllerMixin:
             rendered = " ".join(shlex.quote(part) for part in command)
             if not messagebox.askyesno("Confirm reboot", "Execute this command on " + serial + "?\n\n" + rendered):
                 self._console_write(self.fastboot_console, "[DroidLab] Cancelled: " + rendered + "\n")
+                return
+            if not self._ensure_fastboot_target_connected(binary, serial):
                 return
             self._append("Executing Fastboot action: " + rendered)
             self._console_write(self.fastboot_console, "[DroidLab] $ " + rendered + "\n")
@@ -115,6 +148,8 @@ class FastbootControllerMixin:
             ):
                 self._append("Manual Fastboot command cancelled: " + rendered)
                 return
+            if not discovery and serial and not self._ensure_fastboot_target_connected(binary, serial):
+                return
             self._append("Executing manual Fastboot command: " + rendered)
             self.status.set("Running Fastboot command…")
             # Only reboot changes USB mode. Do not trigger repeated device scans
@@ -147,6 +182,8 @@ class FastbootControllerMixin:
             if not messagebox.askyesno("Confirm destructive Fastboot operation", warning + "\n\nCommand to execute:\n" + rendered, icon="warning"):
                 self.maintenance_status.set("Cancelled: " + label)
                 self._append("Fastboot maintenance cancelled: " + rendered)
+                return
+            if not self._ensure_fastboot_target_connected(binary, serial):
                 return
             self.maintenance_status.set("Running: " + label + "…")
             self._append("Executing Fastboot maintenance: " + rendered)
@@ -193,6 +230,8 @@ class FastbootControllerMixin:
             rendered_command = " ".join(shlex.quote(x) for x in command)
             if not self._confirm_flash_dialog(serial, image.resolve(), part, rendered_command):
                 self._append("Flash cancelled before execution.")
+                return
+            if not self._ensure_fastboot_target_connected(binary, serial):
                 return
             self._append("Executing: " + " ".join(shlex.quote(x) for x in command)); self.status.set("Flashing image…"); self.update_idletasks()
             threading.Thread(target=self._adb_task, args=(command, 900, "fastboot_flash"), daemon=True).start()
