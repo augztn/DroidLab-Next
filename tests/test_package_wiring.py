@@ -199,6 +199,28 @@ class PackageImportTests(unittest.TestCase):
 
 
 class ControllerSafetyCharacterizationTests(unittest.TestCase):
+    def test_fingerprint_read_error_does_not_fail_successful_extraction(self):
+        from droidlab.controllers import payload_controller
+        from droidlab.controllers.payload_controller import PayloadControllerMixin
+
+        controller = __import__("unittest.mock", fromlist=["Mock"]).Mock()
+        controller.events = __import__("unittest.mock", fromlist=["Mock"]).Mock()
+        controller.payload_cancel_event = object()
+        with patch.object(payload_controller, "extract", return_value=[Path("boot.img")]), patch.object(
+            payload_controller, "sha256_file", side_effect=OSError("file became unreadable")
+        ):
+            PayloadControllerMixin._extract_worker(
+                controller, "payload.bin", "out", True, []
+            )
+
+        events = [call.args[0] for call in controller.events.put.call_args_list]
+        self.assertTrue(any(event[0] == "done" for event in events))
+        self.assertFalse(any(event[0] == "error" for event in events))
+        self.assertTrue(
+            any(event[0] == "log" and "Warning: could not calculate SHA-256" in event[1]
+                for event in events)
+        )
+
     def test_payload_log_append_is_safe_before_log_widget_initialization(self):
         from droidlab.controllers.payload_controller import PayloadControllerMixin
 
