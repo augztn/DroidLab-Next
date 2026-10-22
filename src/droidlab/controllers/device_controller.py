@@ -108,9 +108,7 @@ class DeviceControllerMixin:
                         **_windows_process_options(),
                     )
                     if result.returncode != 0:
-                        status_lines.append(
-                            f"Fastboot scan failed (exit code {result.returncode})"
-                        )
+                        status_lines.append(f"Fastboot scan failed (exit code {result.returncode})")
                     else:
                         found = []
                         for line in result.stdout.splitlines():

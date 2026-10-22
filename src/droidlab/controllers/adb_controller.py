@@ -166,8 +166,7 @@ class ADBControllerMixin:
             messagebox.showerror(
                 "Browse ZIP failed",
                 "Windows/Linux could not open the file picker. You can paste the full ZIP "
-                "path into the package field.\n\n"
-                + str(exc),
+                "path into the package field.\n\n" + str(exc),
                 parent=self,
             )
             return
@@ -783,11 +782,7 @@ class ADBControllerMixin:
         if not messagebox.askyesno(
             "Create bugreport",
             "The report may include device identifiers, logs, and app activity.\n"
-            "Save diagnostics from "
-            + serial
-            + " to:\n"
-            + path
-            + "?",
+            "Save diagnostics from " + serial + " to:\n" + path + "?",
             icon="warning",
         ):
             return
