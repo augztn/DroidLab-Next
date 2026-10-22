@@ -246,6 +246,13 @@ class ControllerSafetyCharacterizationTests(unittest.TestCase):
         self.assertIn('self.events.put(("log",', payload_source)
 
 
+    def test_fastboot_equals_form_selector_keeps_preflight_and_locking(self):
+        source = (
+            _SRC_ROOT / "droidlab" / "controllers" / "adb_controller.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('token.startswith("-s=")', source)
+        self.assertNotIn('if "-s" in command:', source)
+
     def test_direct_logcat_processes_use_isolated_sessions_for_tree_cleanup(self):
         source_path = _SRC_ROOT / "droidlab" / "controllers" / "adb_controller.py"
         source = source_path.read_text(encoding="utf-8")
