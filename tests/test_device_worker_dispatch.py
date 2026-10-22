@@ -56,6 +56,24 @@ class DeviceWorkerDispatchTests(unittest.TestCase):
 
         runner.assert_not_called()
 
+    def test_device_operation_lock_is_released_when_worker_raises(self):
+        lock = threading.Lock()
+        controller = Mock()
+        controller._active_operations_guard = threading.Lock()
+        controller._active_operations = {}
+        controller._device_operation_locks_guard = threading.Lock()
+        controller._device_operation_locks = {"SERIAL": lock}
+        controller._stream_process.side_effect = RuntimeError("simulated worker failure")
+
+        with self.assertRaisesRegex(RuntimeError, "simulated worker failure"):
+            ADBControllerMixin._adb_task(
+                controller, ["adb", "-s", "SERIAL", "shell", "id"], 5, "shell"
+            )
+
+        self.assertTrue(lock.acquire(blocking=False))
+        lock.release()
+        self.assertEqual(controller._active_operations, {})
+
     def test_stale_device_info_result_is_ignored(self):
         controller = Mock()
         controller._device_info_request_id = 4
