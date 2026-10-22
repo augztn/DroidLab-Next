@@ -161,7 +161,7 @@ class ThemeSupport:
         for widget in self._walk_widgets(self):
             try:
                 kind = widget.winfo_class()
-                if kind in ("Frame", "Labelframe", "Toplevel"):
+                if kind in ("Frame", "Labelframe", "Toplevel", "Canvas"):
                     current = str(widget.cget("bg")).lower()
                     if current in old_surface:
                         widget.configure(bg=old_surface[current])
