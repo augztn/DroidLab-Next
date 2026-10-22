@@ -19,15 +19,17 @@ class FastbootViewSupport:
         ttk.Label(modebar, text="Device mode", font=(self._ui_font, 16, "bold")).pack(
             side="left", padx=(0, 12)
         )
+        mode_switch = ttk.Frame(modebar, style="Panel.TFrame", padding=3)
+        mode_switch.pack(side="left")
         self.fastboot_header_mode_button = ttk.Button(
-            modebar,
+            mode_switch,
             text="Fastboot & Flashing",
             command=lambda: self._show_device_workspace("fastboot", manual=True),
             style="Primary.TButton",
         )
-        self.fastboot_header_mode_button.pack(side="left", padx=(0, 5))
+        self.fastboot_header_mode_button.pack(side="left", padx=(0, 3))
         self.adb_header_mode_button = ttk.Button(
-            modebar,
+            mode_switch,
             text="ADB & Sideload",
             command=lambda: self._show_device_workspace("adb", manual=True),
         )
@@ -88,16 +90,33 @@ class FastbootViewSupport:
         controls_canvas.bind("<Configure>", _fit_controls_width)
 
         def _controls_mousewheel(event):
-            if getattr(event, "delta", 0):
-                controls_canvas.yview_scroll(int(-event.delta / 120), "units")
+            delta = getattr(event, "delta", 0)
+            if delta:
+                # Windows typically reports multiples of 120; macOS often reports
+                # smaller deltas, which must still move the viewport by one unit.
+                units = int(-delta / 120) if abs(delta) >= 120 else (-1 if delta > 0 else 1)
+                controls_canvas.yview_scroll(units, "units")
             elif getattr(event, "num", None) == 4:
                 controls_canvas.yview_scroll(-1, "units")
             elif getattr(event, "num", None) == 5:
                 controls_canvas.yview_scroll(1, "units")
+            return "break"
 
-        controls_canvas.bind_all("<MouseWheel>", _controls_mousewheel)
-        controls_canvas.bind_all("<Button-4>", _controls_mousewheel)
-        controls_canvas.bind_all("<Button-5>", _controls_mousewheel)
+        # Use a private bindtag on this control tree instead of bind_all(): the
+        # Fastboot pane must not steal wheel events from the payload table, logs,
+        # or other scrollable widgets elsewhere in the application.
+        wheel_tag = "DroidLabFastbootControlsWheel"
+        controls_canvas.bind_class(wheel_tag, "<MouseWheel>", _controls_mousewheel)
+        controls_canvas.bind_class(wheel_tag, "<Button-4>", _controls_mousewheel)
+        controls_canvas.bind_class(wheel_tag, "<Button-5>", _controls_mousewheel)
+
+        def _attach_wheel_tag(widget):
+            tags = list(widget.bindtags())
+            if wheel_tag not in tags:
+                tags.insert(0, wheel_tag)
+                widget.bindtags(tuple(tags))
+            for child in widget.winfo_children():
+                _attach_wheel_tag(child)
 
         action_row = ttk.Frame(controls)
         action_row.grid(row=0, column=0, sticky="ew", pady=(0, 8))
@@ -364,3 +383,5 @@ class FastbootViewSupport:
 
         self.flash_partition.trace_add("write", lambda *_: self._update_flash_preview())
         self.fastboot_device.trace_add("write", lambda *_: self._update_flash_preview())
+        _attach_wheel_tag(controls_canvas)
+        _attach_wheel_tag(controls)

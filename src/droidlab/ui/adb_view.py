@@ -16,15 +16,17 @@ class ADBViewSupport:
         ttk.Label(modebar, text="Device mode", font=(self._ui_font, 16, "bold")).pack(
             side="left", padx=(0, 12)
         )
+        mode_switch = ttk.Frame(modebar, style="Panel.TFrame", padding=3)
+        mode_switch.pack(side="left")
         self.adb_workspace_mode_button = ttk.Button(
-            modebar,
+            mode_switch,
             text="ADB & Sideload",
             command=lambda: self._show_device_workspace("adb", manual=True),
             style="Primary.TButton",
         )
-        self.adb_workspace_mode_button.pack(side="left", padx=(0, 5))
+        self.adb_workspace_mode_button.pack(side="left", padx=(0, 3))
         self.fastboot_workspace_mode_button = ttk.Button(
-            modebar,
+            mode_switch,
             text="Fastboot & Flashing",
             command=lambda: self._show_device_workspace("fastboot", manual=True),
         )
@@ -220,24 +222,48 @@ class ADBViewSupport:
         ttk.Button(
             row, text="Sideload ZIP…", command=self._run_adb_sideload, style="Primary.TButton"
         ).pack(side="left", padx=(7, 0))
-        drop_hint = ttk.Label(
+        drop_hint = tk.Frame(
             side,
-            text="⬇  Drop a flashable ZIP here or browse for a package.",
-            background="#161922",
-            foreground="#93c5fd",
-            padding=7,
-            wraplength=800,
+            bg="#161922",
+            padx=10,
+            pady=8,
+            highlightthickness=1,
+            highlightbackground="#303038",
         )
         drop_hint.pack(fill="x", pady=(6, 0))
-        for drop_widget in (side, self.sideload_entry, drop_hint):
-            self._enable_sideload_drop(drop_widget)
-        ttk.Label(
-            side,
+        tk.Label(
+            drop_hint,
+            text="⇧",
+            bg="#161922",
+            fg="#9696a3",
+            font=(self._ui_font, 18),
+        ).pack(side="left", padx=(2, 10))
+        drop_copy = tk.Frame(drop_hint, bg="#161922")
+        drop_copy.pack(side="left", fill="x", expand=True)
+        tk.Label(
+            drop_copy,
+            text="Drop a flashable ZIP here or browse for a package.",
+            bg="#161922",
+            fg="#e6edf3",
+            anchor="w",
+            font=(self._ui_font, 9),
+        ).pack(fill="x")
+        tk.Label(
+            drop_copy,
             text="Recovery must support ADB sideload. Check package compatibility.",
-            background="#1E222D",
-            foreground="#94A3B8",
-            wraplength=800,
-        ).pack(anchor="w", pady=(3, 0))
+            bg="#161922",
+            fg="#94a3b8",
+            anchor="w",
+            font=(self._ui_font, 8),
+        ).pack(fill="x", pady=(2, 0))
+        for drop_widget in (
+            side,
+            self.sideload_entry,
+            drop_hint,
+            *drop_hint.winfo_children(),
+            *drop_copy.winfo_children(),
+        ):
+            self._enable_sideload_drop(drop_widget)
         shell = ttk.Frame(lower, style="Panel.TFrame", padding=6)
         shell.grid(row=2, column=0, sticky="nsew")
         shell.columnconfigure(0, weight=1)

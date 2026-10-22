@@ -74,13 +74,21 @@ class PayloadDumperApp(
         self.title(APP_NAME)
         # Use a practical Windows-first size; ttk layouts and system fonts scale
         # more predictably than the oversized Linux-oriented defaults.
-        self.geometry("1180x760")
-        self.minsize(900, 600)
+        self.geometry("1280x720")
+        self.minsize(1100, 650)
         self.theme_name = self._load_theme_name()
         self.theme_tokens = THEME_TOKENS[self.theme_name]
         self.configure(bg=self.theme_tokens["bg"])
-        self._ui_font = "Segoe UI" if os.name == "nt" else "Sans"
-        self._mono_font = "Consolas" if os.name == "nt" else "Monospace"
+        self._ui_font = (
+            "Segoe UI"
+            if os.name == "nt"
+            else ("SF Pro Text" if sys.platform == "darwin" else "Inter")
+        )
+        self._mono_font = (
+            "Cascadia Code"
+            if os.name == "nt"
+            else ("SF Mono" if sys.platform == "darwin" else "DejaVu Sans Mono")
+        )
         self.events = queue.Queue()
         self.worker = None
         self.payload_cancel_event = threading.Event()
@@ -108,6 +116,9 @@ class PayloadDumperApp(
         self.parts = {}
         self.part_vars = {}
         self._build()
+        # Apply the persisted palette after widgets exist so native Tk controls and ttk
+        # styles start in the selected theme instead of silently using hard-coded defaults.
+        self._apply_theme(self.theme_name)
         self.report_callback_exception = self._report_callback_exception
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         logging.info("UI initialized")

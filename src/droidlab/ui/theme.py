@@ -148,6 +148,8 @@ class ThemeSupport:
             "#30363d": t["border"],
             "#334155": t["panel_alt"],
             "#263449": t["button"],
+            "#2868d7": t["accent2"],
+            "#4b8dff": t["accent"],
         }
         old_surface.update(
             {
@@ -159,7 +161,7 @@ class ThemeSupport:
         for widget in self._walk_widgets(self):
             try:
                 kind = widget.winfo_class()
-                if kind in ("Frame", "Labelframe", "Toplevel"):
+                if kind in ("Frame", "Labelframe", "Toplevel", "Canvas"):
                     current = str(widget.cget("bg")).lower()
                     if current in old_surface:
                         widget.configure(bg=old_surface[current])
@@ -240,19 +242,22 @@ class ThemeSupport:
                 )
             except tk.TclError:
                 pass
+        slot_vars = getattr(self, "device_info_vars", {})
+        active_slot_var = slot_vars.get("Active slot") if slot_vars else None
+        active_slot = active_slot_var.get() if active_slot_var else ""
+        active_slot = active_slot.strip().lower().replace("_", "")
+        active_slot = active_slot[-1:] if active_slot.endswith(("a", "b")) else active_slot
+        targets = getattr(self, "_adb_targets", {})
+        selected = targets.get(getattr(self, "adb_device", tk.StringVar()).get())
+        is_fastboot = bool(selected and selected[1] == "fastboot")
         for slot, button in getattr(self, "header_slot_buttons", {}).items():
             try:
-                active = (
-                    getattr(self, "header_device_vars", {})
-                    .get("slot", tk.StringVar(value=""))
-                    .get()
-                    .lower()
-                    .endswith(slot)
-                )
+                active = is_fastboot and active_slot == slot
                 button.configure(
                     bg=t["accent"] if active else t["button"],
-                    fg="#07111B" if active and name == "cyberpunk_glass" else t["text"],
+                    fg="#ffffff" if active else t["text"],
                     activebackground=t["accent2"],
+                    activeforeground="#ffffff",
                 )
             except tk.TclError:
                 pass
