@@ -256,15 +256,14 @@ class ADBViewSupport:
             anchor="w",
             font=(self._ui_font, 8),
         ).pack(fill="x", pady=(2, 0))
-        for drop_widget in (side, self.sideload_entry, drop_hint, *drop_hint.winfo_children()):
-            self._enable_sideload_drop(drop_widget)
-        ttk.Label(
+        for drop_widget in (
             side,
-            text="Recovery must support ADB sideload. Check package compatibility.",
-            background="#1E222D",
-            foreground="#94A3B8",
-            wraplength=800,
-        ).pack(anchor="w", pady=(3, 0))
+            self.sideload_entry,
+            drop_hint,
+            *drop_hint.winfo_children(),
+            *drop_copy.winfo_children(),
+        ):
+            self._enable_sideload_drop(drop_widget)
         shell = ttk.Frame(lower, style="Panel.TFrame", padding=6)
         shell.grid(row=2, column=0, sticky="nsew")
         shell.columnconfigure(0, weight=1)
