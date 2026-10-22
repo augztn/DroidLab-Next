@@ -229,7 +229,17 @@ class ControllerSafetyCharacterizationTests(unittest.TestCase):
         app_source = (_SRC_ROOT / "droidlab" / "ui" / "main_window.py").read_text(encoding="utf-8")
         app_tree = ast.parse(app_source)
         app_class = next(node for node in app_tree.body if isinstance(node, ast.ClassDef) and node.name == "PayloadDumperApp")
-        self.assertTrue(any(isinstance(node, ast.FunctionDef) and node.name == "_poll_events" for node in app_class.body))
+        poll_method = next(
+            node for node in app_class.body
+            if isinstance(node, ast.FunctionDef) and node.name == "_poll_events"
+        )
+        poll_source = ast.get_source_segment(app_source, poll_method)
+        self.assertIsNotNone(poll_source)
+        self.assertLess(
+            poll_source.index("self.after(100, self._poll_events)"),
+            poll_source.index("self.events.get_nowait()"),
+            "schedule the next poll before dispatching events so one bad event cannot stop polling",
+        )
         payload_source = (_SRC_ROOT / "droidlab" / "controllers" / "payload_controller.py").read_text(encoding="utf-8")
         self.assertIn('self.events.put(("parts", parts))', payload_source)
         self.assertIn('self.events.put(("done",', payload_source)
