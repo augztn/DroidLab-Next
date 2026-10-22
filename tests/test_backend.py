@@ -67,6 +67,17 @@ class BackendTests(unittest.TestCase):
             parts, [{"name": "boot", "size_bytes": 2048 * 1024, "hash": ""}]
         )
 
+    def test_partition_parser_rejects_output_without_valid_partitions(self):
+        with tempfile.TemporaryDirectory() as temp:
+            src = Path(temp) / "payload.bin"
+            src.write_bytes(b"stub")
+            result = CompletedProcess(
+                ["payload-dumper-go"], 0, "header text\nvendor:not-a-size\n", ""
+            )
+            with patch("src.payload_dumper._run", return_value=result):
+                with self.assertRaisesRegex(BackendError, "no valid partition metadata"):
+                    inspect_source(str(src))
+
     def test_inspect_source_reports_backend_failure(self):
         with tempfile.TemporaryDirectory() as temp:
             src = Path(temp) / "payload.bin"
