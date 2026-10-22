@@ -153,14 +153,15 @@ def run_streaming(
         bufsize=1,
         **launch_options,
     )
-    assert proc.stdout is not None
+    stdout = proc.stdout
+    assert stdout is not None
     lines: queue.Queue[str | None] = queue.Queue(maxsize=max_queue_lines)
     drops = {"count": 0}
     drops_lock = threading.Lock()
 
     def reader() -> None:
         try:
-            for line in proc.stdout:
+            for line in stdout:
                 try:
                     lines.put_nowait(line)
                 except queue.Full:
@@ -192,7 +193,9 @@ def run_streaming(
             if cancel_event is not None and cancel_event.is_set():
                 raise ProcessCancelledError("Process cancelled by user.")
             if deadline is not None and time.monotonic() >= deadline:
-                raise subprocess.TimeoutExpired(list(command), timeout)
+                raise subprocess.TimeoutExpired(
+                    list(command), timeout if timeout is not None else 0.0
+                )
             wait = 0.1
             if deadline is not None:
                 wait = min(wait, max(0.01, deadline - time.monotonic()))
@@ -222,7 +225,7 @@ def run_streaming(
         raise
     finally:
         try:
-            proc.stdout.close()
+            stdout.close()
         except (OSError, ValueError):
             pass
         # Descendants are terminated on exceptional paths; never wait indefinitely
