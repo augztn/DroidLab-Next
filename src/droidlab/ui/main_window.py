@@ -236,6 +236,9 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
 
 
     def _poll_events(self):
+        # Scheduled callbacks can outlive worker threads during shutdown.
+        if getattr(self, "_closing", False):
+            return
         logcat_changed = False
         log_queue = getattr(self, "adb_log_queue", None)
         if log_queue is not None and self.adb_log_text and self.adb_log_window and self.adb_log_window.winfo_exists():
@@ -296,6 +299,12 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
                     elif kind_name=="logcat_file":
                         if code==0:messagebox.showinfo("Logcat saved",output)
                         else:messagebox.showerror("Save logcat failed",output)
+                elif kind=="device_info_result":
+                    request_id, result = payload
+                    self._apply_device_info_result(request_id, result)
+                elif kind=="slot_switch_result":
+                    lines, success = payload
+                    self._finish_slot_switch(lines, success)
                 elif kind=="parts":self._load_parts(payload)
                 elif kind=="info_done":self._busy(False);self.status.set(payload)
                 elif kind=="done":self._busy(False);self.status.set(payload);messagebox.showinfo("Extraction finished",payload)
@@ -305,7 +314,8 @@ class PayloadDumperApp(DeviceControllerMixin, ADBControllerMixin, FastbootContro
         except queue.Empty:pass
         if logcat_changed and not self.adb_log_paused:
             self._render_adb_logcat()
-        self.after(100,self._poll_events)
+        if not getattr(self, "_closing", False):
+            self.after(100, self._poll_events)
 def main() -> None:
     """Initialize logging and launch the existing Tk application."""
     _configure_logging()
