@@ -12,7 +12,7 @@ class LayoutSupport:
         font = self._ui_font
         # App-wide header keeps identity and current operation status visible on every tab.
         app_header = tk.Frame(
-            self, bg="#161922", padx=12, pady=7, highlightthickness=1, highlightbackground="#2A3040"
+            self, bg="#19191d", padx=12, pady=7, highlightthickness=1, highlightbackground="#303038"
         )
         app_header.pack(fill="x", padx=6, pady=(6, 0))
         brand_mark = tk.Label(
@@ -25,26 +25,26 @@ class LayoutSupport:
             pady=7,
         )
         brand_mark.pack(side="left", padx=(0, 12))
-        brand_text = tk.Frame(app_header, bg="#161922")
+        brand_text = tk.Frame(app_header, bg="#19191d")
         brand_text.pack(side="left", fill="x", expand=True)
         tk.Label(
-            brand_text, text="DroidLab", bg="#161922", fg="#F3F4F6", font=(font, 15, "bold")
+            brand_text, text="DroidLab", bg="#19191d", fg="#f2f2f5", font=(font, 15, "bold")
         ).pack(side="left", anchor="center")
         tk.Label(
             brand_text,
             text="Android firmware toolkit  ·  Extract · Diagnose · Maintain",
-            bg="#161922",
-            fg="#94A3B8",
+            bg="#19191d",
+            fg="#9696a3",
             font=(font, 9),
         ).pack(side="left", anchor="center", padx=(12, 0))
         # Compact app-wide device telemetry in the navigation header.
         telemetry = tk.Frame(
             app_header,
-            bg="#161B22",
+            bg="#19191d",
             padx=10,
             pady=2,
             highlightthickness=1,
-            highlightbackground="#30363D",
+            highlightbackground="#303038",
         )
         telemetry.pack(side="right", padx=(8, 0), anchor="center")
         self.header_device_vars = {
@@ -54,24 +54,24 @@ class LayoutSupport:
         self.header_mode_label = tk.Label(
             telemetry,
             textvariable=self.header_device_vars["mode"],
-            bg="#161B22",
+            bg="#19191d",
             fg="#F97316",
             font=(self._ui_font, 8, "bold"),
         )
         self.header_mode_label.pack(side="left", padx=(0, 9))
         for label, key in (("DEVICE", "serial"), ("CODENAME", "codename")):
             tk.Label(
-                telemetry, text=label, bg="#161B22", fg="#8B949E", font=(self._ui_font, 7, "bold")
+                telemetry, text=label, bg="#19191d", fg="#9696a3", font=(self._ui_font, 7, "bold")
             ).pack(side="left", padx=(0, 3))
             tk.Label(
                 telemetry,
                 textvariable=self.header_device_vars[key],
-                bg="#161B22",
-                fg="#E6EDF3",
+                bg="#19191d",
+                fg="#f2f2f5",
                 font=(self._mono_font, 8),
             ).pack(side="left", padx=(0, 8))
         tk.Label(
-            telemetry, text="SLOT", bg="#161B22", fg="#8B949E", font=(self._ui_font, 7, "bold")
+            telemetry, text="SLOT", bg="#19191d", fg="#9696a3", font=(self._ui_font, 7, "bold")
         ).pack(side="left", padx=(0, 4))
         self.header_slot_buttons = {}
         for slot in ("a", "b"):
@@ -79,9 +79,9 @@ class LayoutSupport:
                 telemetry,
                 text=slot.upper(),
                 command=lambda value=slot: self._set_active_slot(value),
-                bg="#30363D",
-                fg="#E6EDF3",
-                activebackground="#2563EB",
+                bg="#303038",
+                fg="#f2f2f5",
+                activebackground="#2868d7",
                 activeforeground="#FFFFFF",
                 relief="flat",
                 bd=0,
@@ -96,7 +96,7 @@ class LayoutSupport:
         self.header_bootloader_label = tk.Label(
             telemetry,
             textvariable=self.header_device_vars["bootloader"],
-            bg="#161B22",
+            bg="#19191d",
             fg="#F59E0B",
             font=(self._ui_font, 8, "bold"),
         )
@@ -105,21 +105,21 @@ class LayoutSupport:
 
         status_card = tk.Frame(
             app_header,
-            bg="#1E222D",
+            bg="#222228",
             padx=10,
             pady=5,
             highlightthickness=1,
-            highlightbackground="#2A3040",
+            highlightbackground="#303038",
         )
         status_card.pack(side="right", padx=(12, 0), anchor="center")
-        tk.Label(status_card, text="●", bg="#1E222D", fg="#10B981", font=(font, 10, "bold")).pack(
+        tk.Label(status_card, text="●", bg="#222228", fg="#35c98a", font=(font, 10, "bold")).pack(
             side="left", padx=(0, 6)
         )
         self.header_status_label = tk.Label(
             status_card,
             textvariable=self.status,
-            bg="#1E222D",
-            fg="#F3F4F6",
+            bg="#222228",
+            fg="#f2f2f5",
             font=(font, 9, "bold"),
             wraplength=0,
             justify="left",
@@ -129,10 +129,10 @@ class LayoutSupport:
             app_header,
             text="⚙",
             command=self._open_theme_picker,
-            bg="#161922",
-            fg="#94A3B8",
-            activebackground="#263448",
-            activeforeground="#00d2ff",
+            bg="#19191d",
+            fg="#9696a3",
+            activebackground="#26262d",
+            activeforeground="#4b8dff",
             relief="flat",
             bd=0,
             padx=9,
