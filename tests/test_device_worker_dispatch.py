@@ -1,16 +1,61 @@
+import subprocess
 import sys
+import threading
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 _SRC_ROOT = Path(__file__).resolve().parent.parent / "src"
 if str(_SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(_SRC_ROOT))
 
+from droidlab.controllers.adb_controller import ADBControllerMixin  # noqa: E402
 from droidlab.controllers.device_controller import DeviceControllerMixin  # noqa: E402
 
 
 class DeviceWorkerDispatchTests(unittest.TestCase):
+    def test_adb_command_is_blocked_when_fresh_scan_loses_target(self):
+        from droidlab.controllers import adb_controller
+
+        controller = Mock()
+        controller.events = Mock()
+        controller.command_cancel_event = threading.Event()
+        probe = subprocess.CompletedProcess(
+            ["adb", "devices", "-l"], 0, "List of devices attached\nOTHER device\n", ""
+        )
+        with patch.object(adb_controller.subprocess, "run", return_value=probe), patch.object(
+            adb_controller, "run_streaming"
+        ) as runner:
+            ADBControllerMixin._stream_process(
+                controller, ["adb", "-s", "SERIAL", "shell", "getprop"], 10, "shell"
+            )
+
+        runner.assert_not_called()
+        self.assertTrue(
+            any(
+                call.args[0][0] == "adb_result" and call.args[0][1][1] == -1
+                for call in controller.events.put.call_args_list
+            )
+        )
+
+    def test_adb_sideload_preflight_requires_sideload_mode(self):
+        from droidlab.controllers import adb_controller
+
+        controller = Mock()
+        controller.events = Mock()
+        controller.command_cancel_event = threading.Event()
+        probe = subprocess.CompletedProcess(
+            ["adb", "devices", "-l"], 0, "List of devices attached\nSERIAL device\n", ""
+        )
+        with patch.object(adb_controller.subprocess, "run", return_value=probe), patch.object(
+            adb_controller, "run_streaming"
+        ) as runner:
+            ADBControllerMixin._stream_process(
+                controller, ["adb", "-s", "SERIAL", "sideload", "update.zip"], 10, "sideload"
+            )
+
+        runner.assert_not_called()
+
     def test_stale_device_info_result_is_ignored(self):
         controller = Mock()
         controller._device_info_request_id = 4
