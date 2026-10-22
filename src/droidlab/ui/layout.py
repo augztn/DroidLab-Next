@@ -142,12 +142,78 @@ class LayoutSupport:
         )
         self.theme_button.pack(side="right", padx=(8, 0))
 
-        notebook = ttk.Notebook(self)
-        notebook.pack(fill="both", expand=True, padx=6, pady=6)
+        # Persistent app shell: compact navigation rail + focused workspace.
+        shell = ttk.Frame(self)
+        shell.pack(fill="both", expand=True, padx=6, pady=(0, 6))
+        shell.columnconfigure(1, weight=1)
+        shell.rowconfigure(0, weight=1)
+
+        sidebar = tk.Frame(
+            shell, bg="#19191d", width=208, padx=10, pady=14,
+            highlightthickness=1, highlightbackground="#303038",
+        )
+        sidebar.grid(row=0, column=0, sticky="nsw", padx=(0, 1))
+        sidebar.grid_propagate(False)
+        tk.Label(
+            sidebar, text="WORKSPACE", bg="#19191d", fg="#777783",
+            font=(font, 8, "bold"), anchor="w",
+        ).pack(fill="x", padx=8, pady=(4, 9))
+
+        content = ttk.Frame(shell)
+        content.grid(row=0, column=1, sticky="nsew")
+        content.columnconfigure(0, weight=1)
+        content.rowconfigure(0, weight=1)
+
+        notebook = ttk.Notebook(content, style="Workspace.TNotebook")
+        notebook.grid(row=0, column=0, sticky="nsew")
+        self.workspace_notebook = notebook
         root = ttk.Frame(notebook, padding=8)
         notebook.add(root, text="Payload Extractor")
         device_tab = ttk.Frame(notebook, padding=0)
         notebook.add(device_tab, text="Device Control & Flashing")
+
+        def add_navigation(label, index, hint):
+            button = tk.Button(
+                sidebar, text=label, anchor="w", padx=10, pady=9,
+                command=lambda: select_workspace(index),
+                bg="#2868d7" if index == 0 else "#19191d",
+                fg="#ffffff" if index == 0 else "#c4c4ce",
+                activebackground="#26262d", activeforeground="#ffffff",
+                relief="flat", bd=0, cursor="hand2", font=(font, 10),
+            )
+            button.pack(fill="x", pady=2)
+            tk.Label(
+                sidebar, text=hint, anchor="w", bg="#19191d", fg="#777783",
+                font=(font, 8),
+            ).pack(fill="x", padx=(12, 4), pady=(0, 7))
+            return button
+
+        def select_workspace(index):
+            notebook.select(index)
+            for nav_index, nav_button in enumerate(self.workspace_nav_buttons):
+                selected = nav_index == index
+                nav_button.configure(
+                    bg="#2868d7" if selected else "#19191d",
+                    fg="#ffffff" if selected else "#c4c4ce",
+                )
+
+        self.workspace_nav_buttons = [
+            add_navigation("▤  Payload Extractor", 0, "Inspect and extract OTA images"),
+            add_navigation("▣  Device Control", 1, "ADB, sideload and Fastboot"),
+        ]
+        tk.Frame(sidebar, bg="#303038", height=1).pack(fill="x", padx=7, pady=(14, 10))
+        tk.Label(
+            sidebar, text="ANDROID TOOLKIT", bg="#19191d", fg="#777783",
+            font=(font, 8, "bold"), anchor="w",
+        ).pack(fill="x", padx=8)
+        tk.Label(
+            sidebar,
+            text="Extract  ·  Diagnose\nMaintain  ·  Recover",
+            bg="#19191d", fg="#9696a3", justify="left", anchor="nw",
+            font=(font, 9), pady=8,
+        ).pack(fill="x", padx=8)
+        self._select_workspace = select_workspace
+
         self.device_mode = tk.StringVar(value="adb")
         self.device_workspace = ttk.Frame(device_tab)
         self.device_workspace.pack(fill="both", expand=True)
