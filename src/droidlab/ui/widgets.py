@@ -169,6 +169,12 @@ class WidgetSupport:
         s.map(
             "Treeview", background=[("selected", "#2868d7")], foreground=[("selected", "#ffffff")]
         )
+        s.configure("Workspace.TNotebook", background="#111113", borderwidth=0, tabmargins=0)
+        # Hide the notebook's tab strip; the persistent app navigation selects pages.
+        try:
+            s.layout("Workspace.TNotebook.Tab", [])
+        except tk.TclError:
+            pass
         s.configure("TNotebook", background="#111113", borderwidth=0, tabmargins=(3, 5, 3, 0))
         s.configure(
             "TNotebook.Tab",
