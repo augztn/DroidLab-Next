@@ -108,6 +108,9 @@ class PayloadDumperApp(
         self.parts = {}
         self.part_vars = {}
         self._build()
+        # Apply the persisted palette after widgets exist so native Tk controls and ttk
+        # styles start in the selected theme instead of silently using hard-coded defaults.
+        self._apply_theme(self.theme_name)
         self.report_callback_exception = self._report_callback_exception
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         logging.info("UI initialized")
