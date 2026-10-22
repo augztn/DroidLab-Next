@@ -164,6 +164,10 @@ class LayoutSupport:
         content.columnconfigure(0, weight=1)
         content.rowconfigure(0, weight=1)
 
+        # The sidebar is the single source of workspace navigation. Hide the
+        # Notebook tab strip to avoid duplicate navigation and reclaim vertical space.
+        style = ttk.Style(self)
+        style.layout("Workspace.TNotebook", [("Notebook.client", {"sticky": "nswe"})])
         notebook = ttk.Notebook(content, style="Workspace.TNotebook")
         notebook.grid(row=0, column=0, sticky="nsew")
         self.workspace_notebook = notebook
