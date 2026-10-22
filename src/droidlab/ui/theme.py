@@ -148,6 +148,8 @@ class ThemeSupport:
             "#30363d": t["border"],
             "#334155": t["panel_alt"],
             "#263449": t["button"],
+            "#2868d7": t["accent2"],
+            "#4b8dff": t["accent"],
         }
         old_surface.update(
             {
