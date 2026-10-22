@@ -149,14 +149,23 @@ class LayoutSupport:
         shell.rowconfigure(0, weight=1)
 
         sidebar = tk.Frame(
-            shell, bg="#19191d", width=208, padx=10, pady=14,
-            highlightthickness=1, highlightbackground="#303038",
+            shell,
+            bg="#19191d",
+            width=208,
+            padx=10,
+            pady=14,
+            highlightthickness=1,
+            highlightbackground="#303038",
         )
         sidebar.grid(row=0, column=0, sticky="nsw", padx=(0, 1))
         sidebar.grid_propagate(False)
         tk.Label(
-            sidebar, text="WORKSPACE", bg="#19191d", fg="#777783",
-            font=(font, 8, "bold"), anchor="w",
+            sidebar,
+            text="WORKSPACE",
+            bg="#19191d",
+            fg="#777783",
+            font=(font, 8, "bold"),
+            anchor="w",
         ).pack(fill="x", padx=8, pady=(4, 9))
 
         content = ttk.Frame(shell)
