@@ -20,130 +20,130 @@ class WidgetSupport:
         font = self._ui_font
         # Shared palette and control states adapted from the supplied React design.
         # Keep all styling in ttk so the native desktop build stays self-contained.
-        s.configure("TFrame", background="#0F1117")
+        s.configure("TFrame", background="#111113")
         s.configure(
             "Panel.TFrame",
-            background="#1f2937",
+            background="#19191d",
             relief="solid",
             borderwidth=1,
-            bordercolor="#374151",
+            bordercolor="#26262d",
         )
         s.configure(
             "TLabel",
-            background="#0F1117",
-            foreground="#F3F4F6",
+            background="#111113",
+            foreground="#f2f2f5",
             font=(font, 10 if os.name == "nt" else 13),
         )
-        s.configure("Title.TLabel", font=(font, 20, "bold"), foreground="#f8fafc")
-        s.configure("Muted.TLabel", foreground="#cbd5e1")
+        s.configure("Title.TLabel", font=(font, 20, "bold"), foreground="#f2f2f5")
+        s.configure("Muted.TLabel", foreground="#9696a3")
         s.configure(
             "TButton",
-            background="#374151",
-            foreground="#f8fafc",
-            bordercolor="#475569",
-            lightcolor="#475569",
-            darkcolor="#263449",
+            background="#26262d",
+            foreground="#f2f2f5",
+            bordercolor="#303038",
+            lightcolor="#303038",
+            darkcolor="#222228",
             relief="flat",
             padding=(8, 4),
             font=(font, 10 if os.name == "nt" else 12),
         )
         s.map(
             "TButton",
-            background=[("disabled", "#1f2937"), ("pressed", "#1e40af"), ("active", "#4b5563")],
-            foreground=[("disabled", "#64748b"), ("active", "#ffffff")],
+            background=[("disabled", "#19191d"), ("pressed", "#245dbb"), ("active", "#4b5563")],
+            foreground=[("disabled", "#686875"), ("active", "#ffffff")],
             bordercolor=[("focus", "#3b82f6")],
         )
         s.configure(
             "Primary.TButton",
-            background="#1d4ed8",
+            background="#2868d7",
             foreground="#ffffff",
-            bordercolor="#2563eb",
-            lightcolor="#2563eb",
-            darkcolor="#1e40af",
+            bordercolor="#4b8dff",
+            lightcolor="#4b8dff",
+            darkcolor="#245dbb",
             relief="flat",
             padding=(9, 5),
             font=(font, 10 if os.name == "nt" else 12, "bold"),
         )
         s.map(
             "Primary.TButton",
-            background=[("disabled", "#334155"), ("pressed", "#1e40af"), ("active", "#2563eb")],
-            foreground=[("disabled", "#94a3b8"), ("active", "#ffffff")],
+            background=[("disabled", "#222228"), ("pressed", "#245dbb"), ("active", "#4b8dff")],
+            foreground=[("disabled", "#9696a3"), ("active", "#ffffff")],
         )
         s.configure(
             "Danger.TButton",
-            background="#991b1b",
+            background="#9f3333",
             foreground="#ffffff",
-            bordercolor="#b91c1c",
-            lightcolor="#b91c1c",
-            darkcolor="#7f1d1d",
+            bordercolor="#dc5555",
+            lightcolor="#dc5555",
+            darkcolor="#7f2929",
             relief="flat",
             padding=(8, 4),
             font=(font, 10 if os.name == "nt" else 12, "bold"),
         )
         s.map(
             "Danger.TButton",
-            background=[("disabled", "#1f2937"), ("pressed", "#7f1d1d"), ("active", "#b91c1c")],
+            background=[("disabled", "#19191d"), ("pressed", "#7f2929"), ("active", "#dc5555")],
         )
         s.configure(
             "TCheckbutton",
-            background="#1f2937",
-            foreground="#f8fafc",
+            background="#19191d",
+            foreground="#f2f2f5",
             font=(font, 11 if os.name == "nt" else 13),
         )
         s.map(
-            "TCheckbutton", background=[("active", "#1f2937")], foreground=[("active", "#ffffff")]
+            "TCheckbutton", background=[("active", "#19191d")], foreground=[("active", "#ffffff")]
         )
         s.configure(
             "Large.TCheckbutton",
-            background="#1f2937",
-            foreground="#f8fafc",
+            background="#19191d",
+            foreground="#f2f2f5",
             font=(font, 12 if os.name == "nt" else 15),
             padding=(2, 4),
         )
         s.configure(
             "Large.TButton",
-            background="#1d4ed8",
+            background="#2868d7",
             foreground="#ffffff",
-            bordercolor="#2563eb",
-            lightcolor="#2563eb",
-            darkcolor="#1e40af",
+            bordercolor="#4b8dff",
+            lightcolor="#4b8dff",
+            darkcolor="#245dbb",
             relief="flat",
             padding=(9, 6),
             font=(font, 11 if os.name == "nt" else 14, "bold"),
         )
         s.map(
             "Large.TButton",
-            background=[("disabled", "#334155"), ("pressed", "#1e40af"), ("active", "#2563eb")],
-            foreground=[("disabled", "#94a3b8"), ("active", "#ffffff")],
+            background=[("disabled", "#222228"), ("pressed", "#245dbb"), ("active", "#4b8dff")],
+            foreground=[("disabled", "#9696a3"), ("active", "#ffffff")],
         )
         s.configure(
             "TEntry",
-            fieldbackground="#0b1220",
-            foreground="#f1f5f9",
+            fieldbackground="#0b0b0e",
+            foreground="#f2f2f5",
             insertcolor="#ffffff",
-            bordercolor="#374151",
-            lightcolor="#374151",
-            darkcolor="#0b1220",
+            bordercolor="#26262d",
+            lightcolor="#26262d",
+            darkcolor="#0b0b0e",
             padding=6,
             font=(font, 10 if os.name == "nt" else 12),
         )
         s.map("TEntry", bordercolor=[("focus", "#3b82f6")])
         s.configure(
             "TCombobox",
-            fieldbackground="#0b1220",
-            background="#1f2937",
-            foreground="#f1f5f9",
-            arrowcolor="#cbd5e1",
-            bordercolor="#374151",
-            lightcolor="#374151",
-            darkcolor="#0b1220",
+            fieldbackground="#0b0b0e",
+            background="#19191d",
+            foreground="#f2f2f5",
+            arrowcolor="#9696a3",
+            bordercolor="#26262d",
+            lightcolor="#26262d",
+            darkcolor="#0b0b0e",
             padding=6,
             font=(font, 10 if os.name == "nt" else 12),
         )
         s.map(
             "TCombobox",
-            fieldbackground=[("readonly", "#0b1220"), ("focus", "#0b1220")],
-            foreground=[("readonly", "#f1f5f9")],
+            fieldbackground=[("readonly", "#0b0b0e"), ("focus", "#0b0b0e")],
+            foreground=[("readonly", "#f2f2f5")],
             bordercolor=[("focus", "#3b82f6")],
         )
         # Derive raw-pixel row height from Tk font metrics for HiDPI displays.
@@ -151,35 +151,35 @@ class WidgetSupport:
         self._tree_heading_font = (font, 10 if os.name == "nt" else 12, "bold")
         s.configure(
             "Treeview",
-            background="#0b1220",
-            fieldbackground="#0b1220",
-            foreground="#f1f5f9",
-            bordercolor="#374151",
+            background="#0b0b0e",
+            fieldbackground="#0b0b0e",
+            foreground="#f2f2f5",
+            bordercolor="#26262d",
             rowheight=tree_row_height(tkfont.Font(self, font=self._tree_font).metrics("linespace")),
             font=self._tree_font,
         )
         s.configure(
             "Treeview.Heading",
-            background="#263449",
-            foreground="#f8fafc",
+            background="#222228",
+            foreground="#f2f2f5",
             font=self._tree_heading_font,
             padding=(9, 8),
             relief="flat",
         )
         s.map(
-            "Treeview", background=[("selected", "#1d4ed8")], foreground=[("selected", "#ffffff")]
+            "Treeview", background=[("selected", "#2868d7")], foreground=[("selected", "#ffffff")]
         )
-        s.configure("TNotebook", background="#111827", borderwidth=0, tabmargins=(3, 5, 3, 0))
+        s.configure("TNotebook", background="#111113", borderwidth=0, tabmargins=(3, 5, 3, 0))
         s.configure(
             "TNotebook.Tab",
-            background="#1f2937",
-            foreground="#cbd5e1",
+            background="#19191d",
+            foreground="#9696a3",
             padding=(18, 10),
             borderwidth=0,
             font=(font, 10 if os.name == "nt" else 12, "bold"),
         )
         s.map(
             "TNotebook.Tab",
-            background=[("selected", "#1d4ed8"), ("active", "#334155")],
+            background=[("selected", "#2868d7"), ("active", "#222228")],
             foreground=[("selected", "#ffffff"), ("active", "#ffffff")],
         )
