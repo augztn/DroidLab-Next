@@ -10,7 +10,7 @@ import tkinter as tk
 import types
 import unittest
 from pathlib import Path, PurePosixPath
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 # Make package imports work from an uninstalled source checkout as well.
 _SRC_ROOT = Path(__file__).resolve().parent.parent / "src"
@@ -203,8 +203,8 @@ class ControllerSafetyCharacterizationTests(unittest.TestCase):
         from droidlab.controllers import payload_controller
         from droidlab.controllers.payload_controller import PayloadControllerMixin
 
-        controller = __import__("unittest.mock", fromlist=["Mock"]).Mock()
-        controller.events = __import__("unittest.mock", fromlist=["Mock"]).Mock()
+        controller = Mock()
+        controller.events = Mock()
         controller.payload_cancel_event = object()
         with patch.object(payload_controller, "extract", return_value=[Path("boot.img")]), patch.object(
             payload_controller, "sha256_file", side_effect=OSError("file became unreadable")
