@@ -178,16 +178,28 @@ class LayoutSupport:
 
         def add_navigation(label, index, hint):
             button = tk.Button(
-                sidebar, text=label, anchor="w", padx=10, pady=9,
+                sidebar,
+                text=label,
+                anchor="w",
+                padx=10,
+                pady=9,
                 command=lambda: select_workspace(index),
                 bg="#2868d7" if index == 0 else "#19191d",
                 fg="#ffffff" if index == 0 else "#c4c4ce",
-                activebackground="#26262d", activeforeground="#ffffff",
-                relief="flat", bd=0, cursor="hand2", font=(font, 10),
+                activebackground="#26262d",
+                activeforeground="#ffffff",
+                relief="flat",
+                bd=0,
+                cursor="hand2",
+                font=(font, 10),
             )
             button.pack(fill="x", pady=2)
             tk.Label(
-                sidebar, text=hint, anchor="w", bg="#19191d", fg="#777783",
+                sidebar,
+                text=hint,
+                anchor="w",
+                bg="#19191d",
+                fg="#777783",
                 font=(font, 8),
             ).pack(fill="x", padx=(12, 4), pady=(0, 7))
             return button
@@ -207,14 +219,22 @@ class LayoutSupport:
         ]
         tk.Frame(sidebar, bg="#303038", height=1).pack(fill="x", padx=7, pady=(14, 10))
         tk.Label(
-            sidebar, text="ANDROID TOOLKIT", bg="#19191d", fg="#777783",
-            font=(font, 8, "bold"), anchor="w",
+            sidebar,
+            text="ANDROID TOOLKIT",
+            bg="#19191d",
+            fg="#777783",
+            font=(font, 8, "bold"),
+            anchor="w",
         ).pack(fill="x", padx=8)
         tk.Label(
             sidebar,
             text="Extract  ·  Diagnose\nMaintain  ·  Recover",
-            bg="#19191d", fg="#9696a3", justify="left", anchor="nw",
-            font=(font, 9), pady=8,
+            bg="#19191d",
+            fg="#9696a3",
+            justify="left",
+            anchor="nw",
+            font=(font, 9),
+            pady=8,
         ).pack(fill="x", padx=8)
         self._select_workspace = select_workspace
 
