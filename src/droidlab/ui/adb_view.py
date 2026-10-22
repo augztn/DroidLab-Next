@@ -31,7 +31,10 @@ class ADBViewSupport:
         self.fastboot_workspace_mode_button.pack(side="left")
         ttk.Label(
             tab,
-            text="Reboot, collect logs and diagnostics, run device shell commands, or sideload an OTA ZIP from recovery.",
+            text=(
+                "Reboot, collect logs and diagnostics, run device shell commands, or "
+                "sideload an OTA ZIP from recovery."
+            ),
             style="Muted.TLabel",
             wraplength=900,
         ).grid(row=1, column=0, sticky="w", pady=(0, 3))

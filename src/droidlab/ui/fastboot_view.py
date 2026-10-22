@@ -307,7 +307,10 @@ class FastbootViewSupport:
 
         ttk.Label(
             controls,
-            text="⚠ FLASHING RISK · An incompatible image or incorrect partition can prevent Android from booting. Verify compatibility before flashing.",
+            text=(
+                "⚠ FLASHING RISK · An incompatible image or incorrect partition can prevent "
+                "Android from booting. Verify compatibility before flashing."
+            ),
             foreground="#fecaca",
             background="#2a1d27",
             wraplength=850,

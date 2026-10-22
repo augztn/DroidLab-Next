@@ -37,7 +37,8 @@ from droidlab.ui.widgets import WidgetSupport
 
 
 # Compatibility note: UI sizing now lives in ui/widgets.py and ui/payload_view.py;
-# it still derives rowheight via tree_row_height(tkfont.Font(self, font=self._tree_font).metrics("linespace"))
+# it still derives rowheight from the font metrics used by tree_row_height:
+# tkfont.Font(self, font=self._tree_font).metrics("linespace")
 # and wires the partition tree scrollbar with yscrollcommand=tree_scroll.set.
 def _windows_process_options():
     """Keep ADB/Fastboot subprocesses from flashing console windows on Windows."""
@@ -126,7 +127,8 @@ class PayloadDumperApp(
                 "Operation in progress",
                 "A potentially destructive device operation is still running ("
                 + ", ".join(sorted(set(destructive)))
-                + "). Closing DroidLab will request cancellation and may leave the device in an incomplete state. Close anyway?",
+                + "). Closing DroidLab will request cancellation and may leave the device "
+                "in an incomplete state. Close anyway?",
                 icon="warning",
                 parent=self,
             )
@@ -271,8 +273,7 @@ class PayloadDumperApp(
             dropped = getattr(self, "adb_log_dropped", 0)
             if dropped:
                 self.adb_log_lines.append(
-                    "[DroidLab] %s logcat lines dropped because the display queue was full."
-                    % dropped
+                    f"[DroidLab] {dropped} logcat lines dropped because the display queue was full."
                 )
                 self.adb_log_dropped = 0
                 logcat_changed = True
@@ -295,7 +296,7 @@ class PayloadDumperApp(
                     logging.info("Live logcat reader ended; process return code: %s", payload)
                     if self.adb_log_window and self.adb_log_window.winfo_exists():
                         self.adb_log_lines.append(
-                            "[DroidLab] Logcat stream ended (return code: %s)" % payload
+                            f"[DroidLab] Logcat stream ended (return code: {payload})"
                         )
                         logcat_changed = True
                 elif kind == "adb_result":
@@ -309,7 +310,7 @@ class PayloadDumperApp(
                     if kind_name in ("shell", "fastboot_manual"):
                         self._append_adb_output(output)
                     if kind_name.startswith("fastboot"):
-                        self.status.set("Fastboot operation finished (exit code %s)" % code)
+                        self.status.set(f"Fastboot operation finished (exit code {code})")
                         if kind_name == "fastboot_maintenance":
                             self.maintenance_status.set("Completed" if code == 0 else "Failed")
                         if kind_name == "fastboot_flash":
@@ -330,8 +331,8 @@ class PayloadDumperApp(
                         elif code == 0:
                             messagebox.showwarning(
                                 "Bugreport status",
-                                "ADB returned success, but the expected archive was not found. Check output:\n"
-                                + output,
+                                "ADB returned success, but the expected archive was not "
+                                "found. Check output:\n" + output,
                             )
                         else:
                             messagebox.showerror("Bugreport failed", output)

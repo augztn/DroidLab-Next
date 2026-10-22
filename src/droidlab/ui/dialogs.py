@@ -77,7 +77,10 @@ class DialogSupport:
         ).pack(anchor="w")
         ttk.Label(
             intro,
-            text="Inspect and extract OTA payloads, review partition images, manage connected devices with ADB, and preview guarded Fastboot operations.",
+            text=(
+                "Inspect and extract OTA payloads, review partition images, manage connected "
+                "devices with ADB, and preview guarded Fastboot operations."
+            ),
             background="#1f2937",
             foreground="#cbd5e1",
             font=("Sans", 11),

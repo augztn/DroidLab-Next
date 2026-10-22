@@ -166,7 +166,10 @@ class PayloadViewSupport:
         ).grid(row=2, column=0, sticky="w", pady=(10, 8))
         ttk.Label(
             side,
-            text="Creates a SHA-256 checksum for each extracted partition. This is separate from the backend’s OTA verification.",
+            text=(
+                "Creates a SHA-256 checksum for each extracted partition. This is separate "
+                "from the backend’s OTA verification."
+            ),
             style="PanelMuted.TLabel",
             justify="left",
             wraplength=205,
@@ -197,7 +200,8 @@ class PayloadViewSupport:
         self._enable_drop(self.source_entry)
         self._enable_drop(root)
         self._append(
-            "Drag payload.bin or an OTA .zip onto the window, or type/paste its full path and choose Use typed path. Inspect to select individual partitions."
+            "Drag payload.bin or an OTA .zip onto the window, or type/paste its full path "
+            "and choose Use typed path. Inspect to select individual partitions."
         )
         self._append(
             "Backend: payload-dumper-go (Apache-2.0). Some delta OTA operations are unsupported."
