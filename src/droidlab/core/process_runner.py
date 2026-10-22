@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import math
+import os
 import queue
+import signal
 import subprocess
 import threading
 import time
@@ -21,25 +23,81 @@ def _validate_non_negative_finite(value: float, name: str) -> None:
 
 
 def terminate_process(proc: subprocess.Popen[str], grace_seconds: float = 1.0) -> None:
-    """Terminate a child with bounded waits; never wait indefinitely."""
+    """Terminate a child and its subprocess tree with bounded waits.
+
+    POSIX children are launched in a new session, allowing their process group to
+    be signalled even if the direct child has already exited but a descendant still
+    holds the output pipe open. Windows uses taskkill's tree option where available.
+    """
     _validate_non_negative_finite(grace_seconds, "grace_seconds")
-    if proc.poll() is not None:
+
+    if os.name == "nt":
+        # taskkill can still find descendants after the direct process has exited.
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=max(1.0, grace_seconds + 1.0),
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        if proc.poll() is None:
+            try:
+                proc.terminate()
+            except OSError:
+                pass
+            try:
+                proc.wait(timeout=grace_seconds)
+            except subprocess.TimeoutExpired:
+                try:
+                    proc.kill()
+                except OSError:
+                    pass
+                try:
+                    proc.wait(timeout=grace_seconds)
+                except subprocess.TimeoutExpired:
+                    pass
         return
+
+    # run_streaming starts a new session, so this group belongs to this operation.
     try:
-        proc.terminate()
+        os.killpg(proc.pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        if proc.poll() is None:
+            try:
+                proc.terminate()
+            except OSError:
+                pass
     except OSError:
-        # The process may have exited between poll() and terminate().
-        pass
+        if proc.poll() is None:
+            try:
+                proc.terminate()
+            except OSError:
+                pass
+
     try:
         proc.wait(timeout=grace_seconds)
-        return
     except subprocess.TimeoutExpired:
         pass
+
+    # Kill remaining group members too; the group may outlive its leader and keep
+    # stdout open. The direct child is reaped below whenever the OS permits it.
     try:
-        proc.kill()
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        if proc.poll() is None:
+            try:
+                proc.kill()
+            except OSError:
+                pass
     except OSError:
-        # The process may have exited between wait() and kill().
-        pass
+        if proc.poll() is None:
+            try:
+                proc.kill()
+            except OSError:
+                pass
     try:
         proc.wait(timeout=grace_seconds)
     except subprocess.TimeoutExpired:
@@ -77,6 +135,10 @@ def run_streaming(
     if cancel_event is not None and cancel_event.is_set():
         raise ProcessCancelledError("Process cancelled before launch.")
 
+    launch_options = dict(popen_kwargs or {})
+    if os.name == "posix":
+        launch_options.setdefault("start_new_session", True)
+
     proc = subprocess.Popen(
         list(command),
         stdout=subprocess.PIPE,
@@ -86,7 +148,7 @@ def run_streaming(
         encoding="utf-8",
         errors="replace",
         bufsize=1,
-        **(popen_kwargs or {}),
+        **launch_options,
     )
     assert proc.stdout is not None
     lines: queue.Queue[str | None] = queue.Queue(maxsize=max_queue_lines)
@@ -150,7 +212,7 @@ def run_streaming(
             omitted += drops["count"]
         output = "".join(retained)
         if omitted:
-            output += f"\n[DroidLab: {omitted} additional output line(s) omitted]\n"
+            output += f"\\n[DroidLab: {omitted} additional output line(s) omitted]\\n"
         return subprocess.CompletedProcess(list(command), code, output, "")
     except BaseException:
         terminate_process(proc)
@@ -160,7 +222,7 @@ def run_streaming(
             proc.stdout.close()
         except (OSError, ValueError):
             pass
-        # A descendant can retain the pipe after the direct child exits. Never wait
-        # indefinitely for the daemon reader in that case.
+        # Descendants are terminated on exceptional paths; never wait indefinitely
+        # for the daemon reader if a platform pipe implementation remains blocked.
         if thread.is_alive():
             thread.join(timeout=0.25)
