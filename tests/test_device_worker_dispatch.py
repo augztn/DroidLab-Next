@@ -3,7 +3,7 @@ import sys
 import threading
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 _SRC_ROOT = Path(__file__).resolve().parent.parent / "src"
 if str(_SRC_ROOT) not in sys.path:
@@ -69,6 +69,8 @@ class DeviceWorkerDispatchTests(unittest.TestCase):
     def test_current_device_info_result_is_applied(self):
         controller = Mock()
         controller._device_info_request_id = 4
+        controller._adb_targets = {}
+        controller.adb_device.get.return_value = ""
         controller.adb_info_loading = Mock()
 
         result = ({"Codename": "new"}, "ADB", "#16a34a")
@@ -117,8 +119,8 @@ class DeviceWorkerDispatchTests(unittest.TestCase):
         controller._adb_targets = {}
         controller.adb_device.get.return_value = ""
         controller.fastboot_device.get.return_value = ""
-        controller.adb_device_combo = Mock()
-        controller.device_combo = Mock()
+        controller.adb_device_combo = MagicMock()
+        controller.device_combo = MagicMock()
         controller.adb_device_status = Mock()
         controller.device_mode_status = Mock()
 
