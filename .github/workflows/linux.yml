@@ -30,6 +30,10 @@ jobs:
         run: ruff check src tests
       - name: Verify Ruff formatting
         run: ruff format --check src tests
+      - name: Install static type checker
+        run: python -m pip install "mypy>=1.14,<2"
+      - name: Type-check safety primitives
+        run: mypy --strict src/droidlab/core/command_guards.py src/droidlab/core/operation_outcomes.py src/droidlab/core/process_runner.py
       - name: Run tests
         run: |
           PYTHONPATH=. python3 -m unittest discover -s tests -v

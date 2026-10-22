@@ -1,31 +1,26 @@
 # DroidLab-Next reliability audit report
 
-## Changes applied
+**Updated:** 2026-10-22
 
-- Added bounded payload backend execution: inspection defaults to 120 seconds and extraction defaults to 3,600 seconds.
-- Added environment overrides: `DROIDLAB_PAYLOAD_INSPECTION_TIMEOUT` and `DROIDLAB_PAYLOAD_EXTRACTION_TIMEOUT`. Values must be finite and positive; values above 86,400 seconds are capped. Invalid values fall back to defaults and are logged.
-- Converted backend timeout exceptions into actionable `BackendError` messages so the UI can report them consistently.
-- Validated partition names returned by the backend and partition selections before passing names to the CLI.
-- Rejected blank output-directory input rather than accidentally treating it as the current working directory.
-- Changed staging-directory cleanup failures to log/report a warning instead of masking an extraction failure or falsely reporting failure after successful publication.
-- Added regression tests for timeout conversion, timeout configuration, malformed partition names, blank output paths, and staging cleanup behavior.
-- Removed trailing whitespace from Python files.
+## Changes merged
 
-## Verification performed on the uploaded source snapshot
+- [PR #10](https://github.com/augztn/DroidLab-Next/pull/10) — bounded subprocess-tree cleanup for timeouts and cancellation. POSIX streaming commands use isolated sessions/process groups; Windows cleanup uses bounded process-tree termination where available.
+- [PR #11](https://github.com/augztn/DroidLab-Next/pull/11) — background ADB/Fastboot discovery, fresh ADB target/state validation, stale device-metadata invalidation, robust UI event polling, operation-lock error-path coverage, and safer payload result reporting.
+- [PR #12](https://github.com/augztn/DroidLab-Next/pull/12) — Ruff autofixes and formatting, removal of the stale `ruff-report.txt` snapshot, and CI gates for full lint and formatting.
 
-- `PYTHONPATH=src:. pytest -q`: **59 passed, 149 subtests passed**.
-- `PYTHONPATH=src:. python -m compileall -q src tests`: passed.
-- Parsed all Python files in `src/` and `tests/` with `ast.parse`: no syntax errors.
-- Checked Python source for trailing whitespace and merge-conflict markers: none found.
+## Verification in GitHub Actions
 
-## Not verified
+- Linux: Python compile check, full Ruff lint, Ruff format check, unit tests, pytest, frozen GUI bundle smoke test, AppImage build and startup smoke test.
+- Windows x64 and ARM64: Python compile check, full Ruff lint, Ruff format check, unit tests, pytest, and portable build.
+- The merged PRs passed their relevant CI checks. This report does not claim local execution from this assistant environment.
 
-- Ruff could not be run because it is not installed in the server environment and package-index DNS resolution failed. The uploaded `ruff-report.txt` is retained as supplied and was not regenerated.
-- No Windows/macOS execution, physical Android device, ADB/Fastboot hardware test, or packaged AppImage test was available.
-- These checks do not establish that every possible reliability issue has been eliminated.
+## Static type-check gate
 
-## GitHub publication status
+- This follow-up adds a strict mypy gate on Linux CI for the platform-independent safety primitives in `command_guards.py`, `operation_outcomes.py`, and `process_runner.py`.
+- Mypy is installed only in the Linux workflow so the Windows ARM64 packaging environment does not depend on a platform-specific type-checker wheel.
 
-- The target branch is `fix/audit-reliability-hardening`, whose verified remote head at audit time was `a077bad9d74e6d6cfec8c14e6f19a39c4aaea851`.
-- No remote branch was changed by this audit run. The uploaded ZIP has no `.git` metadata, and this runtime cannot resolve `github.com` for a normal Git push. The connected GitHub API can create commits, but it does not provide a way to transfer this local archive into a set of source blobs automatically.
-- Do not treat this archive as published. Apply the source snapshot as a new commit on top of the verified branch head; do not reset or force-push the branch.
+## Remaining validation limits
+
+- No physical Android device or recovery-mode hardware tests were performed here. Real-device testing is still required for USB disconnect/reconnect timing, reboot mode transitions, recovery sideload outcomes, and safe Fastboot operation workflows.
+- No macOS execution or packaging test is claimed.
+- CI coverage improves confidence but cannot prove the absence of every defect or guarantee safety on every device/firmware combination.
