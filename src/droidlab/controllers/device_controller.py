@@ -39,8 +39,6 @@ class DeviceControllerMixin:
             self._device_scan_again = False
             request_id = getattr(self, "_device_scan_request_id", 0) + 1
             self._device_scan_request_id = request_id
-            previous = self.adb_device.get()
-            previous_fastboot = self.fastboot_device.get()
             self.adb_device_status.set("Scanning ADB and Fastboot devices…")
 
             def worker():
@@ -114,15 +112,13 @@ class DeviceControllerMixin:
                     self.events.put(
                         (
                             "device_scan_result",
-                            (request_id, targets, status_lines, previous, previous_fastboot),
+                            (request_id, targets, status_lines),
                         )
                     )
 
             threading.Thread(target=worker, name="DroidLab-DeviceScan", daemon=True).start()
 
-        def _apply_device_scan_result(
-            self, request_id, targets, status_lines, previous, previous_fastboot
-        ):
+        def _apply_device_scan_result(self, request_id, targets, status_lines):
             """Apply a completed background device scan on the Tk main thread."""
             if request_id != getattr(self, "_device_scan_request_id", None):
                 return
@@ -130,6 +126,7 @@ class DeviceControllerMixin:
             self._adb_targets = targets
             labels = list(targets)
             self.adb_device_combo["values"] = labels
+            previous = self.adb_device.get()
             self.adb_device.set(
                 previous if previous in targets else (labels[0] if len(labels) == 1 else "")
             )
@@ -138,6 +135,7 @@ class DeviceControllerMixin:
                 serial for serial, state in targets.values() if state == "fastboot"
             ]
             self.device_combo["values"] = fastboot_devices
+            previous_fastboot = self.fastboot_device.get()
             self.fastboot_device.set(
                 previous_fastboot
                 if previous_fastboot in fastboot_devices
