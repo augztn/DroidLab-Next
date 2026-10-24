@@ -83,8 +83,8 @@ def _is_destructive_shell_text(shell_text: str, depth: int = 0) -> bool:
     # Common Android shell wrappers can hide the actual command from the
     # top-level patterns (for example: adb shell sh -c "rm -rf /data").
     wrapper = re.search(
-        r"(?:^|[;&|]\\s*)(?:(?:/[^\\s;&|]+/)?(?:sh|bash|ash|dash|mksh|ksh|zsh)|su)"
-        r"\\s+(?:-[a-z]*c\\s+|--command(?:=|\\s+))(.+)$",
+        r"(?:^|[;&|]\s*)(?:(?:/[^\s;&|]+/)?(?:sh|bash|ash|dash|mksh|ksh|zsh)|su)"
+        r"\s+(?:-[a-z]*c\s+|--command(?:=|\s+))(.+)$",
         text,
         re.IGNORECASE,
     )
