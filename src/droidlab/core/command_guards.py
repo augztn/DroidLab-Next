@@ -66,6 +66,36 @@ def _skip_device_options(tokens: list[str]) -> list[str]:
     return values[index:]
 
 
+def _is_destructive_shell_text(shell_text: str, depth: int = 0) -> bool:
+    """Detect risky shell commands, including common nested shell wrappers.
+
+    This is a warning-oriented heuristic, not a shell parser or security boundary.
+    Limit recursion so deliberately nested input cannot cause unbounded work.
+    """
+    text = shell_text.strip()
+    if not text:
+        return False
+    if any(pattern.search(text) for pattern in _SHELL_DESTRUCTIVE_PATTERNS):
+        return True
+    if depth >= 4:
+        return False
+
+    # Common Android shell wrappers can hide the actual command from the
+    # top-level patterns (for example: adb shell sh -c "rm -rf /data").
+    wrapper = re.search(
+        r"(?:^|[;&|]\s*)(?:(?:/[^\s;&|]+/)?(?:sh|bash|ash|dash|mksh|ksh|zsh)|su)"
+        r"\s+(?:-[a-z]*c\s+|--command(?:=|\s+))(.+)$",
+        text,
+        re.IGNORECASE,
+    )
+    if wrapper:
+        nested = wrapper.group(1).strip()
+        if len(nested) >= 2 and nested[0] == nested[-1] and nested[0] in {"'", '"'}:
+            nested = nested[1:-1]
+        return _is_destructive_shell_text(nested, depth + 1)
+    return False
+
+
 def is_destructive_adb(tokens: list[str] | tuple[str, ...]) -> bool:
     """Detect destructive ADB commands without relying on fragile raw-text regexes."""
     values = _skip_device_options(_strip_executable(list(tokens), {"adb", "adb.exe"}))
@@ -75,8 +105,7 @@ def is_destructive_adb(tokens: list[str] | tuple[str, ...]) -> bool:
     if verb in _ADB_DESTRUCTIVE_VERBS:
         return True
     if verb == "shell":
-        shell_text = " ".join(values[1:]).strip()
-        return any(pattern.search(shell_text) for pattern in _SHELL_DESTRUCTIVE_PATTERNS)
+        return _is_destructive_shell_text(" ".join(values[1:]))
     return False
 
 

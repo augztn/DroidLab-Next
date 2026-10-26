@@ -29,6 +29,25 @@ class AdbGuardTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertFalse(is_destructive_adb(command))
 
+    def test_nested_shell_wrappers_do_not_hide_destructive_commands(self):
+        cases = (
+            ["adb", "shell", "sh", "-c", "rm -rf /data"],
+            ["adb", "shell", "bash", "-c", "mkfs.ext4 /dev/block/example"],
+            ["adb", "shell", "su", "-c", "pm uninstall com.example.app"],
+            ["shell", "sh", "-c", "setprop ro.debuggable 1"],
+        )
+        for command in cases:
+            with self.subTest(command=command):
+                self.assertTrue(is_destructive_adb(command))
+
+    def test_nested_shell_wrappers_allow_safe_commands(self):
+        for command in (
+            ["adb", "shell", "sh", "-c", "getprop ro.build.version.release"],
+            ["adb", "shell", "su", "-c", "ls /sdcard"],
+        ):
+            with self.subTest(command=command):
+                self.assertFalse(is_destructive_adb(command))
+
 
 class FastbootGuardTests(unittest.TestCase):
     def test_destructive_fastboot_commands_are_flagged(self):
