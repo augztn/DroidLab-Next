@@ -61,7 +61,7 @@ def run_streaming(command:Sequence[str],*,timeout:float|None=None,cancel_event:t
    if size+len(line)<=max_output_chars: output.append(line); size+=len(line)
    else: omitted+=1
   code=proc.wait(timeout=2); omitted+=dropped[0]
-  if omitted: output.append(f"\n[DroidLab: {omitted} output line(s) omitted]\\n")
+  if omitted: output.append(f"\n[DroidLab: {omitted} output line(s) omitted]\n")
   return subprocess.CompletedProcess(list(command),code,"".join(output),"")
  except BaseException:
   terminate_process(proc); raise
