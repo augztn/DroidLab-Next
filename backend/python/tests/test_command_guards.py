@@ -1,5 +1,7 @@
 import sys
 import unittest
+import subprocess
+from unittest.mock import patch
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -37,7 +39,7 @@ class CommandGuardTests(unittest.TestCase):
 
  def test_require_adb_explains_unauthorized_device_without_dispatch(self):
   output="List of devices attached\\n1bf3c2b0 unauthorized usb:1-1\\n"
-  with unittest.mock.patch.object(server,"tool_path",return_value="adb"), unittest.mock.patch.object(server,"run_capture",return_value=__import__("subprocess").CompletedProcess(["adb","devices","-l"],0,output,"")):
+  with patch.object(server,"tool_path",return_value="adb"), patch.object(server,"run_capture",return_value=subprocess.CompletedProcess(["adb","devices","-l"],0,output,"")):
    with self.assertRaisesRegex(RuntimeError,"accept the.*RSA fingerprint prompt"):
     server.require_adb("1bf3c2b0")
 if __name__=="__main__":unittest.main()
