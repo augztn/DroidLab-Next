@@ -255,7 +255,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
 
   String? _stripHostExecutable(String command, String executable) {
     final pattern = RegExp(
-      '^' + RegExp.escape(executable) + r'(?:\\.exe)?(?:\\s+|$)',
+      '^' + RegExp.escape(executable) + r'(?:\.exe)?(?:\s+|$)',
       caseSensitive: false,
     );
     final match = pattern.firstMatch(command.trimLeft());
@@ -351,9 +351,9 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     final adbArguments = _stripHostExecutable(command, 'adb');
     if (adbArguments != null) {
       final args = adbArguments.isEmpty ? 'devices -l' : adbArguments;
-      final verb = args.split(RegExp(r'\\s+')).first.toLowerCase();
+      final verb = args.split(RegExp(r'\s+')).first.toLowerCase();
       if (verb == 'reboot') {
-        final tokens = args.split(RegExp(r'\\s+'));
+        final tokens = args.split(RegExp(r'\s+'));
         final mode = tokens.length > 1 ? tokens[1].toLowerCase() : 'system';
         if (mode == 'recovery' || mode == 'bootloader' || mode == 'system') {
           await _reboot(mode);
@@ -405,7 +405,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       return;
     }
     final potentiallyDestructive = RegExp(
-      r'(^|[;&|]\\s*)(rm\\s+-.*r|mkfs(\\.[\\w-]+)?|dd\\s|reboot\\b|poweroff\\b|shutdown\\b|setprop\\b|pm\\s+(uninstall|disable-user)\\b|svc\\b.*\\bdisable\\b|wipe\\b|format\\b)',
+      r'(^|[;&|]\s*)(rm\s+-.*r|mkfs(\.[\w-]+)?|dd\s|reboot\\b|poweroff\\b|shutdown\\b|setprop\\b|pm\s+(uninstall|disable-user)\\b|svc\b.*\bdisable\\b|wipe\\b|format\\b)',
       caseSensitive: false,
     ).hasMatch(command);
     final confirmed = await _confirmCommand(
