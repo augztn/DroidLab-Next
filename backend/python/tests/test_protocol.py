@@ -257,7 +257,8 @@ class ProtocolTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             server.execute(
                 "id", "fastboot.command",
-                {"serial": "SERIAL", "command": "getvar all", "confirmed": True},
+                {"serial": "SERIAL", "command": "getvar all", "confirmed": True,
+                 "confirmation": {"operation": "fastboot.command", "serial": "SERIAL", "command": "getvar all"}},
                 threading.Event(),
             )
 
