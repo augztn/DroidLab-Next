@@ -34,30 +34,62 @@ class BackendClient {
   bool get isRunning => _process != null;
   String _id() => '${DateTime.now().microsecondsSinceEpoch}-${_random.nextInt(1 << 32)}';
 
-  Future<void> start() async {
-    if (_disposed) throw const BackendException('Backend client has been disposed.');
-    if (_process != null) return;
+  Future<void> start() {
+    if (_disposed) return Future.error(const BackendException('Backend client has been disposed.'));
+    if (_process != null) return Future.value();
+    final inFlight = _starting;
+    if (inFlight != null) return inFlight;
+    final future = _startProcess();
+    _starting = future;
+    return future.whenComplete(() {
+      if (identical(_starting, future)) _starting = null;
+    });
+  }
+
+  Future<void>? _starting;
+
+  Future<void> _startProcess() async {
     try {
-      final process = await Process.start(config.executable,
+      final process = await Process.start(
+        config.executable,
         [...config.arguments, config.scriptPath],
         runInShell: false,
         environment: config.environment.isEmpty ? null : config.environment,
       );
       _process = process;
       _closing = false;
-      _stdoutSubscription = process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen(
+      _stdoutSubscription = process.stdout
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen(
         _handleLine,
-        onError: (Object error, StackTrace stack) => _failAll(BackendException('Backend stdout stream failed.', cause: error)),
+        onError: (Object error, StackTrace stack) => _failAll(
+          BackendException('Backend stdout stream failed.', cause: error),
+        ),
         onDone: _handleExit,
       );
-      _stderrSubscription = process.stderr.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+      _stderrSubscription = process.stderr
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen((line) {
         _diagnostics.add(line);
         if (_diagnostics.length > config.maxRetainedLines) {
-          _diagnostics.removeRange(0, _diagnostics.length - config.maxRetainedLines);
+          _diagnostics.removeRange(
+            0,
+            _diagnostics.length - config.maxRetainedLines,
+          );
         }
       });
-      final result = await request('system.ping', const {}, timeout: config.startupTimeout);
-      if (result.data['status'] != 'ok') throw const BackendException('Backend health check returned an invalid response.');
+      final result = await request(
+        'system.ping',
+        const {},
+        timeout: config.startupTimeout,
+      );
+      if (result.data['status'] != 'ok') {
+        throw const BackendException(
+          'Backend health check returned an invalid response.',
+        );
+      }
     } on BackendException {
       await _terminate();
       rethrow;
