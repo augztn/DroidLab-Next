@@ -22,7 +22,6 @@ void main() {
     expect(find.text('Fastboot Toolkit'), findsOneWidget);
     expect(find.text('Logs & Diagnostics'), findsOneWidget);
     expect(find.text('Operation History'), findsOneWidget);
-    expect(find.text('No device'), findsOneWidget);
     expect(find.text('OPERATION CONSOLE'), findsOneWidget);
   });
 

@@ -99,6 +99,9 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                 if (expanded) Padding(padding: const EdgeInsets.fromLTRB(16,14,8,8),child: Text(group.$1,style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant,letterSpacing: 1))),
                 for (final item in group.$2)
                   Padding(padding: const EdgeInsets.symmetric(horizontal: 8,vertical: 2),
+                    child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(9),
                     child: Tooltip(message: item.$1,child: ListTile(
                       selected: widget.currentLocation == item.$2,
                       leading: Icon(item.$3),
@@ -106,6 +109,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                       dense: true, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
                       onTap: () => context.go(item.$2),
                     )),
+                  ),
                   ),
               ],
               const Divider(),
