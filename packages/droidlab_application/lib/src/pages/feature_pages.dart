@@ -1153,7 +1153,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       const SizedBox(height: 12),
       Wrap(spacing: 8, runSpacing: 8, children: [
         OutlinedButton.icon(
-          onPressed: _busy || serial == null ? null : () => _readFastbootInfo(serial),
+          onPressed: _busy || selectedSerial == null ? null : () => _readFastbootInfo(selectedSerial),
           icon: const Icon(Icons.info_outline),
           label: const Text('Device info'),
         ),
