@@ -85,12 +85,31 @@ class DroidLabSettingsStore {
   Future<void> save(DroidLabSettings settings) async {
     await _file.parent.create(recursive: true);
     final temporary = File('${_file.path}.tmp');
+    final backup = File('${_file.path}.bak');
     await temporary.writeAsString(
       const JsonEncoder.withIndent('  ').convert(settings.toJson()),
       flush: true,
     );
-    if (await _file.exists()) await _file.delete();
-    await temporary.rename(_file.path);
+
+    var movedOriginal = false;
+    try {
+      if (await backup.exists()) await backup.delete();
+      if (await _file.exists()) {
+        await _file.rename(backup.path);
+        movedOriginal = true;
+      }
+      await temporary.rename(_file.path);
+      if (movedOriginal && await backup.exists()) {
+        await backup.delete();
+      }
+    } catch (_) {
+      if (movedOriginal && !await _file.exists() && await backup.exists()) {
+        await backup.rename(_file.path);
+      }
+      rethrow;
+    } finally {
+      if (await temporary.exists()) await temporary.delete();
+    }
   }
 
   String get path => _file.path;
