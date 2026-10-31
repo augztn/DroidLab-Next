@@ -712,7 +712,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
       final result = await ref.read(backendClientProvider).request('payload.inspect', {'source_path': _source.text.trim()}, timeout: const Duration(minutes: 3));
       final parts = (result.data['partitions'] as List<dynamic>).cast<Map<String, dynamic>>();
       setState(() { _parts = parts; _selected.clear(); _status = 'Found ${parts.length} partitions.'; });
-    } catch (error) { setState(() => _status = error.toString()); }
+    } catch (error) { if (mounted) setState(() => _status = error.toString()); }
     finally { if (mounted) setState(() => _busy = false); }
   }
   Future<void> _extract() async {
