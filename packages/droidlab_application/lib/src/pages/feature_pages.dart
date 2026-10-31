@@ -108,42 +108,60 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     final serial = _serial.text.trim();
     final command = _command.text.trim();
     final potentiallyDestructive = RegExp(
-      r'(^|[;&|]\s*)(rm\s+-.*r|mkfs(\.[\w-]+)?|dd\s|reboot\b|poweroff\b|shutdown\b|setprop\b|pm\s+(uninstall|disable-user)\b|svc\b.*\bdisable\b|wipe\b|format\b)',
+      r'(^|[;&|]\\s*)(rm\\s+-.*r|mkfs(\\.[\\w-]+)?|dd\\s|reboot\\b|poweroff\\b|shutdown\\b|setprop\\b|pm\\s+(uninstall|disable-user)\\b|svc\\b.*\\bdisable\\b|wipe\\b|format\\b)',
       caseSensitive: false,
     ).hasMatch(command);
-    var confirmed = false;
-    if (potentiallyDestructive) {
-      confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
-        title: const Text('Potentially destructive shell command'),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Target: $serial'),
-          const SizedBox(height: 8),
-          SelectableText(command, style: const TextStyle(fontFamily: 'monospace')),
-          const SizedBox(height: 12),
-          const Text('This command may modify system state or remove data. Review it before execution.'),
-        ]),
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(potentiallyDestructive
+            ? 'Potentially destructive shell command'
+            : 'Confirm ADB shell command'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Target: $serial'),
+            const SizedBox(height: 8),
+            SelectableText(command, style: const TextStyle(fontFamily: 'monospace')),
+            const SizedBox(height: 12),
+            Text(potentiallyDestructive
+                ? 'This command may modify system state or remove data. Review it carefully before execution.'
+                : 'Review the exact device target and command. DroidLab requires confirmation before dispatching shell commands.'),
+          ],
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Execute command')),
         ],
-      )) ?? false;
-      if (!confirmed) return;
-    }
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
     try {
-      final result = await trackOperation(ref,
+      final result = await trackOperation(
+        ref,
         operation: 'ADB shell',
         target: serial,
         action: () => ref.read(backendClientProvider).request('adb.shell', {
-          'serial': serial, 'command': [command], 'confirmed': confirmed,
-          if (potentiallyDestructive) 'confirmation': {
-            'operation': 'adb.shell', 'serial': serial, 'command': [command],
+          'serial': serial,
+          'command': [command],
+          'confirmed': true,
+          'confirmation': {
+            'operation': 'adb.shell',
+            'serial': serial,
+            'command': [command],
           },
         }),
       );
-      if (mounted) setState(() => _output = result.data['output'] as String? ?? 'Command completed.');
-    } catch (error) { if (mounted) setState(() => _output = error.toString()); }
-    finally { if (mounted) setState(() => _busy = false); }
+      if (mounted) {
+        setState(() => _output = result.data['output'] as String? ?? 'Command completed.');
+      }
+    } catch (error) {
+      if (mounted) setState(() => _output = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _startLogcat() async {
