@@ -31,3 +31,5 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - Clean-machine AppImage smoke tests and controlled physical-device validation.
 
 CI uses fake executables only. A successful build does not prove hardware safety or release readiness.
+
+Desktop shell navigation uses a dedicated transparent Material surface for each interactive ListTile so selected states and ink feedback remain visible above the sidebar surface. Widget tests validate shell structure and navigation independently of host device-discovery state.
