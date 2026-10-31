@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -827,17 +828,60 @@ class PayloadExtractorPage extends ConsumerStatefulWidget {
 class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   final _source = TextEditingController();
   final _output = TextEditingController();
+  final _partitionFilter = TextEditingController();
   final Set<String> _selected = {};
+  final List<String> _activityLines = [];
+  StreamSubscription<BackendEvent>? _events;
   List<Map<String, dynamic>> _parts = [];
   String _status = 'Drop an OTA ZIP or payload BIN file here, or enter its path.';
   bool _busy = false;
   bool _sha = false;
 
   @override
+  void initState() {
+    super.initState();
+    _events = ref.read(backendClientProvider).events.listen((event) {
+      if (event is BackendOutput && event.stream == 'payload' && mounted) {
+        setState(() {
+          _activityLines.add(event.line);
+          if (_activityLines.length > 300) {
+            _activityLines.removeRange(0, _activityLines.length - 300);
+          }
+        });
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    unawaited(_events?.cancel() ?? Future<void>.value());
     _source.dispose();
     _output.dispose();
+    _partitionFilter.dispose();
     super.dispose();
+  }
+
+  Future<void> _browseSource() async {
+    const group = XTypeGroup(label: 'OTA and payload files', extensions: ['zip', 'bin']);
+    final file = await openFile(acceptedTypeGroups: [group]);
+    if (file != null && mounted) setState(() => _source.text = file.path);
+  }
+
+  Future<void> _browseOutput() async {
+    final directory = await getDirectoryPath(confirmButtonText: 'Use output directory');
+    if (directory != null && mounted) setState(() => _output.text = directory);
+  }
+
+  Future<void> _openOutput() async {
+    final path = _output.text.trim();
+    if (path.isEmpty) return;
+    try {
+      await Directory(path).create(recursive: true);
+      final command = Platform.isWindows ? 'explorer' : Platform.isMacOS ? 'open' : 'xdg-open';
+      await Process.start(command, [path], mode: ProcessStartMode.detached);
+    } catch (error) {
+      if (mounted) setState(() => _status = 'Could not open output directory: ' + error.toString());
+    }
   }
 
   void _drop(DropDoneDetails detail) {
@@ -903,9 +947,19 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
     child: DropTarget(
       onDragDone: _drop,
       child: ListView(children: [
-        _TextField(controller: _source, label: 'OTA ZIP or payload BIN path'),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Expanded(child: _TextField(controller: _source, label: 'OTA ZIP or payload BIN path')),
+          const SizedBox(width: 8),
+          OutlinedButton(onPressed: _browseSource, child: const Text('Browse…')),
+        ]),
         const SizedBox(height: 10),
-        _TextField(controller: _output, label: 'Output directory'),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Expanded(child: _TextField(controller: _output, label: 'Output directory')),
+          const SizedBox(width: 8),
+          OutlinedButton(onPressed: _browseOutput, child: const Text('Choose…')),
+          const SizedBox(width: 6),
+          OutlinedButton(onPressed: _openOutput, child: const Text('Open folder')),
+        ]),
         const SizedBox(height: 12),
         Wrap(spacing: 8, runSpacing: 8, children: [
           FilledButton(onPressed: _busy ? null : _inspect, child: const Text('Inspect payload')),
@@ -924,7 +978,13 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
         Text(_status),
         if (_parts.isNotEmpty) ...[
           Row(children: [
-            Text(_parts.length.toString() + ' partitions', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              _parts.length.toString() + ' partitions · ' +
+              _selected.length.toString() + ' selected · ' +
+              _parts.where((part) => _selected.contains(part['name']))
+                .fold<int>(0, (sum, part) => sum + ((part['size_bytes'] as num?)?.toInt() ?? 0)).toString() + ' B selected',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             const Spacer(),
             TextButton(
               onPressed: () => setState(() => _selected.addAll(_parts.map((p) => p['name'] as String))),
@@ -932,10 +992,17 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
             ),
             TextButton(
               onPressed: () => setState(_selected.clear),
-              child: const Text('Clear'),
+              child: const Text('Select none'),
             ),
           ]),
-          for (final part in _parts)
+          _TextField(
+            controller: _partitionFilter,
+            label: 'Filter partitions',
+            hint: 'Search by partition name',
+            onChanged: (_) => setState(() {}),
+          ),
+          for (final part in _parts.where((part) =>
+            (part['name'] as String).toLowerCase().contains(_partitionFilter.text.trim().toLowerCase())))
             CheckboxListTile(
               dense: true,
               value: _selected.contains(part['name']),
@@ -951,6 +1018,10 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
               }),
             ),
         ],
+        const SizedBox(height: 12),
+        Text('ACTIVITY LOG', style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 6),
+        _OutputPanel(output: _activityLines.isEmpty ? _status : _activityLines.join('\\n')),
         if (_busy) const LinearProgressIndicator(),
       ]),
     ),
