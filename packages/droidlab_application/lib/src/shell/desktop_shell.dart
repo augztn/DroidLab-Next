@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter/material.dart';
+import 'package:droidlab_design_system/droidlab_design_system.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../state/backend_providers.dart';
@@ -113,6 +114,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       final compact = constraints.maxWidth < 1000;
       final expanded = _expanded && !compact;
       final colors = Theme.of(context).colorScheme;
+      final surfaces = Theme.of(context).extension<DroidLabThemeSurfaces>();
       final deviceLabel = devices.when(
         data: (data) {
           final count = (data['devices'] as List<dynamic>? ?? const []).length;
@@ -201,7 +203,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
           Expanded(child: Padding(padding: EdgeInsets.all(compact ? 12 : 20),child: widget.child)),
         ])),
         if (_consoleVisible)
-          Container(height: 132,decoration: BoxDecoration(color: colors.surface,border: Border(top: BorderSide(color: colors.outlineVariant))),
+          Container(height: 132,decoration: BoxDecoration(color: surfaces?.console ?? colors.surface,border: Border(top: BorderSide(color: colors.outlineVariant))),
             child: Column(children: [
               ListTile(dense: true,leading: Icon(Icons.terminal,color: colors.primary),title: const Text('OPERATION CONSOLE'),trailing: Row(mainAxisSize: MainAxisSize.min,children: [
                 IconButton(tooltip: 'Clear console',onPressed: () => setState(_consoleLines.clear),icon: const Icon(Icons.clear_all)),
