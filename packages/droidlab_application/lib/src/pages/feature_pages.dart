@@ -678,6 +678,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
   final _partition = TextEditingController();
   final _image = TextEditingController();
   final _advancedCommand = TextEditingController(text: 'getvar all');
+  String? _selectedSerial;
   String _advancedPreview = '';
   String _output = '';
   bool _busy = false;
@@ -924,11 +925,52 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
   }
 
   @override
-  Widget build(BuildContext context) => _PageFrame(
+  Widget build(BuildContext context) {
+    final devicesAsync = ref.watch(deviceListProvider);
+    final devices = (devicesAsync.valueOrNull?['devices'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .where((device) => device['transport'] == 'fastboot')
+        .toList();
+    final serials = devices.map((device) => device['serial'] as String).toList();
+    final selectedSerial = serials.contains(_selectedSerial) ? _selectedSerial : null;
+    if (selectedSerial != null && selectedSerial != _serial.text && !_busy) {
+      _serial.text = selectedSerial;
+    }
+    return _PageFrame(
     title: 'Fastboot Toolkit',
     subtitle: 'Destructive actions require fresh target validation and an explicit confirmation.',
     child: ListView(children: [
-      _TextField(controller: _serial, label: 'Fastboot serial'),
+      Row(children: [
+        Expanded(child: DropdownButtonFormField<String>(
+          initialValue: selectedSerial,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Detected Fastboot devices',
+            border: OutlineInputBorder(),
+          ),
+          hint: const Text('Select a Fastboot device'),
+          items: devices.map((device) => DropdownMenuItem<String>(
+            value: device['serial'] as String,
+            child: Text(device['serial'] as String, overflow: TextOverflow.ellipsis),
+          )).toList(),
+          onChanged: (value) => setState(() {
+            _selectedSerial = value;
+            _serial.text = value ?? '';
+          }),
+        )),
+        const SizedBox(width: 8),
+        IconButton.filledTonal(
+          tooltip: 'Refresh devices',
+          onPressed: _busy ? null : () => ref.invalidate(deviceListProvider),
+          icon: const Icon(Icons.refresh),
+        ),
+      ]),
+      if (devicesAsync.hasError) Text('Device scan failed: ${devicesAsync.error}'),
+      if (devices.isEmpty)
+        const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Text('No Fastboot device detected. Switch the phone to bootloader mode, then refresh.'),
+        ),
       const SizedBox(height: 12),
       _TextField(controller: _partition, label: 'Partition name', hint: 'boot_a'),
       const SizedBox(height: 12),
@@ -1026,6 +1068,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       _OutputPanel(output: _output.isEmpty ? 'Fastboot operation results appear here.' : _output),
     ]),
   );
+  }
 }
 
 class PayloadExtractorPage extends ConsumerStatefulWidget {
