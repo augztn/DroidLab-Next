@@ -18,7 +18,7 @@ _WRITE_LOCK = threading.Lock()
 _ACTIVE: dict[str, threading.Event] = {}
 _DEVICE_LOCKS: dict[str, threading.Lock] = {}
 _DEVICE_LOCKS_LOCK = threading.Lock()
-_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.command"}
+_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.command", "fastboot.set_active"}
 
 def emit(message: dict[str, Any]) -> None:
     envelope = {"version": PROTOCOL_VERSION, "timestamp": time.time(), **message}
@@ -30,17 +30,58 @@ def emit(message: dict[str, Any]) -> None:
 def response(request_id: str, kind: str, **kwargs: Any) -> None:
     emit({"id": request_id, "type": kind, **kwargs})
 
+def _user_settings() -> dict[str, Any]:
+    home = Path(os.environ.get("USERPROFILE") or os.environ.get("HOME") or Path.home())
+    config = home / "DroidLab" / "config.json"
+    try:
+        value = json.loads(config.read_text(encoding="utf-8"))
+        return value if isinstance(value, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
 def tool_path(name: str) -> str:
-    env_key = "DROIDLAB_" + name.upper().replace("-", "_") + "_PATH"
+    normalized = name.lower().removesuffix(".exe")
+    setting_keys = {
+        "python": ("python_path", "python"),
+        "python3": ("python_path", "python"),
+        "adb": ("adb_path", "adb"),
+        "fastboot": ("fastboot_path", "fastboot"),
+        "payload-dumper-go": ("payload_dumper_path", "payload_dumper_go"),
+    }
+    env_key = "DROIDLAB_" + normalized.upper().replace("-", "_") + "_PATH"
     configured = os.environ.get(env_key, "").strip()
+    if not configured:
+        settings = _user_settings()
+        configured = next(
+            (str(settings.get(key, "")).strip() for key in setting_keys.get(normalized, ())
+             if isinstance(settings.get(key), str) and str(settings.get(key)).strip()),
+            "",
+        )
     if configured:
         path = Path(configured).expanduser()
-        if path.is_file():
+        if path.is_file() and (os.name == "nt" or os.access(path, os.X_OK)):
             return str(path.resolve())
-        raise RuntimeError(f"Configured {name} path does not exist: {path}")
-    found = shutil.which(name)
+        raise RuntimeError(f"Configured {name} path is not an executable file: {path}")
+
+    # Prefer tool binaries distributed next to the app before the host PATH.
+    bundle_root = Path(__file__).resolve().parents[2]
+    executable_names = [name]
+    if os.name == "nt" and not name.lower().endswith(".exe"):
+        executable_names = [name + ".exe", name]
+    candidates = []
+    for executable in executable_names:
+        candidates.extend([
+            bundle_root / executable,
+            bundle_root / "bin" / executable,
+            bundle_root / "platform-tools" / executable,
+            bundle_root / "usr" / "bin" / executable,
+        ])
+    for candidate in candidates:
+        if candidate.is_file() and (os.name == "nt" or os.access(candidate, os.X_OK)):
+            return str(candidate.resolve())
+    found = shutil.which(name) or (shutil.which(name + ".exe") if os.name == "nt" else None)
     if not found:
-        raise RuntimeError(f"{name} was not found on PATH. Configure its path in DroidLab settings.")
+        raise RuntimeError(f"{name} was not found in the application bundle, Settings, or PATH.")
     return found
 
 def run_capture(command: list[str], timeout: float = 10,
@@ -245,6 +286,72 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if result.returncode:
             raise RuntimeError(f"Bugreport failed ({result.returncode}): {result.stdout[-MAX_RETAINED_OUTPUT:]}")
         return {"path": str(destination), "exit_code": 0}
+    if operation == "device.info":
+        serial = args.get("serial")
+        if not isinstance(serial, str) or not serial.strip():
+            raise ValueError("An explicit device serial is required.")
+        scan = execute(request_id, "devices.list", {}, cancel)
+        device = next((item for item in scan["devices"] if item.get("serial") == serial), None)
+        if device is None:
+            raise RuntimeError(f"Device {serial!r} is no longer connected. Refresh devices and retry.")
+        values = {
+            "Brand / Manufacturer": "",
+            "Device name / Model": serial,
+            "Model code": "",
+            "Codename": "",
+            "Active slot": "",
+            "Bootloader": "",
+            "Android Version": "",
+            "Android SDK": "",
+            "Battery": "",
+            "Mode": device.get("transport", "unknown"),
+        }
+        if device.get("transport") == "adb":
+            if device.get("state") != "device":
+                raise RuntimeError(f"ADB device is {device.get('state')}; authorize and reconnect before reading metadata.")
+            result = run_streaming([tool_path("adb"), "-s", serial, "shell", "getprop"],
+                timeout=30, cancel_event=cancel)
+            if result.returncode:
+                raise RuntimeError(f"ADB getprop failed: {result.stdout[-MAX_RETAINED_OUTPUT:]}")
+            properties = {}
+            for line in result.stdout.splitlines():
+                if line.startswith("[") and "]: [" in line:
+                    key, value = line[1:].split("]: [", 1)
+                    properties[key] = value.rstrip("]")
+            def prop(*keys: str) -> str:
+                return next((properties.get(key, "") for key in keys if properties.get(key)), "")
+            values.update({
+                "Brand / Manufacturer": prop("ro.product.manufacturer", "ro.product.brand"),
+                "Device name / Model": prop("ro.product.marketname", "ro.product.model") or serial,
+                "Model code": prop("ro.product.name", "ro.product.model"),
+                "Codename": prop("ro.product.device", "ro.build.product"),
+                "Active slot": prop("ro.boot.slot_suffix", "ro.boot.slot"),
+                "Android Version": prop("ro.build.version.release"),
+                "Android SDK": prop("ro.build.version.sdk"),
+            })
+            battery = run_streaming([tool_path("adb"), "-s", serial, "shell", "dumpsys", "battery"],
+                timeout=15, cancel_event=cancel)
+            match = re.search(r"(?m)^\\s*level:\\s*(\\d+)", battery.stdout)
+            if match:
+                values["Battery"] = match.group(1) + "%"
+        elif device.get("transport") == "fastboot":
+            binary = tool_path("fastboot")
+            def getvar(key: str) -> str:
+                result = run_streaming([binary, "-s", serial, "getvar", key],
+                    timeout=10, cancel_event=cancel)
+                match = re.search(r"(?im)(?:\\(bootloader\\)\\s*)?" + re.escape(key) + r":\\s*(.+)$", result.stdout)
+                return match.group(1).strip() if match else ""
+            values.update({
+                "Model code": getvar("product"),
+                "Codename": getvar("product"),
+                "Brand / Manufacturer": getvar("manufacturer"),
+                "Active slot": getvar("current-slot"),
+                "Bootloader": {"yes": "Unlocked", "no": "Locked"}.get(getvar("unlocked").lower(), "Unknown"),
+                "Mode": "Fastboot",
+            })
+        else:
+            raise RuntimeError("Unsupported device transport.")
+        return {"serial": serial, "transport": device.get("transport"), "state": device.get("state"), "metadata": values}
     if operation == "adb.device_info":
         serial = args.get("serial")
         require_adb(serial, cancel_event=cancel)
@@ -325,6 +432,30 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if result.returncode:
             raise RuntimeError(f"Fastboot erase failed ({result.returncode}); inspect device state before retrying.")
         return {"exit_code": 0, "message": "Fastboot reported erase completion."}
+    if operation == "fastboot.set_active":
+        serial, slot = args.get("serial"), str(args.get("slot", "")).lower()
+        if slot not in {"a", "b"}:
+            raise ValueError("Active slot must be a or b.")
+        require_confirmation(args, "Fastboot active-slot change", {
+            "operation": "fastboot.set_active", "serial": serial, "slot": slot,
+        })
+        require_fastboot(serial, cancel_event=cancel)
+        binary = tool_path("fastboot")
+        attempts = [
+            [binary, "-s", serial, "--set-active=" + slot],
+            [binary, "-s", serial, "set_active", slot],
+        ]
+        output = ""
+        for index, command in enumerate(attempts):
+            response(request_id, "preflight", target=serial, command=command, destructive=True)
+            result = run_streaming(command, timeout=20, cancel_event=cancel,
+                on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
+            output = result.stdout
+            if result.returncode == 0:
+                return {"exit_code": 0, "serial": serial, "slot": slot, "output": output}
+            if index == 0:
+                continue
+        raise RuntimeError("Fastboot could not change active slot. Device state was not verified; inspect current-slot before retrying. " + output[-MAX_RETAINED_OUTPUT:])
     if operation == "fastboot.reboot":
         serial, mode = args.get("serial"), args.get("mode", "system")
         if mode not in {"system", "recovery", "bootloader"}:
