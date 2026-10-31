@@ -413,6 +413,12 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     if (mounted) setState(() => _logcatRequestId = null);
   }
 
+  Future<void> _browseSideloadPackage() async {
+    const group = XTypeGroup(label: 'Recovery OTA ZIP', extensions: ['zip']);
+    final file = await openFile(acceptedTypeGroups: [group]);
+    if (file != null && mounted) setState(() => _package.text = file.path);
+  }
+
   Future<void> _sideload() async {
     final serial = _serial.text.trim();
     final packagePath = _package.text.trim();
@@ -664,12 +670,16 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       const SizedBox(height: 8),
       OutlinedButton(onPressed: _saveLogcat, child: const Text('Save captured logcat')),
       const SizedBox(height: 8),
-      DropTarget(
-        onDragDone: (detail) {
-          if (detail.files.isNotEmpty) setState(() => _package.text = detail.files.first.path);
-        },
-        child: _TextField(controller: _package, label: 'Recovery OTA ZIP path'),
-      ),
+      Row(children: [
+        Expanded(child: DropTarget(
+          onDragDone: (detail) {
+            if (detail.files.isNotEmpty) setState(() => _package.text = detail.files.first.path);
+          },
+          child: _TextField(controller: _package, label: 'Recovery OTA ZIP path'),
+        )),
+        const SizedBox(width: 8),
+        OutlinedButton(onPressed: _browseSideloadPackage, child: const Text('Browse ZIP…')),
+      ]),
       const SizedBox(height: 8),
       OutlinedButton(
         onPressed: _busy || !(selectedAdbState == 'device' || selectedAdbState == 'recovery' || selectedAdbState == 'sideload') ? null : _sideload,
@@ -748,6 +758,32 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     _image.dispose();
     _advancedCommand.dispose();
     super.dispose();
+  }
+
+  Future<void> _browseFastbootImage() async {
+    const group = XTypeGroup(label: 'Android partition image', extensions: ['img']);
+    final file = await openFile(acceptedTypeGroups: [group]);
+    if (file == null || !mounted) return;
+    final name = file.name.toLowerCase();
+    const partitions = {
+      'boot.img': 'boot',
+      'vendor.img': 'vendor',
+      'vendor_boot.img': 'vendor_boot',
+      'init_boot.img': 'init_boot',
+      'dtbo.img': 'dtbo',
+      'vbmeta.img': 'vbmeta',
+      'recovery.img': 'recovery',
+      'system.img': 'system',
+      'product.img': 'product',
+      'odm.img': 'odm',
+      'system_ext.img': 'system_ext',
+      'vbmeta_system.img': 'vbmeta_system',
+      'vbmeta_vendor.img': 'vbmeta_vendor',
+    };
+    setState(() {
+      _image.text = file.path;
+      _partition.text = partitions[name] ?? _partition.text;
+    });
   }
 
   void _acceptImageDrop(DropDoneDetails detail) {
@@ -1106,10 +1142,14 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       const SizedBox(height: 12),
       _TextField(controller: _partition, label: 'Partition name', hint: 'boot_a'),
       const SizedBox(height: 12),
-      DropTarget(
-        onDragDone: _acceptImageDrop,
-        child: _TextField(controller: _image, label: 'Image path', hint: 'Drop a partition .img or enter its path'),
-      ),
+      Row(children: [
+        Expanded(child: DropTarget(
+          onDragDone: _acceptImageDrop,
+          child: _TextField(controller: _image, label: 'Image path', hint: 'Drop a partition .img or enter its path'),
+        )),
+        const SizedBox(width: 8),
+        OutlinedButton(onPressed: _browseFastbootImage, child: const Text('Browse image…')),
+      ]),
       const SizedBox(height: 12),
       Wrap(spacing: 8, runSpacing: 8, children: [
         OutlinedButton.icon(
@@ -1623,9 +1663,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _browse(TextEditingController controller, String label) async {
-    final file = await openFile(
-      acceptedTypeGroups: [XTypeGroup(label: label, extensions: [])],
-    );
+    final file = await openFile();
     if (file != null && mounted) setState(() => controller.text = file.path);
   }
 
