@@ -41,18 +41,18 @@ final backendClientProvider = Provider<BackendClient>((ref) {
     'backend_path',
     '',
   );
-  final adb = _settingPath('DROIDLAB_ADB_PATH', 'adb_path', '');
-  final fastboot = _settingPath('DROIDLAB_FASTBOOT_PATH', 'fastboot_path', '');
-  final payloadDumper = _settingPath(
-    'DROIDLAB_PAYLOAD_DUMPER_GO_PATH',
-    'payload_dumper_path',
-    '',
-  );
+  // Only forward explicit process-environment overrides here. Saved tool
+  // locations remain in config.json and are resolved by Python for each
+  // operation, so changing ADB/Fastboot/payload paths takes effect immediately
+  // without keeping stale values in this long-lived backend process.
   final environment = <String, String>{
-    if (adb.isNotEmpty) 'DROIDLAB_ADB_PATH': adb,
-    if (fastboot.isNotEmpty) 'DROIDLAB_FASTBOOT_PATH': fastboot,
-    if (payloadDumper.isNotEmpty)
-      'DROIDLAB_PAYLOAD_DUMPER_GO_PATH': payloadDumper,
+    for (final name in [
+      'DROIDLAB_ADB_PATH',
+      'DROIDLAB_FASTBOOT_PATH',
+      'DROIDLAB_PAYLOAD_DUMPER_GO_PATH',
+    ])
+      if ((Platform.environment[name] ?? '').trim().isNotEmpty)
+        name: Platform.environment[name]!.trim(),
   };
   final executableDirectory = File(Platform.resolvedExecutable).parent;
   final candidates = <String>[
