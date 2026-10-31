@@ -416,15 +416,23 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             def getvar(key: str) -> str:
                 result = run_streaming([binary, "-s", serial, "getvar", key],
                     timeout=10, cancel_event=cancel)
-                match = re.search(r"(?im)(?:\(bootloader\)\s*)?" + re.escape(key) + r":\s*(.+)$", result.stdout)
+                output = (result.stdout or "") + "\n" + (result.stderr or "")
+                match = re.search(r"(?im)(?:\\(bootloader\\)\\s*)?" + re.escape(key) + r":\\s*(.+)$", output)
                 return match.group(1).strip() if match else ""
+            userspace = getvar("is-userspace").lower()
+            if userspace == "yes":
+                fastboot_mode = "Fastbootd (userspace Fastboot)"
+            elif userspace == "no":
+                fastboot_mode = "Bootloader Fastboot"
+            else:
+                fastboot_mode = "Fastboot (submode unknown)"
             values.update({
                 "Model code": getvar("product"),
                 "Codename": getvar("product"),
                 "Brand / Manufacturer": getvar("manufacturer"),
                 "Active slot": getvar("current-slot"),
                 "Bootloader": {"yes": "Unlocked", "no": "Locked"}.get(getvar("unlocked").lower(), "Unknown"),
-                "Mode": "Fastboot",
+                "Mode": fastboot_mode,
             })
         else:
             raise RuntimeError("Unsupported device transport.")

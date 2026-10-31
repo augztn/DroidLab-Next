@@ -337,6 +337,41 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(metadata["Android Version"], "15")
         self.assertEqual(metadata["Battery"], "87%")
 
+    def test_device_info_reads_fastboot_metadata_and_detects_fastbootd(self):
+        device_list = {
+            "devices": [{"serial": "FASTBOOT-1", "transport": "fastboot", "state": "fastboot"}],
+            "warnings": [],
+        }
+        outputs = {
+            "product": result("", 0, "product: unitx\n"),
+            "manufacturer": result("manufacturer: Example\n"),
+            "current-slot": result("", 0, "(bootloader) current-slot: b\n"),
+            "unlocked": result("", 0, "unlocked: yes\n"),
+            "is-userspace": result("", 0, "is-userspace: yes\n"),
+        }
+        original_execute = server.execute
+
+        def execute_with_device_scan(request_id, operation, args, cancel):
+            if operation == "devices.list":
+                return device_list
+            return original_execute(request_id, operation, args, cancel)
+
+        with patch.object(server, "execute", side_effect=execute_with_device_scan):
+            with patch.object(server, "tool_path", return_value="fastboot"):
+                with patch.object(
+                    server, "run_streaming",
+                    side_effect=lambda command, **kwargs: outputs[command[-1]],
+                ):
+                    value = original_execute(
+                        "id", "device.info", {"serial": "FASTBOOT-1"}, threading.Event()
+                    )
+        metadata = value["metadata"]
+        self.assertEqual(metadata["Model code"], "unitx")
+        self.assertEqual(metadata["Brand / Manufacturer"], "Example")
+        self.assertEqual(metadata["Active slot"], "b")
+        self.assertEqual(metadata["Bootloader"], "Unlocked")
+        self.assertEqual(metadata["Mode"], "Fastbootd (userspace Fastboot)")
+
     def test_fastboot_set_active_requires_exact_confirmation(self):
         with self.assertRaises(PermissionError):
             server.execute(

@@ -14,13 +14,13 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - Device details available from Device Manager and both device-tool views.
 - Fastboot flash, erase, cache/userdata erase, factory wipe, reboot system/recovery/bootloader, advanced command preview and exact destructive confirmation.
 - Fastboot active-slot A/B switching using the primary `--set-active` syntax and legacy `set_active` fallback, with fresh target validation. Advanced Fastboot accepts device-targeted commands and no-target discovery/help/version commands; unlock/lock remain available through explicit command entry and confirmation rather than dedicated buttons.
-- Native file pickers for OTA/payload input, output directory, Fastboot image and recovery ZIP, plus drag-and-drop.
+- Native file pickers for OTA/payload input, output directory, Fastboot image, logcat output path, bugreport output path and recovery ZIP, plus drag-and-drop.
 - User-mounted/available storage selection: Linux user media roots, macOS `/Volumes`, and Windows volume roots, with refresh and use-as-output controls.
 - OTA ZIP/BIN inspection and selected/all partition extraction with isolated staging, nonempty artifact checks, no-overwrite publication, rollback and optional SHA-256.
 - Persistent appearance settings compatible with the legacy `~/DroidLab/config.json` path, including `cyberpunk_glass`, `standard_dark` and `oled_black`.
 - Editable tool executable settings for Python, backend script, ADB, Fastboot and payload-dumper-go; tool paths are read from saved settings by the backend.
-- Bundled-tool-first, configured-path-second and PATH-fallback tool resolution.
-- Live bounded operation console, local operation history, backend diagnostics, About dialog and Help navigation.
+- Explicit environment or saved executable paths take precedence; with blank overrides, the backend searches beside the app/in its bundled tool folders and then falls back to system `PATH`.
+- Live bounded operation console, local operation history, backend stderr diagnostics, About dialog and Help navigation. Logcat capture is currently saved from the bounded in-memory display buffer rather than the legacy one-hour full-stream-to-file workflow.
 - Linux AppImage packaging and Linux TAR, Windows and macOS CI artifacts.
 
 ## Remaining parity and release validation

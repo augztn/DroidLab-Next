@@ -1111,11 +1111,31 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     }
   }
 
+  bool _isFastbootDiscoveryCommand(String command) {
+    final verb = command.trim().split(RegExp(r'\\s+')).first.toLowerCase();
+    return const {'devices', 'help', '--help', '--version', 'version'}.contains(verb);
+  }
+
+  String _fastbootCommandPreview(String command) {
+    final trimmed = command.trim();
+    if (trimmed.isEmpty) return '';
+    if (_isFastbootDiscoveryCommand(trimmed) || _serial.text.trim().isEmpty) {
+      return 'fastboot ' + trimmed;
+    }
+    return 'fastboot -s ' + _serial.text.trim() + ' ' + trimmed;
+  }
+
   Future<void> _runAdvancedCommand() async {
     final serial = _serial.text.trim();
     final command = _advancedCommand.text.trim();
-    if (serial.isEmpty || command.isEmpty || _busy) return;
-    final preview = 'fastboot -s ' + serial + ' ' + command;
+    if (command.isEmpty || _busy) return;
+    final discovery = _isFastbootDiscoveryCommand(command);
+    if (!discovery && serial.isEmpty) {
+      setState(() => _output = 'Select a Fastboot device for device-targeted commands. Discovery/help/version commands do not require a target.');
+      return;
+    }
+    final target = discovery ? null : serial;
+    final preview = _fastbootCommandPreview(command);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1124,11 +1144,11 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Target: ' + serial),
+            Text('Target: ' + (target ?? 'host / discovery command')),
             const SizedBox(height: 8),
-            const Text(
-              'Advanced commands are unrestricted and may erase data, change boot state, or make the device unbootable. Review the exact command.',
-            ),
+            Text(discovery
+                ? 'This is a host-side Fastboot discovery/help command and does not mutate a selected device.'
+                : 'Advanced commands are unrestricted and may erase data, change boot state, or make the device unbootable. Review the exact command.'),
             const SizedBox(height: 12),
             SelectableText(preview, style: const TextStyle(fontFamily: 'monospace')),
           ],
@@ -1136,7 +1156,9 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            style: FilledButton.styleFrom(backgroundColor: discovery
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.error),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Execute command'),
           ),
@@ -1149,14 +1171,14 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       final result = await trackOperation(
         ref,
         operation: 'Advanced Fastboot: ' + command,
-        target: serial,
+        target: target ?? 'host',
         action: () => ref.read(backendClientProvider).request('fastboot.command', {
-          'serial': serial,
+          'serial': target,
           'command': command,
           'confirmed': true,
           'confirmation': {
             'operation': 'fastboot.command',
-            'serial': serial,
+            'serial': target,
             'command': command,
           },
         }, timeout: const Duration(minutes: 30)),
@@ -1421,18 +1443,14 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         label: 'Fastboot arguments',
         hint: 'getvar all · flashing get_unlock_ability',
         onChanged: (value) => setState(() {
-          _advancedPreview = value.trim().isEmpty
-              ? ''
-              : 'fastboot -s ' + _serial.text.trim() + ' ' + value.trim();
+          _advancedPreview = _fastbootCommandPreview(value);
         }),
       ),
       const SizedBox(height: 8),
       Wrap(spacing: 8, runSpacing: 8, children: [
         OutlinedButton(
           onPressed: () => setState(() {
-            _advancedPreview = _advancedCommand.text.trim().isEmpty
-                ? ''
-                : 'fastboot -s ' + _serial.text.trim() + ' ' + _advancedCommand.text.trim();
+            _advancedPreview = _fastbootCommandPreview(_advancedCommand.text);
           }),
           child: const Text('Preview command'),
         ),
