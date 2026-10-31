@@ -108,7 +108,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     final serial = _serial.text.trim();
     final command = _command.text.trim();
     final potentiallyDestructive = RegExp(
-      r'(^|[;&|]\\s*)(rm\\s+-.*r|mkfs(\\.[\\w-]+)?|dd\\s|reboot\\b|poweroff\\b|shutdown\\b|setprop\\b|pm\\s+(uninstall|disable-user)\\b|svc\\b.*\\bdisable\\b|wipe\\b|format\\b)',
+      r'(^|[;&|]\s*)(rm\s+-.*r|mkfs(\.[\w-]+)?|dd\s|reboot\b|poweroff\b|shutdown\b|setprop\b|pm\s+(uninstall|disable-user)\b|svc\b.*\bdisable\b|wipe\b|format\b)',
       caseSensitive: false,
     ).hasMatch(command);
     final confirmed = await showDialog<bool>(
