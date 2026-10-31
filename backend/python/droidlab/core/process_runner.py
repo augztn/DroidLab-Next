@@ -57,7 +57,7 @@ def run_streaming(command:Sequence[str],*,timeout:float|None=None,cancel_event:t
    try: line=lines.get(timeout=.1)
    except queue.Empty: continue
    if line is None: break
-   if on_line: on_line(line.rstrip("\\r\\n"))
+   if on_line: on_line(line.rstrip("\r\n"))
    if size+len(line)<=max_output_chars: output.append(line); size+=len(line)
    else: omitted+=1
   code=proc.wait(timeout=2); omitted+=dropped[0]
