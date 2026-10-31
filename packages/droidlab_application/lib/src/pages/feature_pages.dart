@@ -563,6 +563,8 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
   final _serial = TextEditingController();
   final _partition = TextEditingController();
   final _image = TextEditingController();
+  final _advancedCommand = TextEditingController(text: 'getvar all');
+  String _advancedPreview = '';
   String _output = '';
   bool _busy = false;
 
@@ -571,6 +573,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     _serial.dispose();
     _partition.dispose();
     _image.dispose();
+    _advancedCommand.dispose();
     super.dispose();
   }
 
@@ -702,6 +705,64 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     }
   }
 
+  Future<void> _runAdvancedCommand() async {
+    final serial = _serial.text.trim();
+    final command = _advancedCommand.text.trim();
+    if (serial.isEmpty || command.isEmpty || _busy) return;
+    final preview = 'fastboot -s ' + serial + ' ' + command;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm advanced Fastboot command'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Target: ' + serial),
+            const SizedBox(height: 8),
+            const Text(
+              'Advanced commands are unrestricted and may erase data, change boot state, or make the device unbootable. Review the exact command.',
+            ),
+            const SizedBox(height: 12),
+            SelectableText(preview, style: const TextStyle(fontFamily: 'monospace')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Execute command'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final result = await trackOperation(
+        ref,
+        operation: 'Advanced Fastboot: ' + command,
+        target: serial,
+        action: () => ref.read(backendClientProvider).request('fastboot.command', {
+          'serial': serial,
+          'command': command,
+          'confirmed': true,
+          'confirmation': {
+            'operation': 'fastboot.command',
+            'serial': serial,
+            'command': command,
+          },
+        }, timeout: const Duration(minutes: 30)),
+      );
+      if (mounted) setState(() => _output = result.data.toString());
+    } catch (error) {
+      if (mounted) setState(() => _output = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _wipeUserdata() async {
     final serial = _serial.text.trim();
     if (serial.isEmpty || _busy) return;
@@ -809,6 +870,43 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           child: const Text('Wipe data (fastboot -w)'),
         ),
       ]),
+      const SizedBox(height: 16),
+      Text('ADVANCED FASTBOOT COMMAND', style: Theme.of(context).textTheme.titleSmall),
+      const SizedBox(height: 8),
+      _TextField(
+        controller: _advancedCommand,
+        label: 'Fastboot arguments',
+        hint: 'getvar all · flashing get_unlock_ability',
+        onChanged: (value) => setState(() {
+          _advancedPreview = value.trim().isEmpty
+              ? ''
+              : 'fastboot -s ' + _serial.text.trim() + ' ' + value.trim();
+        }),
+      ),
+      const SizedBox(height: 8),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        OutlinedButton(
+          onPressed: () => setState(() {
+            _advancedPreview = _advancedCommand.text.trim().isEmpty
+                ? ''
+                : 'fastboot -s ' + _serial.text.trim() + ' ' + _advancedCommand.text.trim();
+          }),
+          child: const Text('Preview command'),
+        ),
+        FilledButton(
+          onPressed: _busy ? null : _runAdvancedCommand,
+          child: const Text('Run command'),
+        ),
+        TextButton(
+          onPressed: () => setState(() {
+            _advancedCommand.clear();
+            _advancedPreview = '';
+          }),
+          child: const Text('Clear command'),
+        ),
+      ]),
+      if (_advancedPreview.isNotEmpty)
+        SelectableText(_advancedPreview, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace')),
       const SizedBox(height: 18),
       if (_busy) const LinearProgressIndicator(),
       _OutputPanel(output: _output.isEmpty ? 'Fastboot operation results appear here.' : _output),
