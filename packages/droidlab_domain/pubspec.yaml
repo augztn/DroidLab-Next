@@ -1,0 +1,7 @@
+name: droidlab_domain
+description: DroidLab platform-independent domain models and contracts.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'

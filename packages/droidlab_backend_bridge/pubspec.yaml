@@ -1,0 +1,11 @@
+name: droidlab_backend_bridge
+description: Managed Python process and versioned JSON Lines protocol bridge.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+
+dependencies:
+  droidlab_domain:
+    path: ../droidlab_domain

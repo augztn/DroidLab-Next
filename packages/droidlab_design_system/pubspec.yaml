@@ -1,0 +1,12 @@
+name: droidlab_design_system
+description: DroidLab shared Material 3 design tokens and components.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: '>=3.24.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
