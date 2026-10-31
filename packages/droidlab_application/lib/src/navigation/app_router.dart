@@ -16,6 +16,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/logs', builder: (_, __) => const LogsPage()),
       GoRoute(path: '/history', builder: (_, __) => const OperationHistoryPage()),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+      GoRoute(path: '/about', builder: (_, __) => const AboutPage()),
     ]),
   ]);
   ref.onDispose(router.dispose);
