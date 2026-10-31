@@ -514,7 +514,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
           final selected = serials.contains(_serial.text.trim()) ? _serial.text.trim() : null;
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             DropdownButtonFormField<String>(
-              value: selected,
+              initialValue: selected,
               isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Detected ADB devices',
