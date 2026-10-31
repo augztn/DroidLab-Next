@@ -1187,6 +1187,8 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   final _partitionFilter = TextEditingController();
   final Set<String> _selected = {};
   final List<String> _activityLines = [];
+  final List<({String label, String path})> _mountedLocations = [];
+  String? _selectedMount;
   StreamSubscription<BackendEvent>? _events;
   List<Map<String, dynamic>> _parts = [];
   String _status = 'Drop an OTA ZIP or payload BIN file here, or enter its path.';
@@ -1206,6 +1208,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
         });
       }
     });
+    unawaited(_refreshMountedLocations());
   }
 
   @override
@@ -1226,6 +1229,79 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   Future<void> _browseOutput() async {
     final directory = await getDirectoryPath(confirmButtonText: 'Use output directory');
     if (directory != null && mounted) setState(() => _output.text = directory);
+  }
+
+  Future<void> _refreshMountedLocations() async {
+    final roots = <Directory>[];
+    if (Platform.isLinux) {
+      final user = Platform.environment['USER'] ?? '';
+      if (user.isNotEmpty) {
+        roots.add(Directory('/run/media/$user'));
+        roots.add(Directory('/media/$user'));
+      }
+    } else if (Platform.isMacOS) {
+      roots.add(Directory('/Volumes'));
+    } else if (Platform.isWindows) {
+      for (var code = 67; code <= 90; code++) {
+        roots.add(Directory('${String.fromCharCode(code)}:\\'));
+      }
+    }
+    final found = <({String label, String path})>[];
+    final seen = <String>{};
+    for (final root in roots) {
+      try {
+        if (!await root.exists()) continue;
+        if (Platform.isWindows && root.path.length <= 3) {
+          final key = root.path.toUpperCase();
+          if (seen.add(key)) {
+            found.add((label: 'Drive $key', path: root.path));
+          }
+          continue;
+        }
+        await for (final entity in root.list(followLinks: false)) {
+          if (entity is! Directory) continue;
+          final path = entity.path;
+          if (seen.add(path)) {
+            found.add((label: entity.uri.pathSegments.where((s) => s.isNotEmpty).lastOrNull ?? path, path: path));
+          }
+        }
+      } on FileSystemException {
+        // Ignore inaccessible mount roots and continue discovering the others.
+      }
+    }
+    found.sort((a, b) => a.path.toLowerCase().compareTo(b.path.toLowerCase()));
+    if (!mounted) return;
+    setState(() {
+      _mountedLocations
+        ..clear()
+        ..addAll(found);
+      if (_selectedMount == null || !found.any((item) => item.path == _selectedMount)) {
+        _selectedMount = found.length == 1 ? found.first.path : null;
+      }
+      if (found.isEmpty) {
+        _status = 'No mounted removable drives found. Use Browse or Choose output.';
+      } else {
+        _status = 'Found ${found.length} mounted storage location(s).';
+      }
+    });
+  }
+
+  void _useMountedOutput() {
+    final selected = _selectedMount;
+    if (selected != null && mounted) setState(() => _output.text = selected);
+  }
+
+  Future<void> _browseMountedInput() async {
+    final selected = _selectedMount;
+    if (selected == null) return;
+    final location = await getOpenFile(
+      confirmButtonText: 'Select OTA / payload file',
+      initialDirectory: selected,
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'OTA and payload files', extensions: ['zip', 'bin']),
+      ],
+    );
+    if (location != null && mounted) setState(() => _source.text = location.path);
   }
 
   Future<void> _openOutput() async {
@@ -1313,6 +1389,37 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
           OutlinedButton(onPressed: _browseOutput, child: const Text('Choose…')),
           const SizedBox(width: 6),
           OutlinedButton(onPressed: _openOutput, child: const Text('Open folder')),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: DropdownButtonFormField<String>(
+            initialValue: _selectedMount,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Mounted removable drive',
+              border: OutlineInputBorder(),
+            ),
+            hint: const Text('Select mounted storage'),
+            items: _mountedLocations.map((item) => DropdownMenuItem<String>(
+              value: item.path,
+              child: Text(item.label + ' · ' + item.path, overflow: TextOverflow.ellipsis),
+            )).toList(),
+            onChanged: (value) => setState(() => _selectedMount = value),
+          )),
+          const SizedBox(width: 8),
+          IconButton.filledTonal(
+            tooltip: 'Refresh mounted drives',
+            onPressed: _refreshMountedLocations,
+            icon: const Icon(Icons.refresh),
+          ),
+          OutlinedButton(
+            onPressed: _selectedMount == null ? null : _useMountedOutput,
+            child: const Text('Use for output'),
+          ),
+          OutlinedButton(
+            onPressed: _selectedMount == null ? null : _browseMountedInput,
+            child: const Text('Browse drive'),
+          ),
         ]),
         const SizedBox(height: 12),
         Wrap(spacing: 8, runSpacing: 8, children: [
