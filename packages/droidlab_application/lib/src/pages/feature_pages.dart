@@ -1262,7 +1262,9 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
           if (entity is! Directory) continue;
           final path = entity.path;
           if (seen.add(path)) {
-            found.add((label: entity.uri.pathSegments.where((s) => s.isNotEmpty).lastOrNull ?? path, path: path));
+            final segments = entity.uri.pathSegments.where((segment) => segment.isNotEmpty).toList();
+            final label = segments.isEmpty ? path : segments.last;
+            found.add((label: label, path: path));
           }
         }
       } on FileSystemException {
@@ -1281,7 +1283,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
       if (found.isEmpty) {
         _status = 'No mounted removable drives found. Use Browse or Choose output.';
       } else {
-        _status = 'Found ${found.length} mounted storage location(s).';
+        _status = 'Found ${found.length} available storage location(s).';
       }
     });
   }
@@ -1294,7 +1296,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   Future<void> _browseMountedInput() async {
     final selected = _selectedMount;
     if (selected == null) return;
-    final location = await getOpenFile(
+    final location = await openFile(
       confirmButtonText: 'Select OTA / payload file',
       initialDirectory: selected,
       acceptedTypeGroups: const [
