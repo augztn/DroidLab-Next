@@ -37,6 +37,8 @@ tar -xzf "$WORK/download/$ARCHIVE" -C "$WORK/extract"
 PAYLOAD_DUMPER="$(find "$WORK/extract" -type f -name payload-dumper-go -print -quit)"
 [[ -n "$PAYLOAD_DUMPER" ]] || { echo "payload-dumper-go binary not found in release archive." >&2; exit 1; }
 install -m 0755 "$PAYLOAD_DUMPER" "$APPDIR/usr/bin/payload-dumper-go"
+# Also ship the CLI beside the regular extracted Linux desktop bundle.
+install -m 0755 "$PAYLOAD_DUMPER" "apps/desktop/build/linux/x64/release/bundle/payload-dumper-go"
 wget -q "https://raw.githubusercontent.com/ssut/payload-dumper-go/${BACKEND_VERSION}/LICENSE" -O "$APPDIR/usr/share/licenses/payload-dumper-go/LICENSE"
 if command -v ldd >/dev/null; then
   ldd "$(command -v xz)" | awk '/=> \// {print $3} /^[[:space:]]*\// {print $1}' | sort -u | while read -r dependency; do

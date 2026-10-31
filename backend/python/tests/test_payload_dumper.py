@@ -23,4 +23,10 @@ class PayloadDumperTests(unittest.TestCase):
   self.assertEqual(dest.read_bytes(),b"keep")
  def test_invalid_partition_is_rejected(self):
   with self.assertRaises(payload_dumper.BackendError):payload_dumper.extract(str(self.source),str(self.root/"images"),["../userdata"])
+
+ def test_finds_payload_dumper_next_to_desktop_bundle(self):
+  bundle=self.root/"bundle"; backend=bundle/"backend/python/droidlab/core"; backend.mkdir(parents=True)
+  binary=bundle/"payload-dumper-go"; binary.write_text("binary",encoding="utf-8"); binary.chmod(0o755)
+  with patch.dict(os.environ,{},clear=True), patch.object(payload_dumper,"__file__",str(backend/"payload_dumper.py")), patch.object(payload_dumper.shutil,"which",return_value=None):
+   self.assertEqual(payload_dumper._find_cli(),[str(binary)])
 if __name__=="__main__":unittest.main()

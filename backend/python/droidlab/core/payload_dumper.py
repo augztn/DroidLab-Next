@@ -14,7 +14,7 @@ def _find_cli():
   if path.is_file() and (os.name=="nt" or os.access(path,os.X_OK)):return [str(path.resolve())]
   raise BackendError(f"Configured payload-dumper-go path is not executable: {path}")
  root=Path(__file__).resolve().parents[3]
- candidates=[root/"bin"/"payload-dumper-go",root/"opt"/"payload-dumper"/"bin"/"payload-dumper-go",Path(sys.executable).resolve().parent/"payload-dumper-go"]
+ candidates=[root/"bin"/"payload-dumper-go",root.parent/"payload-dumper-go",root/"opt"/"payload-dumper"/"bin"/"payload-dumper-go",Path(sys.executable).resolve().parent/"payload-dumper-go"]
  for path in candidates:
   if path.is_file() and (os.name=="nt" or os.access(path,os.X_OK)): return [str(path)]
  for name in ("payload-dumper-go","payload-dumper-go.exe"):

@@ -55,9 +55,6 @@ jobs:
       - name: Stage Python backend (Linux and macOS)
         if: runner.os != 'Windows'
         run: python3 scripts/stage_backend.py
-      - name: Package Linux bundle
-        if: runner.os == 'Linux'
-        run: tar -C apps/desktop/build/linux/x64/release/bundle -czf DroidLab-linux-x64.tar.gz .
       - name: Install AppImage tooling
         if: runner.os == 'Linux'
         run: |
@@ -69,6 +66,9 @@ jobs:
           VERSION: 0.1.0
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: bash scripts/build-linux-appimage.sh
+      - name: Package Linux bundle
+        if: runner.os == 'Linux'
+        run: tar -C apps/desktop/build/linux/x64/release/bundle -czf DroidLab-linux-x64.tar.gz .
       - uses: actions/upload-artifact@v4
         with:
           name: droidlab-${{ matrix.platform }}

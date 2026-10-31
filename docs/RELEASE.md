@@ -2,7 +2,7 @@
 
 ## Desktop bundles
 
-The CI pipeline generates the Flutter native runner projects, resolves packages, analyzes and tests the app, builds Linux/Windows/macOS release bundles, then stages `backend/python` beside each native executable. The backend requires Python 3.10+ on the host and the Android platform-tools installation for ADB/Fastboot.
+The CI pipeline generates the Flutter native runner projects, resolves packages, analyzes and tests the app, builds Linux/Windows/macOS release bundles, then stages `backend/python` beside each native executable. Linux bundles also include the pinned `payload-dumper-go` executable beside the native app, so payload inspection and extraction work in both the AppImage and extracted tarball. The backend requires Python 3.10+ on the host and the Android platform-tools installation for ADB/Fastboot.
 
 ## Linux AppImage
 
