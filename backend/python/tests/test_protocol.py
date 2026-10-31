@@ -144,13 +144,19 @@ class ProtocolTests(unittest.TestCase):
             "[ro.boot.slot_suffix]: [_a]\n"
         )
         battery = "Current Battery Service state:\n  level: 87\n"
-        with patch.object(server, "execute", return_value=device_list):
+        original_execute = server.execute
+        def execute_with_device_scan(request_id, operation, args, cancel):
+            if operation == "devices.list":
+                return device_list
+            return original_execute(request_id, operation, args, cancel)
+
+        with patch.object(server, "execute", side_effect=execute_with_device_scan):
             with patch.object(server, "tool_path", return_value="adb"):
                 with patch.object(
                     server, "run_streaming",
                     side_effect=[result(properties), result(battery)],
                 ):
-                    value = server.execute(
+                    value = original_execute(
                         "id", "device.info", {"serial": "SERIAL"}, threading.Event()
                     )
         metadata = value["metadata"]
