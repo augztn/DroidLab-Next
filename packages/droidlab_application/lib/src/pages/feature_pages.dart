@@ -56,6 +56,41 @@ class DashboardPage extends ConsumerWidget {
 class DeviceManagerPage extends ConsumerWidget {
   const DeviceManagerPage({super.key});
 
+  Future<void> _showDeviceInfo(BuildContext context, WidgetRef ref, String serial) async {
+    try {
+      final result = await ref.read(backendClientProvider).request('device.info', {'serial': serial});
+      if (!context.mounted) return;
+      final metadata = result.data['metadata'] as Map<String, dynamic>;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Device details · $serial'),
+          content: SizedBox(
+            width: 480,
+            child: ListView(
+              shrinkWrap: true,
+              children: metadata.entries.map((entry) => ListTile(
+                dense: true,
+                title: Text(entry.key),
+                subtitle: SelectableText(
+                  entry.value?.toString().isNotEmpty == true ? entry.value.toString() : '—',
+                ),
+              )).toList(),
+            ),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not read device details: $error')),
+      );
+    }
+  }
+
+  const DeviceManagerPage({super.key});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final devices = ref.watch(deviceListProvider);
@@ -122,11 +157,18 @@ class DeviceManagerPage extends ConsumerWidget {
                   leading: Icon(transport == 'fastboot' ? Icons.memory : Icons.phone_android),
                   title: SelectableText(serial),
                   subtitle: Text(transport + ' · ' + state + (product == null ? '' : ' · ' + product)),
-                  trailing: IconButton(
-                    tooltip: 'Copy serial',
-                    icon: const Icon(Icons.copy),
-                    onPressed: () => unawaited(Clipboard.setData(ClipboardData(text: serial))),
-                  ),
+                  trailing: Wrap(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(
+                      tooltip: 'Device details',
+                      icon: const Icon(Icons.info_outline),
+                      onPressed: () => _showDeviceInfo(context, ref, serial),
+                    ),
+                    IconButton(
+                      tooltip: 'Copy serial',
+                      icon: const Icon(Icons.copy),
+                      onPressed: () => unawaited(Clipboard.setData(ClipboardData(text: serial))),
+                    ),
+                  ]),
                 ),
               );
             },
