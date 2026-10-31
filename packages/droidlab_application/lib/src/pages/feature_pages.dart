@@ -200,7 +200,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       final result = await ref.read(backendClientProvider).request(
         'adb.device_info', {'serial': serial},
       );
-      setState(() => _output = (result.data['properties'] as Map).entries
+      setState(() => _output = (result.data['properties'] as Map<String, dynamic>).entries
           .map((entry) => '${entry.key}: ${entry.value}')
           .join('\n'));
     } catch (error) {
