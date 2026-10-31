@@ -6,9 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 final backendClientProvider = Provider<BackendClient>((ref) {
   final python = Platform.environment['DROIDLAB_PYTHON'] ??
       (Platform.isWindows ? 'python' : 'python3');
+  final configured = Platform.environment['DROIDLAB_BACKEND_SCRIPT'];
   final executableDirectory = File(Platform.resolvedExecutable).parent;
   final candidates = <String>[
-    if (Platform.environment['DROIDLAB_BACKEND_SCRIPT'] case final configured?) configured,
+    if (configured != null && configured.isNotEmpty) configured,
     '${Directory.current.path}/../../backend/python/server.py',
     '${Directory.current.path}/backend/python/server.py',
     '${executableDirectory.path}/backend/python/server.py',
