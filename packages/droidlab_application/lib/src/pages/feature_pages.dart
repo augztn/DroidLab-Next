@@ -143,7 +143,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     if (serial.isEmpty) return;
     final filters = _logcatFilters.text.trim().isEmpty
         ? <String>[]
-        : _logcatFilters.text.trim().split(RegExp(r'\\s+'));
+        : _logcatFilters.text.trim().split(RegExp(r'\s+'));
     try {
       final handle = await ref.read(backendClientProvider).startOperation(
         'adb.logcat.start', {'serial': serial, 'filters': filters},
@@ -155,7 +155,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         if (mounted) setState(() { _logcatRequestId = null; _output = error.toString(); });
       }));
     } catch (error) {
-      setState(() => _output = error.toString());
+      if (mounted) setState(() => _output = error.toString());
     }
   }
 
@@ -202,7 +202,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       );
       setState(() => _output = (result.data['properties'] as Map).entries
           .map((entry) => '${entry.key}: ${entry.value}')
-          .join('\\n'));
+          .join('\n'));
     } catch (error) {
       if (mounted) setState(() => _output = error.toString());
     }
@@ -213,12 +213,9 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     if (path.isEmpty || _logLines.isEmpty) return;
     try {
       final file = File(path).absolute;
-      if (await file.exists()) {
-        setState(() => _output = 'Refusing to overwrite existing log file: ${file.path}');
-        return;
-      }
       await file.parent.create(recursive: true);
-      await file.writeAsString(_logLines.join('\\n'));
+      await file.create(exclusive: true);
+      await file.writeAsString(_logLines.join('\n'), mode: FileMode.writeOnly);
       if (mounted) setState(() => _output = 'Saved ${_logLines.length} logcat lines to ${file.path}');
     } catch (error) {
       if (mounted) setState(() => _output = 'Could not save logcat: $error');
@@ -293,7 +290,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         const SizedBox(height: 16),
         Text('LIVE LOGCAT', style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 8),
-        _OutputPanel(output: _logLines.join('\\n')),
+        _OutputPanel(output: _logLines.join('\n')),
       ],
     ]),
   );
