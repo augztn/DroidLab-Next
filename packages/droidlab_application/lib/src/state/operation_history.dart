@@ -42,9 +42,10 @@ class OperationRecord {
 
 class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRecord>>> {
   OperationHistoryNotifier() : super(const AsyncLoading()) {
-    unawaited(_load());
+    _loaded = _load();
   }
 
+  late final Future<void> _loaded;
   static const _maximumRecords = 500;
   Future<void> _writeTail = Future<void>.value();
   String? persistenceError;
@@ -80,6 +81,7 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
   }
 
   Future<void> record(OperationRecord record) async {
+    await _loaded;
     final current = state.valueOrNull ?? const <OperationRecord>[];
     final records = <OperationRecord>[record, ...current]
         .take(_maximumRecords)
@@ -95,6 +97,7 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
   }
 
   Future<void> clear() async {
+    await _loaded;
     state = const AsyncData([]);
     _writeTail = _writeTail.catchError((_) {}).then((_) async {
       final file = await _historyFile();
