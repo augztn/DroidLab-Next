@@ -226,6 +226,10 @@ class BackendClient {
     if (_disposed) return;
     _disposed = true;
     _failAll(const BackendException('Backend client disposed.'));
+    final starting = _starting;
+    if (starting != null) {
+      try { await starting; } on Object {}
+    }
     await _terminate();
     await _events.close();
   }
