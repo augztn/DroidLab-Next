@@ -450,14 +450,14 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     if (serial.isEmpty) return;
     try {
       final result = await ref.read(backendClientProvider).request(
-        'adb.device_info',
+        'device.info',
         {'serial': serial},
       );
       if (mounted) {
-        final properties = result.data['properties'] as Map<String, dynamic>;
+        final metadata = result.data['metadata'] as Map<String, dynamic>;
         setState(() {
-          _output = properties.entries
-              .map((entry) => entry.key + ': ' + entry.value.toString())
+          _output = metadata.entries
+              .map((entry) => entry.key + ': ' + (entry.value?.toString().isNotEmpty == true ? entry.value.toString() : '—'))
               .join('\n');
         });
       }
@@ -878,6 +878,54 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     }
   }
 
+  Future<void> _setActiveSlot(String slot) async {
+    final serial = _serial.text.trim();
+    if (serial.isEmpty || _busy || !const {'a', 'b'}.contains(slot)) return;
+    final command = 'fastboot -s $serial --set-active=$slot';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Set active slot ${slot.toUpperCase()}?'),
+        content: Text(
+          'Change the active boot slot on $serial. This affects the next boot and can make the device fail to start if the selected slot is incomplete.\n\n$command',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Change active slot'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final result = await trackOperation(
+        ref,
+        operation: 'Fastboot set active slot ${slot.toUpperCase()}',
+        target: serial,
+        action: () => ref.read(backendClientProvider).request('fastboot.set_active', {
+          'serial': serial,
+          'slot': slot,
+          'confirmed': true,
+          'confirmation': {
+            'operation': 'fastboot.set_active',
+            'serial': serial,
+            'slot': slot,
+          },
+        }),
+      );
+      if (mounted) setState(() => _output = result.data.toString());
+      ref.invalidate(deviceListProvider);
+    } catch (error) {
+      if (mounted) setState(() => _output = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _wipeUserdata() async {
     final serial = _serial.text.trim();
     if (serial.isEmpty || _busy) return;
@@ -1024,6 +1072,19 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         FilledButton.tonal(
           onPressed: _busy ? null : _wipeUserdata,
           child: const Text('Wipe data (fastboot -w)'),
+        ),
+      ]),
+      const SizedBox(height: 16),
+      Text('BOOT SLOT', style: Theme.of(context).textTheme.titleSmall),
+      const SizedBox(height: 8),
+      Wrap(spacing: 8, children: [
+        OutlinedButton(
+          onPressed: _busy ? null : () => _setActiveSlot('a'),
+          child: const Text('Set active slot A'),
+        ),
+        OutlinedButton(
+          onPressed: _busy ? null : () => _setActiveSlot('b'),
+          child: const Text('Set active slot B'),
         ),
       ]),
       const SizedBox(height: 16),
