@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,7 +14,7 @@ final backendClientProvider = Provider<BackendClient>((ref) {
     scriptPath: script,
     startupTimeout: const Duration(seconds: 15),
   ));
-  ref.onDispose(() => client.dispose());
+  ref.onDispose(() => unawaited(client.dispose()));
   return client;
 });
 
