@@ -140,10 +140,9 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         command = string_list(args.get("command"), "command")
         require_adb(serial)
         guard_tokens = ["shell", *shlex.split(" ".join(command))]
-        if is_destructive_adb(guard_tokens):
-            require_confirmation(args, "Potentially destructive ADB shell command", {
-                "operation": "adb.shell", "serial": serial, "command": command,
-            })
+        require_confirmation(args, "ADB shell command", {
+            "operation": "adb.shell", "serial": serial, "command": command,
+        })
         cmd = [tool_path("adb"), "-s", serial, "shell", *command]
         response(request_id, "preflight", target=serial, command=cmd, destructive=is_destructive_adb(guard_tokens))
         result = run_streaming(cmd, timeout=bounded_timeout(args.get("timeout_seconds"), 60, 900),
