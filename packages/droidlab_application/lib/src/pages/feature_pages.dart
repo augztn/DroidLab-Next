@@ -123,7 +123,7 @@ class DeviceManagerPage extends ConsumerWidget {
                   trailing: IconButton(
                     tooltip: 'Copy serial',
                     icon: const Icon(Icons.copy),
-                    onPressed: () => Clipboard.setData(ClipboardData(text: serial)),
+                    onPressed: () => unawaited(Clipboard.setData(ClipboardData(text: serial))),
                   ),
                 ),
               );
