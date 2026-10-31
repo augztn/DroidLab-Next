@@ -1,9 +1,8 @@
-import 'package:droidlab_application/src/state/backend_providers.dart';
-import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:droidlab_desktop/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'test_support.dart';
 
 void main() {
   testWidgets('renders desktop shell and feature navigation', (tester) async {
@@ -14,14 +13,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          backendReadyProvider.overrideWith(
-            (ref) async => const BackendResult({'status': 'ok'}),
-          ),
-          deviceListProvider.overrideWith(
-            (ref) async => {'devices': <dynamic>[]},
-          ),
-        ],
+        overrides: testBackendOverrides(),
         child: const DroidLabApp(),
       ),
     );
