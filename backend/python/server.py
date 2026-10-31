@@ -263,11 +263,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
                 break
         verb = values[index].lower() if index < len(values) else ""
         discovery = verb in {"devices", "version", "help", "start-server", "kill-server", "connect", "disconnect"}
-        if discovery:
-            if serial and explicit_serial is None:
-                # Host discovery commands deliberately do not inherit a selected target.
-                serial = None
-        else:
+        if not discovery:
             if not serial:
                 raise ValueError("Select an authorized ADB device for this host command.")
             require_adb(serial, cancel_event=cancel)
@@ -588,9 +584,21 @@ def handle(message: dict[str, Any], cancel: threading.Event) -> None:
         response(request_id, "accepted", operation=operation)
         if operation in _MUTATING:
             serial = args.get("serial")
-            if operation == "adb.command" and not serial:
-                # ADB discovery/version/help commands are host operations and do
-                # not mutate a selected device, so they intentionally have no lock.
+            host_only_adb = False
+            if operation == "adb.command":
+                command_text = args.get("command_text", "")
+                try:
+                    command_tokens = shlex.split(command_text, posix=(os.name != "nt"))
+                except (TypeError, ValueError):
+                    command_tokens = []
+                index = 0
+                while index < len(command_tokens) and command_tokens[index].startswith("-"):
+                    option = command_tokens[index]
+                    index += 2 if option in {"-s", "-t", "-H", "-P", "-L"} and index + 1 < len(command_tokens) else 1
+                verb = command_tokens[index].lower() if index < len(command_tokens) else ""
+                host_only_adb = verb in {"devices", "version", "help", "start-server", "kill-server", "connect", "disconnect"}
+            if operation == "adb.command" and (not serial or host_only_adb):
+                # Host discovery/server commands do not mutate a selected device.
                 pass
             else:
                 if not isinstance(serial, str) or not serial:
