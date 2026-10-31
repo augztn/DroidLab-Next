@@ -57,11 +57,13 @@ def extract(source,output_dir,selected=None,progress=None,cancel_event=None,fing
   if selected:args.extend(["-p",",".join(selected)])
   args.append(str(src)); result=_run(cli,args,progress,cancel_event,EXTRACTION_TIMEOUT)
   if result.returncode:raise BackendError(f"payload-dumper-go exited with status {result.returncode}; delta OTA operations may be unsupported.")
+  if cancel_event is not None and cancel_event.is_set():raise BackendError("Extraction cancelled before artifact publication.")
   artifacts=sorted(p for p in stage.rglob("*.img") if p.is_file() and not p.is_symlink() and p.stat().st_size>0)
   if not artifacts:raise BackendError("Extraction produced no non-empty image artifacts.")
   if selected and not {x.casefold() for x in selected}.issubset({p.stem.casefold() for p in artifacts}):raise BackendError("Extraction did not produce every requested partition image.")
   root=out.resolve()
   for artifact in artifacts:
+   if cancel_event is not None and cancel_event.is_set():raise BackendError("Extraction cancelled during artifact publication.")
    dest=out/artifact.relative_to(stage); dest.parent.mkdir(parents=True,exist_ok=True)
    if not dest.parent.resolve().is_relative_to(root):raise BackendError("Artifact resolves outside output directory.")
    if dest.exists() or dest.is_symlink():raise BackendError(f"Output already exists and will not be overwritten: {dest}")
@@ -69,7 +71,9 @@ def extract(source,output_dir,selected=None,progress=None,cancel_event=None,fing
   results=[]
   for path in published:
    item={"path":str(path),"name":path.name,"size_bytes":path.stat().st_size}
-   if fingerprint:item["sha256"]=sha256_file(path)
+   if fingerprint:
+    try:item["sha256"]=sha256_file(path)
+    except OSError as exc:item["fingerprint_warning"]=str(exc)
    results.append(item)
   return results
  except Exception:
