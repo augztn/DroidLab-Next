@@ -14,10 +14,13 @@ class DroidLabApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
+    final settings = ref.watch(droidLabSettingsProvider);
     return MaterialApp.router(
       title: 'DroidLab',
       debugShowCheckedModeBanner: false,
-      theme: DroidLabTheme.dark(),
+      theme: DroidLabTheme.dark(
+        themeName: settings.valueOrNull?.theme ?? 'cyberpunk_glass',
+      ),
       routerConfig: router,
     );
   }
