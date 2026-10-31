@@ -674,6 +674,22 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
           ]);
         },
       ),
+      if (selectedAdbState != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            selectedAdbState == 'device'
+                ? 'ADB authorized · commands are enabled for this selected device.'
+                : selectedAdbState == 'recovery' || selectedAdbState == 'sideload'
+                    ? 'Recovery transport · only recovery-supported ADB operations are available.'
+                    : 'ADB $selectedAdbState · authorize or reconnect the device before running commands.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: canRunAdbCommands
+                  ? Theme.of(context).colorScheme.tertiary
+                  : Theme.of(context).colorScheme.error,
+            ),
+          ),
+        ),
       const SizedBox(height: 12),
       _TextField(controller: _command, label: 'Android shell command'),
       const SizedBox(height: 8),
