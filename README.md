@@ -36,4 +36,14 @@ python -m unittest discover -s backend/python/tests -v
 
 Every device mutation requires an explicit serial, a fresh transport scan, validated arguments, and confirmation in both UI and backend. Multiple devices are never implicitly resolved by selecting the first result. Host cancellation is not a device rollback guarantee. Bugreports and logs can contain private device data; review them before sharing.
 
-GitHub Actions runs Flutter analysis, widget/unit tests and native desktop builds on Linux, Windows and macOS, plus Python backend tests.
+## Linux AppImage
+
+Install `appimagetool`, Flutter stable, Python 3.10+, `wget`, and `sha256sum`, then run:
+
+```sh
+bash scripts/build-linux-appimage.sh
+```
+
+The script pins and verifies payload-dumper-go 2.1.0 before bundling it. The AppImage uses the host's Python 3 runtime and Android platform tools; install `python3`, `adb`, and `fastboot` on the target machine. The Python backend is staged beside the app in CI bundles and embedded in the AppImage.
+
+GitHub Actions runs Flutter analysis, widget/unit tests and native desktop builds on Linux, Windows and macOS, stages the backend beside each build, and runs Python backend tests.
