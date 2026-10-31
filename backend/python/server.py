@@ -417,7 +417,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
                 result = run_streaming([binary, "-s", serial, "getvar", key],
                     timeout=10, cancel_event=cancel)
                 output = (result.stdout or "") + "\n" + (result.stderr or "")
-                match = re.search(r"(?im)(?:\\(bootloader\\)\\s*)?" + re.escape(key) + r":\\s*(.+)$", output)
+                match = re.search(r"(?im)(?:\(bootloader\)\s*)?" + re.escape(key) + r":\s*(.+)$", output)
                 return match.group(1).strip() if match else ""
             userspace = getvar("is-userspace").lower()
             if userspace == "yes":

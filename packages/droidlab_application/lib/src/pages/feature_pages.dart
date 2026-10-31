@@ -1112,7 +1112,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
   }
 
   bool _isFastbootDiscoveryCommand(String command) {
-    final verb = command.trim().split(RegExp(r'\\s+')).first.toLowerCase();
+    final verb = command.trim().split(RegExp(r'\s+')).first.toLowerCase();
     return const {'devices', 'help', '--help', '--version', 'version'}.contains(verb);
   }
 
