@@ -150,7 +150,10 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   final _bugreport = TextEditingController();
   final _logcatFilters = TextEditingController();
   final _logSavePath = TextEditingController();
+  final _logDisplayFilter = TextEditingController();
   final List<String> _logLines = [];
+  List<String> _pausedLogSnapshot = [];
+  bool _logPaused = false;
   StreamSubscription<BackendEvent>? _eventSubscription;
   String? _logcatRequestId;
   String _output = '';
@@ -184,6 +187,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     _bugreport.dispose();
     _logcatFilters.dispose();
     _logSavePath.dispose();
+    _logDisplayFilter.dispose();
     super.dispose();
   }
 
@@ -504,11 +508,42 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       const SizedBox(height: 18),
       if (_busy) const LinearProgressIndicator(),
       _OutputPanel(output: _output.isEmpty ? 'Command output appears here.' : _output),
-      if (_logLines.isNotEmpty) ...[
+      if (_logcatRequestId != null || _logLines.isNotEmpty) ...[
         const SizedBox(height: 16),
-        Text('LIVE LOGCAT', style: Theme.of(context).textTheme.labelLarge),
+        Row(children: [
+          Expanded(child: Text('LIVE LOGCAT', style: Theme.of(context).textTheme.labelLarge)),
+          OutlinedButton(
+            onPressed: () => setState(() {
+              if (!_logPaused) {
+                _pausedLogSnapshot = List<String>.of(_logLines);
+                _logPaused = true;
+              } else {
+                _logPaused = false;
+                _pausedLogSnapshot = [];
+              }
+            }),
+            child: Text(_logPaused ? 'Resume display' : 'Pause display'),
+          ),
+        ]),
         const SizedBox(height: 8),
-        _OutputPanel(output: _logLines.join('\n')),
+        _TextField(
+          controller: _logDisplayFilter,
+          label: 'Filter visible log lines',
+          hint: 'Case-insensitive text filter',
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 8),
+        _OutputPanel(output: (() {
+          final source = _logPaused ? _pausedLogSnapshot : _logLines;
+          final needle = _logDisplayFilter.text.trim().toLowerCase();
+          final visible = source.where((line) => needle.isEmpty || line.toLowerCase().contains(needle));
+          return visible.join('\n');
+        })()),
+        if (_logPaused)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text('Display paused. Incoming lines continue to be buffered.', style: Theme.of(context).textTheme.bodySmall),
+          ),
       ],
     ]),
   );
