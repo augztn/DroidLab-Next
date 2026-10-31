@@ -485,20 +485,25 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   @override
   Widget build(BuildContext context) {
     final devicesAsync = ref.watch(deviceListProvider);
-    final discoveredAdbDevices = (devicesAsync.valueOrNull?['devices'] as List<dynamic>? ?? const [])
+    final discoveredDevices = (devicesAsync.valueOrNull?['devices'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
-        .where((device) => device['transport'] == 'adb')
         .toList();
-    final selectedDevices = discoveredAdbDevices
+    final selectedDevices = discoveredDevices
         .where((device) => device['serial'] == _serial.text.trim())
         .toList();
-    final selectedAdbState = selectedDevices.isEmpty
-        ? null
-        : selectedDevices.first['state'] as String?;
+    final selectedDevice = selectedDevices.isEmpty ? null : selectedDevices.first;
+    final selectedTransport = selectedDevice?['transport'] as String?;
+    final selectedAdbState = selectedTransport == 'adb'
+        ? selectedDevice?['state'] as String?
+        : null;
+    final selectedFastboot = selectedTransport == 'fastboot' &&
+        selectedDevice?['state'] == 'fastboot';
     final canRunAdbCommands = selectedAdbState == 'device';
+    final canReboot = canRunAdbCommands ||
+        selectedAdbState == 'recovery' || selectedFastboot;
     return _PageFrame(
     title: 'ADB Toolkit',
-    subtitle: 'Diagnostics and device operations require an explicit serial target.',
+    subtitle: 'Select an authorized ADB device for shell and diagnostics. Reboot also supports devices already in Fastboot.',
     child: ListView(children: [
       Row(children: [
         Expanded(child: _TextField(controller: _serial, label: 'ADB serial')),
@@ -519,10 +524,9 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         data: (data) {
           final devices = (data['devices'] as List<dynamic>? ?? const [])
               .whereType<Map<String, dynamic>>()
-              .where((device) => device['transport'] == 'adb')
               .toList();
           final warnings = (data['warnings'] as List<dynamic>? ?? const [])
-              .where((warning) => warning is Map && warning['transport'] == 'adb')
+              .where((warning) => warning is Map)
               .toList();
           final serials = devices.map((device) => device['serial'] as String).toSet();
           final selected = serials.contains(_serial.text.trim()) ? _serial.text.trim() : null;
@@ -531,16 +535,17 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
               initialValue: selected,
               isExpanded: true,
               decoration: const InputDecoration(
-                labelText: 'Detected ADB devices',
+                labelText: 'Detected ADB / Fastboot devices',
                 border: OutlineInputBorder(),
               ),
               hint: const Text('Select a device explicitly'),
               items: devices.map((device) {
                 final serial = device['serial'] as String;
                 final state = device['state'] as String? ?? 'unknown';
+                final transport = device['transport'] as String? ?? 'unknown';
                 return DropdownMenuItem<String>(
                   value: serial,
-                  child: Text('$serial  ·  $state', overflow: TextOverflow.ellipsis),
+                  child: Text('$serial  ·  $transport: $state', overflow: TextOverflow.ellipsis),
                 );
               }).toList(),
               onChanged: (value) {
@@ -548,7 +553,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
               },
             ),
             for (final device in devices.where((item) => item['serial'] == selected))
-              if (device['state'] == 'unauthorized')
+              if (device['transport'] == 'adb' && device['state'] == 'unauthorized')
                 const Padding(
                   padding: EdgeInsets.only(top: 8),
                   child: Text(
@@ -556,7 +561,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
                     style: TextStyle(color: Colors.orange),
                   ),
                 )
-              else if (device['state'] == 'offline')
+              else if (device['transport'] == 'adb' && device['state'] == 'offline')
                 const Padding(
                   padding: EdgeInsets.only(top: 8),
                   child: Text(
@@ -575,7 +580,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
             if (devices.isEmpty && warnings.isEmpty)
               const Padding(
                 padding: EdgeInsets.only(top: 6),
-                child: Text('No ADB devices found. Connect a device with USB debugging enabled and refresh.'),
+                child: Text('No ADB or Fastboot devices found. Connect a device and refresh.'),
               ),
           ]);
         },
@@ -585,9 +590,9 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       const SizedBox(height: 8),
       Wrap(spacing: 8, runSpacing: 8, children: [
         FilledButton(onPressed: _busy || !canRunAdbCommands ? null : _runShell, child: const Text('Run shell command')),
-        OutlinedButton(onPressed: _busy || !canRunAdbCommands ? null : () => _reboot('system'), child: const Text('Reboot')),
-        OutlinedButton(onPressed: _busy || !canRunAdbCommands ? null : () => _reboot('bootloader'), child: const Text('Bootloader')),
-        OutlinedButton(onPressed: _busy || !canRunAdbCommands ? null : () => _reboot('recovery'), child: const Text('Recovery')),
+        OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('system'), child: const Text('Reboot')),
+        OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('bootloader'), child: const Text('Bootloader')),
+        OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('recovery'), child: const Text('Recovery')),
         OutlinedButton(onPressed: _busy || !canRunAdbCommands ? null : _loadDeviceInfo, child: const Text('Device info')),
         OutlinedButton(
           onPressed: _logcatRequestId != null ? _stopLogcat : (canRunAdbCommands ? _startLogcat : null),
