@@ -331,7 +331,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             })
             battery = run_streaming([tool_path("adb"), "-s", serial, "shell", "dumpsys", "battery"],
                 timeout=15, cancel_event=cancel)
-            match = re.search(r"(?m)^\\s*level:\\s*(\\d+)", battery.stdout)
+            match = re.search(r"(?m)^\s*level:\s*(\d+)", battery.stdout)
             if match:
                 values["Battery"] = match.group(1) + "%"
         elif device.get("transport") == "fastboot":
@@ -339,7 +339,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             def getvar(key: str) -> str:
                 result = run_streaming([binary, "-s", serial, "getvar", key],
                     timeout=10, cancel_event=cancel)
-                match = re.search(r"(?im)(?:\\(bootloader\\)\\s*)?" + re.escape(key) + r":\\s*(.+)$", result.stdout)
+                match = re.search(r"(?im)(?:\(bootloader\)\s*)?" + re.escape(key) + r":\s*(.+)$", result.stdout)
                 return match.group(1).strip() if match else ""
             values.update({
                 "Model code": getvar("product"),
