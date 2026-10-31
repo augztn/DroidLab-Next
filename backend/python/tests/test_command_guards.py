@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from droidlab.core.command_guards import explicit_device_selector,is_adb_target_connected,is_destructive_adb,is_destructive_fastboot,is_fastboot_target_connected,is_valid_partition_name,validate_device_selector
+import server
 class CommandGuardTests(unittest.TestCase):
  def test_adb_destructive_detection(self):
   self.assertTrue(is_destructive_adb(["shell","rm","-rf","/data"]))
@@ -29,4 +30,8 @@ class CommandGuardTests(unittest.TestCase):
   self.assertTrue(is_adb_target_connected("RECOVERY",adb,allowed_states=("recovery",)))
   self.assertTrue(is_fastboot_target_connected("FB-1","FB-1 fastboot product:foo\n"))
   self.assertFalse(is_fastboot_target_connected("FB-1","FB-1 fastboot\n",returncode=1))
+ def test_confirmation_is_bound_to_exact_operation_intent(self):
+  intent={"operation":"fastboot.erase","serial":"DEVICE-1","partition":"userdata"}
+  server.require_confirmation({"confirmed":True,"confirmation":intent},"Fastboot erase",intent)
+  with self.assertRaises(PermissionError):server.require_confirmation({"confirmed":True,"confirmation":{**intent,"partition":"boot"}},"Fastboot erase",intent)
 if __name__=="__main__":unittest.main()
