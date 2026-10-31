@@ -24,7 +24,7 @@ flutter test
 flutter run -d linux
 ```
 
-Set `DROIDLAB_PYTHON`, `DROIDLAB_BACKEND_SCRIPT`, `DROIDLAB_ADB_PATH`, `DROIDLAB_FASTBOOT_PATH`, or `DROIDLAB_PAYLOAD_DUMPER_GO_PATH` when tools are not on PATH.
+Run `flutter run` from `apps/desktop`; the development backend resolver locates `../backend/python/server.py` from that working directory (and also supports launching from the repository root). Set `DROIDLAB_PYTHON`, `DROIDLAB_BACKEND_SCRIPT`, `DROIDLAB_ADB_PATH`, `DROIDLAB_FASTBOOT_PATH`, or `DROIDLAB_PAYLOAD_DUMPER_GO_PATH` when tools are not on PATH.
 
 Run backend tests from the repository root:
 
