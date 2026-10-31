@@ -62,9 +62,9 @@ void main() {
         child: const DroidLabApp(),
       ),
     );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Settings'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.text('Settings').last);
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Settings'), findsWidgets);
     expect(find.text('Color theme'), findsOneWidget);
