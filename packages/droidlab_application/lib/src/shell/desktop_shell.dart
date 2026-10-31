@@ -113,7 +113,19 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                   ),
               ],
               const Divider(),
-              ListTile(leading: const Icon(Icons.settings_outlined),title: expanded ? const Text('Settings') : null,onTap: () => context.go('/settings')),
+              Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(9),
+                child: ListTile(
+                  leading: const Icon(Icons.settings_outlined),
+                  title: expanded ? const Text('Settings') : null,
+                  dense: true,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  onTap: () => context.go('/settings'),
+                ),
+              ),
             ]),
           ),
           const VerticalDivider(width: 1),
