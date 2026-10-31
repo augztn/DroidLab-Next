@@ -1,39 +1,39 @@
 # DroidLab
 
-DroidLab is a native desktop engineering workstation for Android firmware inspection, payload extraction, ADB diagnostics and guarded Fastboot operations.
+DroidLab is a cross-platform desktop engineering workstation for Android device diagnostics, OTA inspection, payload extraction and guarded Fastboot operations.
 
-**Migration status:** Flutter desktop rewrite in progress on `rewrite/flutter-desktop`. The original Python/Tkinter implementation remains preserved in [DroidLab-Next](https://github.com/augztn/DroidLab-Next) as the behavior and test reference.
+## Architecture
 
-## Current baseline
+- Flutter desktop UI: Material 3, Riverpod state and GoRouter navigation.
+- Domain package: platform-independent contracts and models.
+- Dart backend bridge: managed `Process.start` lifecycle and versioned JSON Lines protocol.
+- Python backend: headless process execution, fresh device preflight, payload extraction and guarded device operations.
+- Design system: centralized dark theme tokens.
 
-The first commit establishes the migration architecture and parity/safety documents. The Flutter foundation is being introduced as a modular workspace:
-- `apps/desktop`: Flutter desktop app and composition root.
-- `packages/droidlab_domain`: platform-independent models and contracts.
-- `packages/droidlab_application`: routing and use-case orchestration.
-- `packages/droidlab_backend_bridge`: managed Python JSONL subprocess bridge.
-- `packages/droidlab_design_system`: Material 3 theme tokens/components.
-- `backend/python`: existing Python workflows retained during migration.
-
-See [Architecture](docs/ARCHITECTURE.md), [Feature parity](docs/FEATURE_PARITY.md), [Migration plan](docs/MIGRATION_PLAN.md) and [Safety requirements](docs/SAFETY_REQUIREMENTS.md).
+The original Tkinter implementation remains in [DroidLab-Next](https://github.com/augztn/DroidLab-Next) as the behavioral reference. Development takes place on `rewrite/flutter-desktop`.
 
 ## Development
 
-Requires Flutter stable with Linux desktop enabled and Python 3.10+.
+Requires Flutter stable with desktop support, Python 3.10+, Android platform tools (`adb` and `fastboot`) and `payload-dumper-go` for the corresponding workflows.
 
 ```sh
-flutter create --project-name droidlab_desktop --platforms=linux,windows,macos apps/desktop
 cd apps/desktop
 flutter pub get
 flutter analyze
 flutter test
+flutter run -d linux
 ```
 
-The Flutter shell intentionally does not issue device commands yet. Backend operations will be exposed only through the validated protocol bridge.
+Set `DROIDLAB_PYTHON`, `DROIDLAB_BACKEND_SCRIPT`, `DROIDLAB_ADB_PATH`, `DROIDLAB_FASTBOOT_PATH`, or `DROIDLAB_PAYLOAD_DUMPER_GO_PATH` when tools are not on PATH.
+
+Run backend tests from the repository root:
+
+```sh
+python -m unittest discover -s backend/python/tests -v
+```
 
 ## Safety
 
-Device operations require explicit serial selection, fresh target validation, typed arguments and confirmation bound to the exact operation. Never interpret host-process cancellation as proof of device rollback. See [SAFETY_REQUIREMENTS.md](docs/SAFETY_REQUIREMENTS.md).
+Every device mutation requires an explicit serial, a fresh transport scan, validated arguments, and confirmation in both UI and backend. Multiple devices are never implicitly resolved by selecting the first result. Host cancellation is not a device rollback guarantee. Bugreports and logs can contain private device data; review them before sharing.
 
-## License
-
-Apache-2.0. See [LICENSE](https://github.com/augztn/DroidLab-Next/blob/main/LICENSE) while license and notices are carried into this repository.
+GitHub Actions runs Flutter analysis, widget/unit tests and native desktop builds on Linux, Windows and macOS, plus Python backend tests.

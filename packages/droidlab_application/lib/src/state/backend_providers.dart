@@ -1,0 +1,32 @@
+import 'dart:io';
+import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+final backendClientProvider = Provider<BackendClient>((ref) {
+  final python = Platform.environment['DROIDLAB_PYTHON'] ??
+      (Platform.isWindows ? 'python' : 'python3');
+  final script = Platform.environment['DROIDLAB_BACKEND_SCRIPT'] ??
+      '${Directory.current.path}/../../backend/python/server.py';
+  final client = BackendClient(BackendConfig(
+    executable: python,
+    arguments: const ['-u'],
+    scriptPath: script,
+    startupTimeout: const Duration(seconds: 15),
+  ));
+  ref.onDispose(() => client.dispose());
+  return client;
+});
+
+final backendReadyProvider = FutureProvider<BackendResult>((ref) async {
+  final client = ref.watch(backendClientProvider);
+  await client.start();
+  return client.request('system.tools', const {});
+});
+
+final deviceListProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  await ref.watch(backendReadyProvider.future);
+  final client = ref.watch(backendClientProvider);
+  final result = await client.request('devices.list', const {});
+  return result.data;
+});
