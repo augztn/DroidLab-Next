@@ -49,6 +49,8 @@ jobs:
       - name: Build desktop release
         working-directory: apps/desktop
         run: flutter build ${{ matrix.platform }} --release
+      - name: Stage Python backend beside native executable
+        run: python scripts/stage_backend.py
       - name: Package Linux bundle
         if: runner.os == 'Linux'
         run: tar -C apps/desktop/build/linux/x64/release/bundle -czf DroidLab-linux-x64.tar.gz .
