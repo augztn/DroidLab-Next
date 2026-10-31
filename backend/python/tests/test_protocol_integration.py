@@ -31,7 +31,12 @@ class ProtocolIntegrationTests(unittest.TestCase):
   self.assertEqual(self.request("ping","system.ping",{})[-1]["result"]["protocol_version"],1)
   devices=self.request("devices","devices.list",{})[-1]["result"]["devices"]
   self.assertEqual({(x["serial"],x["transport"]) for x in devices},{("SERIAL-1","adb"),("FASTBOOT-1","fastboot")})
-  shell=self.request("shell","adb.shell",{"serial":"SERIAL-1","command":["getprop","ro.build.version.release"]})
+  shell=self.request("shell","adb.shell",{
+   "serial":"SERIAL-1",
+   "command":["getprop","ro.build.version.release"],
+   "confirmed":True,
+   "confirmation":{"operation":"adb.shell","serial":"SERIAL-1","command":["getprop","ro.build.version.release"]}
+  })
   self.assertEqual(shell[-1]["type"],"completed");self.assertTrue(any(x["type"]=="preflight" for x in shell))
  def test_destructive_shell_requires_confirmation(self):
   events=self.request("unsafe","adb.shell",{"serial":"SERIAL-1","command":["rm","-rf","/data"]})
