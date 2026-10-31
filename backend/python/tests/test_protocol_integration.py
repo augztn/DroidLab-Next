@@ -1,0 +1,39 @@
+import json, os, queue, subprocess, sys, tempfile, threading, unittest
+from pathlib import Path
+ROOT=Path(__file__).resolve().parents[1];SERVER=ROOT/"server.py"
+class ProtocolIntegrationTests(unittest.TestCase):
+ def setUp(self):
+  self.temp=tempfile.TemporaryDirectory();root=Path(self.temp.name)
+  adb=root/"adb";fastboot=root/"fastboot"
+  adb.write_text("#!/usr/bin/env python3\nimport sys\na=sys.argv[1:]\nif a==['devices','-l']:\n print('List of devices attached');print('SERIAL-1 device product:test')\nelif len(a)>=4 and a[:2]==['-s','SERIAL-1'] and a[2]=='shell':print('14')\nelse:sys.exit(2)\n")
+  fastboot.write_text("#!/usr/bin/env python3\nimport sys\nif sys.argv[1:]==['devices','-l']:print('FASTBOOT-1 fastboot product:test')\nelse:sys.exit(2)\n")
+  adb.chmod(0o755);fastboot.chmod(0o755);env=os.environ.copy();env.update(DROIDLAB_ADB_PATH=str(adb),DROIDLAB_FASTBOOT_PATH=str(fastboot))
+  self.p=subprocess.Popen([sys.executable,"-u",str(SERVER)],cwd=ROOT,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding="utf-8",env=env,bufsize=1)
+  self.events=queue.Queue()
+  self.reader=threading.Thread(target=self._read_events,daemon=True);self.reader.start()
+ def _read_events(self):
+  for line in self.p.stdout:self.events.put(line)
+ def tearDown(self):
+  if self.p.stdin:self.p.stdin.close()
+  try:self.p.wait(timeout=5)
+  except subprocess.TimeoutExpired:self.p.kill();self.p.wait(timeout=5)
+  self.reader.join(timeout=1);self.temp.cleanup()
+ def request(self,rid,operation,args):
+  self.p.stdin.write(json.dumps({"version":1,"id":rid,"operation":operation,"args":args})+"\n");self.p.stdin.flush();events=[]
+  while True:
+   try:line=self.events.get(timeout=10)
+   except queue.Empty:self.fail("Timed out waiting for backend response")
+   event=json.loads(line)
+   if event.get("id")!=rid:continue
+   events.append(event)
+   if event["type"] in {"completed","failed","cancelled"}:return events
+ def test_ping_discovery_and_shell(self):
+  self.assertEqual(self.request("ping","system.ping",{})[-1]["result"]["protocol_version"],1)
+  devices=self.request("devices","devices.list",{})[-1]["result"]["devices"]
+  self.assertEqual({(x["serial"],x["transport"]) for x in devices},{("SERIAL-1","adb"),("FASTBOOT-1","fastboot")})
+  shell=self.request("shell","adb.shell",{"serial":"SERIAL-1","command":["getprop","ro.build.version.release"]})
+  self.assertEqual(shell[-1]["type"],"completed");self.assertTrue(any(x["type"]=="preflight" for x in shell))
+ def test_destructive_shell_requires_confirmation(self):
+  events=self.request("unsafe","adb.shell",{"serial":"SERIAL-1","command":["rm","-rf","/data"]})
+  self.assertEqual(events[-1]["type"],"failed");self.assertIn("confirmation",events[-1]["error"]["message"].lower())
+if __name__=="__main__":unittest.main()

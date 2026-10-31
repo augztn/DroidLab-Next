@@ -1,9 +1,11 @@
 # DroidLab Desktop
 
-Flutter desktop application workspace. Generate platform runners from the repository root with the supported Flutter stable SDK:
+Flutter desktop composition root. Generate native runner projects from this directory once:
 
 ```sh
-flutter create --project-name droidlab_desktop --platforms=linux,windows,macos apps/desktop
+flutter create --project-name droidlab_desktop --platforms=linux,windows,macos .
+flutter pub get
+flutter run -d linux
 ```
 
-Keep generated platform runner files under this directory. The app source imports shared package modules from the monorepo.
+The app depends on shared Dart packages in the repository's `packages/` directory and starts the headless Python service from `backend/python/server.py`.

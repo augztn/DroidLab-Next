@@ -1,10 +1,10 @@
 import 'package:droidlab_desktop/main.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('renders DroidLab desktop shell and all primary routes', (tester) async {
+  testWidgets('renders desktop shell and feature navigation', (tester) async {
     await tester.view.setPhysicalSize(const Size(1440, 1000));
     await tester.view.setDevicePixelRatio(1);
     addTearDown(tester.view.resetPhysicalSize);
@@ -26,7 +26,7 @@ void main() {
     expect(find.text('OPERATION CONSOLE'), findsOneWidget);
   });
 
-  testWidgets('sidebar navigation changes the active workspace', (tester) async {
+  testWidgets('sidebar navigation opens the Fastboot workflow', (tester) async {
     await tester.view.setPhysicalSize(const Size(1440, 1000));
     await tester.view.setDevicePixelRatio(1);
     addTearDown(tester.view.resetPhysicalSize);
@@ -37,7 +37,8 @@ void main() {
     await tester.tap(find.text('Fastboot Toolkit'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Review target device, partition and command before maintenance or flashing.'), findsOneWidget);
-    expect(find.text('Backend integration pending'), findsOneWidget);
+    expect(find.text('Destructive actions require fresh target validation and an explicit confirmation.'), findsOneWidget);
+    expect(find.text('Fastboot serial'), findsOneWidget);
+    expect(find.text('Flash image'), findsOneWidget);
   });
 }
