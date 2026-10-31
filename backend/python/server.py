@@ -214,7 +214,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         serial = args.get("serial")
         command_text = args.get("command_text")
         if command_text is not None:
-            if not isinstance(command_text, str) or not command_text.strip() or "\\x00" in command_text:
+            if not isinstance(command_text, str) or not command_text.strip() or "\x00" in command_text:
                 raise ValueError("A non-empty Android shell command is required.")
             command = shlex.split(command_text, posix=(os.name != "nt"))
             confirmation = {"operation": "adb.shell", "serial": serial, "command_text": command_text}
@@ -237,7 +237,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
     if operation == "adb.command":
         serial = args.get("serial")
         command_text = args.get("command_text")
-        if not isinstance(command_text, str) or not command_text.strip() or "\\x00" in command_text:
+        if not isinstance(command_text, str) or not command_text.strip() or "\x00" in command_text:
             raise ValueError("A non-empty host ADB command is required.")
         command_args = shlex.split(command_text, posix=(os.name != "nt"))
         if not command_args:
@@ -262,7 +262,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             else:
                 break
         verb = values[index].lower() if index < len(values) else ""
-        discovery = verb in {"devices", "version", "help"}
+        discovery = verb in {"devices", "version", "help", "start-server", "kill-server", "connect", "disconnect"}
         if discovery:
             if serial and explicit_serial is None:
                 # Host discovery commands deliberately do not inherit a selected target.
