@@ -10,11 +10,12 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - Python JSONL service with named operations, typed failures, fresh target scans and per-device mutation serialization.
 - ADB/Fastboot device discovery with no implicit first-device selection.
 - ADB shell with exact target/command confirmation, reboot, device metadata, live logcat, filters, log export, bugreport and recovery sideload.
-- Fastboot flash, erase and reboot with exact target/partition/image confirmation.
+- Fastboot flash, erase and reboot (system, recovery and bootloader) with exact target/partition/image confirmation; explicit factory-data wipe is separately confirmed.
 - OTA BIN/ZIP inspection and selected/all partition extraction with isolated staging, nonempty artifact checks, no-overwrite publication, rollback and optional SHA-256.
 - Drag/drop for OTA sources, recovery ZIPs and Fastboot image files.
 - Local bounded operation history for completed, failed and cancelled operations.
 - Live bounded operation console.
+- Live logcat pause/resume display and case-insensitive client-side filtering while the stream remains bounded.
 - Python guard/process/protocol/payload tests and cross-platform Flutter CI build/test jobs.
 - Linux AppImage build script with pinned payload-dumper-go checksum verification.
 
@@ -22,12 +23,13 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 
 - Full legacy device metadata: brand/model/codename, active slot, bootloader lock, Android version and battery metadata across supported states.
 - Device selection synchronization, stale-selection invalidation and post-transition refresh parity.
-- Additional Fastboot maintenance commands such as slot switching and unlock/lock.
+- Advanced Fastboot command console with preview, command-specific confirmation and safe device-target handling; slot switching and unlock/lock remain outstanding.
 - Advanced host/ADB command workflows and complete legacy ADB feature parity.
-- Logcat pause/resume, richer filtering, and persistent diagnostics export/redaction.
+- Persistent diagnostics export/redaction and richer structured logcat filtering.
 - Editable, persistent tool paths and settings migration.
-- Native file picker and every legacy drag/drop entrypoint.
+- Native file picker, mounted removable-drive discovery/output selection, and every legacy drag/drop entrypoint.
 - Bundled Python runtime and platform-tools for Windows/macOS; current native bundles stage backend source only.
+- Legacy Help menu, About dialog and debug-log folder shortcuts.
 - Clean-machine AppImage smoke tests and controlled physical-device validation.
 
 CI uses fake executables only. A successful build does not prove hardware safety or release readiness.
