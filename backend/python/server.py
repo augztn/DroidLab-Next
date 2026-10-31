@@ -478,12 +478,12 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             raise ValueError("Select a Fastboot device for this command.")
         if discovery and serial and explicit_serial is None:
             serial = None
+        intent = {"operation": "fastboot.command", "serial": serial, "command": raw_command}
+        require_confirmation(args, "Advanced Fastboot command", intent)
         if not discovery:
             require_fastboot(serial, cancel_event=cancel)
             if explicit_serial is None:
                 tokens = ["-s", serial, *tokens]
-        intent = {"operation": "fastboot.command", "serial": serial, "command": raw_command}
-        require_confirmation(args, "Advanced Fastboot command", intent)
         command = [tool_path("fastboot"), *tokens]
         response(request_id, "preflight", target=serial or "host", command=command,
             destructive=False if discovery else True)
