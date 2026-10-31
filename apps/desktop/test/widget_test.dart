@@ -2,6 +2,8 @@ import 'package:droidlab_desktop/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:io';
+import 'package:droidlab_application/droidlab_application.dart';
 import 'test_support.dart';
 
 void main() {
@@ -56,9 +58,17 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    final temp = await Directory.systemTemp.createTemp('droidlab-settings-widget-');
+    addTearDown(() => temp.delete(recursive: true));
+    final settingsStore = DroidLabSettingsStore(
+      file: File('${temp.path}/DroidLab/config.json'),
+    );
     await tester.pumpWidget(
       ProviderScope(
-        overrides: testBackendOverrides(),
+        overrides: [
+          ...testBackendOverrides(),
+          droidLabSettingsStoreProvider.overrideWithValue(settingsStore),
+        ],
         child: const DroidLabApp(),
       ),
     );
