@@ -62,9 +62,15 @@ void main() {
         child: const DroidLabApp(),
       ),
     );
-    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
     await tester.tap(find.text('Settings').last);
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    // The settings controller reads the per-user JSON file asynchronously.
+    // Wait for the form itself rather than assuming disk I/O settles in 300 ms.
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pumpAndSettle();
 
     expect(find.text('Settings'), findsWidgets);
     expect(find.text('Color theme'), findsOneWidget);
