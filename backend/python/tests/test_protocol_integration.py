@@ -5,7 +5,7 @@ class ProtocolIntegrationTests(unittest.TestCase):
  def setUp(self):
   self.temp=tempfile.TemporaryDirectory();root=Path(self.temp.name)
   adb=root/"adb";fastboot=root/"fastboot"
-  adb.write_text("#!/usr/bin/env python3\nimport sys\na=sys.argv[1:]\nif a==['devices','-l']:\n print('List of devices attached');print('SERIAL-1 device product:test')\nelif len(a)>=4 and a[:2]==['-s','SERIAL-1'] and a[2]=='shell':print('14')\nelse:sys.exit(2)\n")
+  adb.write_text("#!/usr/bin/env python3\nimport sys,os\na=sys.argv[1:]\nif a==['devices','-l']:\n print('List of devices attached');print(os.environ.get('ADB_STATE','SERIAL-1 device product:test'))\nelif len(a)>=4 and a[:2]==['-s','SERIAL-1'] and a[2]=='shell':print('14')\nelif len(a)>=3 and a[:2]==['-s','SERIAL-1'] and a[2]=='reboot':print('reboot accepted')\nelse:sys.exit(2)\n")
   fastboot.write_text("#!/usr/bin/env python3\nimport sys\nif sys.argv[1:]==['devices','-l']:print('FASTBOOT-1 fastboot product:test')\nelse:sys.exit(2)\n")
   adb.chmod(0o755);fastboot.chmod(0o755);env=os.environ.copy();self.adb_calls=root/'adb.calls';self.fastboot_calls=root/'fastboot.calls';env.update(DROIDLAB_ADB_PATH=str(adb),DROIDLAB_FASTBOOT_PATH=str(fastboot),ADB_CALLS=str(self.adb_calls),FASTBOOT_CALLS=str(self.fastboot_calls))
   self.p=subprocess.Popen([sys.executable,"-u",str(SERVER)],cwd=ROOT,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding="utf-8",env=env,bufsize=1)
@@ -60,7 +60,7 @@ class ProtocolIntegrationTests(unittest.TestCase):
   env=os.environ.copy()
   env.update(DROIDLAB_ADB_PATH=str(adb),DROIDLAB_FASTBOOT_PATH=str(fastboot),
    ADB_CALLS=str(self.adb_calls),FASTBOOT_CALLS=str(self.fastboot_calls),
-   FASTBOOT_STATE="SERIAL-1 fastboot product:test")
+   FASTBOOT_STATE="SERIAL-1 fastboot product:test", ADB_STATE="OTHER-1 device product:test")
   self.p=subprocess.Popen([sys.executable,"-u",str(SERVER)],cwd=ROOT,stdin=subprocess.PIPE,
    stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding="utf-8",env=env,bufsize=1)
   self.events=queue.Queue();self.reader=threading.Thread(target=self._read_events,daemon=True);self.reader.start()
