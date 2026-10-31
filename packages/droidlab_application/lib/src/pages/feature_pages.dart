@@ -200,7 +200,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   bool _logPaused = false;
   StreamSubscription<BackendEvent>? _eventSubscription;
   String? _logcatRequestId;
-  bool _logcatStopRequested = false;
+  String? _logcatManualStopRequestId;
   String _output = '';
   bool _busy = false;
 
@@ -588,6 +588,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         await _closeLogcatCapture();
         return;
       }
+      final capturePathForRequest = captureToFile ? _logcatCapturePath : null;
       setState(() {
         _logcatRequestId = handle.requestId;
         _logLines.clear();
@@ -603,30 +604,32 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
             ? 'One-hour logcat capture completed.'
             : 'Logcat stream stopped.',
       ).then((result) async {
-        final manuallyStopped = _logcatStopRequested;
-        _logcatStopRequested = false;
-        final capturePath = _logcatCapturePath;
+        final manuallyStopped = _logcatManualStopRequestId == handle.requestId;
+        if (manuallyStopped) _logcatManualStopRequestId = null;
         await _closeLogcatCapture();
         if (mounted) {
           setState(() {
             _logcatRequestId = null;
-            _output = manuallyStopped && capturePath != null
-                ? 'Logcat capture stopped and saved to $capturePath'
+            _output = manuallyStopped
+                ? capturePathForRequest != null
+                    ? 'Logcat capture stopped and saved to $capturePathForRequest'
+                    : 'Logcat stream stopped.'
                 : result.data['duration_limit_reached'] == true
                     ? 'One-hour logcat capture completed.'
                     : result.data.toString();
           });
         }
       }, onError: (Object error) async {
-        final manuallyStopped = _logcatStopRequested;
-        _logcatStopRequested = false;
-        final capturePath = _logcatCapturePath;
+        final manuallyStopped = _logcatManualStopRequestId == handle.requestId;
+        if (manuallyStopped) _logcatManualStopRequestId = null;
         await _closeLogcatCapture();
         if (mounted) {
           setState(() {
             _logcatRequestId = null;
-            _output = manuallyStopped && capturePath != null
-                ? 'Logcat capture stopped and saved to $capturePath'
+            _output = manuallyStopped
+                ? capturePathForRequest != null
+                    ? 'Logcat capture stopped and saved to $capturePathForRequest'
+                    : 'Logcat stream stopped.'
                 : error.toString();
           });
         }
@@ -640,16 +643,20 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   Future<void> _stopLogcat() async {
     final id = _logcatRequestId;
     if (id == null) return;
-    _logcatStopRequested = true;
-    await ref.read(backendClientProvider).cancel(id);
+    _logcatManualStopRequestId = id;
     final capturePath = _logcatCapturePath;
+    try {
+      await ref.read(backendClientProvider).cancel(id);
+    } catch (error) {
+      if (mounted) setState(() => _output = 'Could not stop logcat cleanly: $error');
+    }
     await _closeLogcatCapture();
     if (mounted) {
       setState(() {
         _logcatRequestId = null;
-        if (capturePath != null) {
-          _output = 'Logcat capture stopped and saved to $capturePath';
-        }
+        _output = capturePath != null
+            ? 'Logcat capture stopped and saved to $capturePath'
+            : 'Logcat stream stopped.';
       });
     }
   }
