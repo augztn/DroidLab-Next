@@ -139,7 +139,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         }),
       );
       if (mounted) setState(() => _output = result.data['output'] as String? ?? 'Command completed.');
-    } catch (error) { setState(() => _output = error.toString()); }
+    } catch (error) { if (mounted) setState(() => _output = error.toString()); }
     finally { if (mounted) setState(() => _busy = false); }
   }
 
@@ -193,7 +193,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sideload')),
       ],
     ));
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
     try {
       final result = await trackOperation(ref,
@@ -215,7 +215,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       final result = await ref.read(backendClientProvider).request(
         'adb.device_info', {'serial': serial},
       );
-      setState(() => _output = (result.data['properties'] as Map<String, dynamic>).entries
+      if (mounted) setState(() => _output = (result.data['properties'] as Map<String, dynamic>).entries
           .map((entry) => '${entry.key}: ${entry.value}')
           .join('\n'));
     } catch (error) {
@@ -282,8 +282,8 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         target: serial,
         action: () => ref.read(backendClientProvider).request('adb.reboot', {'serial': serial, 'mode': mode, 'confirmed': true}),
       );
-      setState(() => _output = result.data.toString());
-    } catch (error) { setState(() => _output = error.toString()); }
+      if (mounted) setState(() => _output = result.data.toString());
+    } catch (error) { if (mounted) setState(() => _output = error.toString()); }
   }
 
   @override
@@ -336,67 +336,123 @@ class FastbootToolkitPage extends ConsumerStatefulWidget {
   @override
   ConsumerState<FastbootToolkitPage> createState() => _FastbootToolkitPageState();
 }
+
 class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
-  final _serial = TextEditingController(), _partition = TextEditingController(), _image = TextEditingController();
+  final _serial = TextEditingController();
+  final _partition = TextEditingController();
+  final _image = TextEditingController();
   String _output = '';
   bool _busy = false;
+
   @override
-  void dispose() { _serial.dispose(); _partition.dispose(); _image.dispose(); super.dispose(); }
+  void dispose() {
+    _serial.dispose();
+    _partition.dispose();
+    _image.dispose();
+    super.dispose();
+  }
+
+  void _acceptImageDrop(DropDoneDetails detail) {
+    if (detail.files.isEmpty) return;
+    final file = detail.files.first;
+    setState(() {
+      _image.text = file.path;
+      if (_partition.text.trim().isEmpty) {
+        final name = file.name;
+        _partition.text = name.toLowerCase().endsWith('.img')
+            ? name.substring(0, name.length - 4)
+            : name;
+      }
+    });
+  }
 
   Future<void> _mutate(String operation) async {
-    final serial = _serial.text.trim(), partition = _partition.text.trim(), image = _image.text.trim();
-    if (serial.isEmpty || partition.isEmpty || (operation == 'fastboot.flash' && image.isEmpty)) return;
+    final serial = _serial.text.trim();
+    final partition = _partition.text.trim();
+    final image = _image.text.trim();
+    if (serial.isEmpty || partition.isEmpty ||
+        (operation == 'fastboot.flash' && image.isEmpty)) return;
+
     final command = operation == 'fastboot.flash'
         ? 'fastboot -s $serial flash $partition $image'
         : 'fastboot -s $serial erase $partition';
-    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
-      title: Text(operation == 'fastboot.flash' ? 'Confirm partition flash' : 'Confirm partition erase'),
-      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Target: $serial'), Text('Partition: $partition'),
-        if (operation == 'fastboot.flash') Text('Image: $image'),
-        const SizedBox(height: 12),
-        const Text('This operation modifies device partitions and may make the device unbootable.'),
-        const SizedBox(height: 12),
-        SelectableText(command, style: const TextStyle(fontFamily: 'monospace')),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('I understand — execute')),
-      ],
-    ));
-    if (confirmed != true) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(operation == 'fastboot.flash'
+            ? 'Confirm partition flash'
+            : 'Confirm partition erase'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Target: $serial'),
+            Text('Partition: $partition'),
+            if (operation == 'fastboot.flash') Text('Image: $image'),
+            const SizedBox(height: 12),
+            const Text('This operation modifies device partitions and may make the device unbootable.'),
+            const SizedBox(height: 12),
+            SelectableText(command, style: const TextStyle(fontFamily: 'monospace')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('I understand — execute')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
     try {
-      final args = <String, dynamic>{'serial': serial, 'partition': partition, 'confirmed': true};
+      final args = <String, dynamic>{
+        'serial': serial,
+        'partition': partition,
+        'confirmed': true,
+      };
       if (operation == 'fastboot.flash') args['image_path'] = image;
-      final result = await trackOperation(ref,
-        operation: operation == 'fastboot.flash' ? 'Fastboot flash $partition' : 'Fastboot erase $partition',
+      final result = await trackOperation(
+        ref,
+        operation: operation == 'fastboot.flash'
+            ? 'Fastboot flash $partition'
+            : 'Fastboot erase $partition',
         target: serial,
-        action: () => ref.read(backendClientProvider).request(operation, args, timeout: const Duration(minutes: 20)),
+        action: () => ref.read(backendClientProvider).request(
+          operation,
+          args,
+          timeout: const Duration(minutes: 20),
+        ),
       );
-      setState(() => _output = result.data.toString());
-    } catch (error) { setState(() => _output = error.toString()); }
-    finally { if (mounted) setState(() => _busy = false); }
+      if (mounted) setState(() => _output = result.data.toString());
+    } catch (error) {
+      if (mounted) setState(() => _output = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _rebootFastboot() async {
     final serial = _serial.text.trim();
     if (serial.isEmpty) return;
-    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
-      title: const Text('Confirm Fastboot reboot'),
-      content: Text('Reboot Fastboot target $serial to Android?'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Reboot')),
-      ],
-    ));
-    if (confirmed != true) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Fastboot reboot'),
+        content: Text('Reboot Fastboot target $serial to Android?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Reboot')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     try {
-      final result = await trackOperation(ref,
+      final result = await trackOperation(
+        ref,
         operation: 'Fastboot reboot',
         target: serial,
         action: () => ref.read(backendClientProvider).request(
-          'fastboot.reboot', {'serial': serial, 'confirmed': true},
+          'fastboot.reboot',
+          {'serial': serial, 'confirmed': true},
         ),
       );
       if (mounted) setState(() => _output = result.data.toString());
@@ -414,21 +470,31 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       const SizedBox(height: 12),
       _TextField(controller: _partition, label: 'Partition name', hint: 'boot_a'),
       const SizedBox(height: 12),
-      DropTarget(onDragDone: (detail) {
-        if (detail.files.isNotEmpty) {
-          final file = detail.files.first;
-          setState(() {
-            _image.text = file.path;
-            if (_partition.text.trim().isEmpty) {
-              _partition.text = file.name.replaceFirst(RegExp(r'\.img
+      DropTarget(
+        onDragDone: _acceptImageDrop,
+        child: _TextField(controller: _image, label: 'Image path', hint: 'Drop a partition .img or enter its path'),
+      ),
       const SizedBox(height: 12),
-      Wrap(spacing: 8, children: [
-        FilledButton.icon(onPressed: _busy ? null : () => _mutate('fastboot.flash'), icon: const Icon(Icons.flash_on), label: const Text('Flash image')),
-        OutlinedButton.icon(onPressed: _busy ? null : () => _mutate('fastboot.erase'), icon: const Icon(Icons.delete_outline), label: const Text('Erase partition')),
-        OutlinedButton(onPressed: _busy ? null : _rebootFastboot, child: const Text('Reboot')),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        FilledButton.icon(
+          onPressed: _busy ? null : () => _mutate('fastboot.flash'),
+          icon: const Icon(Icons.flash_on),
+          label: const Text('Flash image'),
+        ),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : () => _mutate('fastboot.erase'),
+          icon: const Icon(Icons.delete_outline),
+          label: const Text('Erase partition'),
+        ),
+        OutlinedButton(
+          onPressed: _busy ? null : _rebootFastboot,
+          child: const Text('Reboot'),
+        ),
       ]),
       const SizedBox(height: 18),
-      _OutputPanel(output: _output.isEmpty ? 'Fastboot operation results appear here.' : _output),
+      _OutputPanel(output: _output.isEmpty
+          ? 'Fastboot operation results appear here.'
+          : _output),
     ]),
   );
 }
