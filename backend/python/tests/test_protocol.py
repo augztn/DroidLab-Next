@@ -198,6 +198,78 @@ class ProtocolTests(unittest.TestCase):
                 },
             }, threading.Event())
 
+    def test_advanced_fastboot_read_only_command_is_not_serialized(self):
+        args = {
+            "serial": "FASTBOOT-1",
+            "command": "getvar product",
+            "confirmed": True,
+            "confirmation": {
+                "operation": "fastboot.command",
+                "serial": "FASTBOOT-1",
+                "command": "getvar product",
+            },
+        }
+        with patch.object(server, "execute", return_value={"output": "product: unit"}):
+            server._DEVICE_LOCKS.clear()
+            message = {"id": "readonly", "operation": "fastboot.command", "args": args}
+            with patch.object(server, "response"):
+                server.handle(message, threading.Event())
+        self.assertEqual(server._DEVICE_LOCKS, {})
+
+    def test_advanced_fastboot_mutation_uses_device_lock(self):
+        args = {
+            "serial": "FASTBOOT-1",
+            "command": "erase userdata",
+            "confirmed": True,
+            "confirmation": {
+                "operation": "fastboot.command",
+                "serial": "FASTBOOT-1",
+                "command": "erase userdata",
+            },
+        }
+        with patch.object(server, "execute", return_value={"exit_code": 0}):
+            server._DEVICE_LOCKS.clear()
+            message = {"id": "mutation", "operation": "fastboot.command", "args": args}
+            with patch.object(server, "response"):
+                server.handle(message, threading.Event())
+        self.assertIn("FASTBOOT-1", server._DEVICE_LOCKS)
+
+    def test_advanced_adb_read_only_command_is_not_serialized(self):
+        args = {
+            "serial": "SERIAL",
+            "command_text": "pull /sdcard/log.txt ./log.txt",
+            "confirmed": True,
+            "confirmation": {
+                "operation": "adb.command",
+                "serial": "SERIAL",
+                "command_text": "pull /sdcard/log.txt ./log.txt",
+            },
+        }
+        with patch.object(server, "execute", return_value={"exit_code": 0}):
+            server._DEVICE_LOCKS.clear()
+            message = {"id": "readonly-adb", "operation": "adb.command", "args": args}
+            with patch.object(server, "response"):
+                server.handle(message, threading.Event())
+        self.assertEqual(server._DEVICE_LOCKS, {})
+
+    def test_advanced_adb_mutating_command_uses_device_lock(self):
+        args = {
+            "serial": "SERIAL",
+            "command_text": "install app.apk",
+            "confirmed": True,
+            "confirmation": {
+                "operation": "adb.command",
+                "serial": "SERIAL",
+                "command_text": "install app.apk",
+            },
+        }
+        with patch.object(server, "execute", return_value={"exit_code": 0}):
+            server._DEVICE_LOCKS.clear()
+            message = {"id": "mutation-adb", "operation": "adb.command", "args": args}
+            with patch.object(server, "response"):
+                server.handle(message, threading.Event())
+        self.assertIn("SERIAL", server._DEVICE_LOCKS)
+
     def test_fastboot_host_discovery_is_not_serialized(self):
         command_text = "devices"
         args = {
