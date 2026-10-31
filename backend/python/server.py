@@ -260,11 +260,10 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         return {"files": files}
     raise ValueError(f"Unknown operation: {operation}")
 
-def handle(message: dict[str, Any]) -> None:
+def handle(message: dict[str, Any], cancel: threading.Event) -> None:
     request_id, operation, args = message["id"], message["operation"], message["args"]
-    cancel = threading.Event()
-    _ACTIVE[request_id] = cancel
     lock = None
+    lock_acquired = False
     try:
         response(request_id, "accepted", operation=operation)
         if operation in _MUTATING:
@@ -274,7 +273,9 @@ def handle(message: dict[str, Any]) -> None:
             with _DEVICE_LOCKS_LOCK:
                 lock = _DEVICE_LOCKS.setdefault(serial, threading.Lock())
             if not lock.acquire(timeout=0.1):
+                lock = None
                 raise RuntimeError(f"Another mutating operation is already active for device {serial}.")
+            lock_acquired = True
         result = execute(request_id, operation, args, cancel)
         response(request_id, "completed", result=result, cancelled=cancel.is_set())
     except ProcessCancelledError:
@@ -283,13 +284,14 @@ def handle(message: dict[str, Any]) -> None:
         logging.exception("Operation %s failed", operation)
         response(request_id, "failed", error={"code": type(exc).__name__, "message": str(exc)})
     finally:
-        if lock is not None and lock.locked():
+        if lock is not None and lock_acquired:
             lock.release()
         _ACTIVE.pop(request_id, None)
 
 def main() -> None:
     logging.basicConfig(stream=sys.stderr, level=os.environ.get("DROIDLAB_LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)s %(message)s")
+    workers: list[threading.Thread] = []
     while True:
         raw = sys.stdin.buffer.readline(MAX_LINE_BYTES + 1)
         if not raw:
@@ -317,9 +319,16 @@ def main() -> None:
                 raise ValueError("Invalid request envelope.")
             if len(json.dumps(message).encode("utf-8")) > MAX_LINE_BYTES:
                 raise ValueError("Request exceeds maximum size.")
-            threading.Thread(target=handle, args=(message,), daemon=True).start()
+            cancel = threading.Event()
+            _ACTIVE[request_id] = cancel
+            worker = threading.Thread(target=handle, args=(message, cancel), daemon=False)
+            workers.append(worker)
+            worker.start()
+            workers = [thread for thread in workers if thread.is_alive()]
         except Exception as exc:
             logging.warning("Rejected protocol input: %s", exc)
+    for worker in workers:
+        worker.join()
 
 if __name__ == "__main__":
     main()
