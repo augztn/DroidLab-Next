@@ -356,8 +356,15 @@ class ProtocolTests(unittest.TestCase):
                 threading.Event(),
             )
 
-    def test_advanced_fastboot_command_is_serialized_as_mutation(self):
-        self.assertIn("fastboot.command", server._MUTATING)
+    def test_advanced_fastboot_command_locking_is_classified_per_command(self):
+        self.assertTrue(server._device_command_requires_lock(
+            "fastboot.command",
+            {"command": "erase userdata"},
+        ))
+        self.assertFalse(server._device_command_requires_lock(
+            "fastboot.command",
+            {"command": "getvar product"},
+        ))
 
     def test_adb_reboot_routes_to_fastboot_in_bootloader(self):
         args = {
