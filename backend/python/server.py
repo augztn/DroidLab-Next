@@ -458,16 +458,35 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         serial, raw_command = args.get("serial"), args.get("command")
         if not isinstance(raw_command, str) or not raw_command.strip() or "\\x00" in raw_command:
             raise ValueError("A non-empty Fastboot command is required.")
-        tokens = shlex.split(raw_command)
-        if not tokens or tokens[0].startswith("-") or any(
-            token in {"-s", "--serial"} for token in tokens
-        ):
-            raise ValueError("Provide Fastboot subcommand arguments only; device selection is managed by DroidLab.")
+        tokens = shlex.split(raw_command, posix=(os.name != "nt"))
+        if not tokens:
+            raise ValueError("A non-empty Fastboot command is required.")
+        explicit_serial = explicit_device_selector(tokens, "fastboot")
+        validate_device_selector(tokens, "fastboot", serial)
+        # Discovery/help/version commands are useful without a connected device.
+        discovery_verbs = {"devices", "help", "--help", "--version", "version"}
+        verb_index = 0
+        while verb_index < len(tokens) and tokens[verb_index].startswith("-"):
+            token = tokens[verb_index]
+            if token in {"-i", "-p", "-c", "--slot"} and verb_index + 1 < len(tokens):
+                verb_index += 2
+            else:
+                verb_index += 1
+        verb = tokens[verb_index].lower() if verb_index < len(tokens) else ""
+        discovery = verb in discovery_verbs
+        if not discovery and not serial:
+            raise ValueError("Select a Fastboot device for this command.")
+        if discovery and serial and explicit_serial is None:
+            serial = None
+        if not discovery:
+            require_fastboot(serial, cancel_event=cancel)
+            if explicit_serial is None:
+                tokens = ["-s", serial, *tokens]
         intent = {"operation": "fastboot.command", "serial": serial, "command": raw_command}
         require_confirmation(args, "Advanced Fastboot command", intent)
-        require_fastboot(serial, cancel_event=cancel)
-        command = [tool_path("fastboot"), "-s", serial, *tokens]
-        response(request_id, "preflight", target=serial, command=command, destructive=True)
+        command = [tool_path("fastboot"), *tokens]
+        response(request_id, "preflight", target=serial or "host", command=command,
+            destructive=False if discovery else True)
         result = run_streaming(command, timeout=bounded_timeout(args.get("timeout_seconds"), 900, 1800),
             cancel_event=cancel,
             on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
@@ -475,7 +494,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             raise RuntimeError(
                 f"Advanced Fastboot command failed ({result.returncode}); inspect device state before retrying."
             )
-        return {"exit_code": 0, "command": tokens, "output": result.stdout}
+        return {"exit_code": 0, "command": tokens, "output": result.stdout, "serial": serial}
     if operation == "fastboot.flash":
         serial, partition, image = args.get("serial"), args.get("partition"), args.get("image_path")
         if not is_valid_partition_name(partition):
@@ -584,7 +603,7 @@ def handle(message: dict[str, Any], cancel: threading.Event) -> None:
         response(request_id, "accepted", operation=operation)
         if operation in _MUTATING:
             serial = args.get("serial")
-            host_only_adb = False
+            host_only_command = False
             if operation == "adb.command":
                 command_text = args.get("command_text", "")
                 try:
@@ -596,9 +615,22 @@ def handle(message: dict[str, Any], cancel: threading.Event) -> None:
                     option = command_tokens[index]
                     index += 2 if option in {"-s", "-t", "-H", "-P", "-L"} and index + 1 < len(command_tokens) else 1
                 verb = command_tokens[index].lower() if index < len(command_tokens) else ""
-                host_only_adb = verb in {"devices", "version", "help", "start-server", "kill-server", "connect", "disconnect"}
-            if operation == "adb.command" and (not serial or host_only_adb):
-                # Host discovery/server commands do not mutate a selected device.
+                host_only_command = verb in {"devices", "version", "help", "start-server", "kill-server", "connect", "disconnect"}
+            elif operation == "fastboot.command":
+                raw_command = args.get("command", "")
+                try:
+                    command_tokens = shlex.split(raw_command, posix=(os.name != "nt"))
+                except (TypeError, ValueError):
+                    command_tokens = []
+                index = 0
+                while index < len(command_tokens) and command_tokens[index].startswith("-"):
+                    option = command_tokens[index]
+                    index += 2 if option in {"-i", "-p", "-c", "--slot"} and index + 1 < len(command_tokens) else 1
+                verb = command_tokens[index].lower() if index < len(command_tokens) else ""
+                host_only_command = verb in {"devices", "help", "--help", "--version", "version"}
+            if (operation in {"adb.command", "fastboot.command"}
+                    and (not serial or host_only_command)):
+                # Discovery/help/version operations do not mutate a selected device.
                 pass
             else:
                 if not isinstance(serial, str) or not serial:

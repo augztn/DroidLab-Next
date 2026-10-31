@@ -145,6 +145,78 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(value["output"], "15\\n")
         self.assertEqual(run.call_args.args[0], ["adb", "-s", "SERIAL", "shell", "getprop", "ro.build.version.release"])
 
+
+    def test_fastboot_discovery_command_runs_without_device(self):
+        command_text = "devices"
+        args = {
+            "serial": None,
+            "command": command_text,
+            "confirmed": True,
+            "confirmation": {
+                "operation": "fastboot.command",
+                "serial": None,
+                "command": command_text,
+            },
+        }
+        with patch.object(server, "tool_path", return_value="fastboot"):
+            with patch.object(server, "run_streaming", return_value=result("FASTBOOT-1 fastboot\\n")) as run:
+                with patch.object(server, "response"):
+                    value = server.execute("id", "fastboot.command", args, threading.Event())
+        self.assertIsNone(value["serial"])
+        self.assertEqual(run.call_args.args[0], ["fastboot", "devices"])
+
+    def test_fastboot_command_injects_selected_serial(self):
+        command_text = "getvar all"
+        args = {
+            "serial": "FASTBOOT-1",
+            "command": command_text,
+            "confirmed": True,
+            "confirmation": {
+                "operation": "fastboot.command",
+                "serial": "FASTBOOT-1",
+                "command": command_text,
+            },
+        }
+        with patch.object(server, "tool_path", return_value="fastboot"):
+            with patch.object(server, "run_capture", return_value=result("FASTBOOT-1 fastboot\\n")):
+                with patch.object(server, "run_streaming", return_value=result("(bootloader) product: unit\\n")) as run:
+                    with patch.object(server, "response"):
+                        value = server.execute("id", "fastboot.command", args, threading.Event())
+        self.assertEqual(value["serial"], "FASTBOOT-1")
+        self.assertEqual(run.call_args.args[0], ["fastboot", "-s", "FASTBOOT-1", "getvar", "all"])
+
+    def test_fastboot_targeted_command_requires_selected_device(self):
+        with self.assertRaises(ValueError):
+            server.execute("id", "fastboot.command", {
+                "serial": None,
+                "command": "getvar all",
+                "confirmed": True,
+                "confirmation": {
+                    "operation": "fastboot.command",
+                    "serial": None,
+                    "command": "getvar all",
+                },
+            }, threading.Event())
+
+    def test_fastboot_host_discovery_is_not_serialized(self):
+        command_text = "devices"
+        args = {
+            "serial": None,
+            "command": command_text,
+            "confirmed": True,
+            "confirmation": {
+                "operation": "fastboot.command",
+                "serial": None,
+                "command": command_text,
+            },
+        }
+        with patch.object(server, "execute", return_value={"devices": []}):
+            server._DEVICE_LOCKS.clear()
+            message = {"id": "id", "operation": "fastboot.command", "args": args}
+            with patch.object(server, "response"):
+                server.handle(message, threading.Event())
+        self.assertEqual(server._DEVICE_LOCKS, {})
+
     def test_invalid_partition_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / "boot.img"

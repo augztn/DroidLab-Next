@@ -8,12 +8,12 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - Managed Dart backend process bridge, JSONL protocol, bounded streaming output, cancellation, timeout and process cleanup.
 - Python backend with fresh ADB/Fastboot scans, explicit target requirements, exact destructive-operation confirmation and per-device mutation serialization.
 - ADB and Fastboot targets displayed in the shared ADB selector; dedicated Fastboot selector and refresh control.
-- ADB shell command execution, online/authorization-state gating, explicit device refresh/selection, ADB/Fastboot-aware reboot routing, recovery reboot, bootloader reboot, logcat start/stop/pause/filter/export, bugreport and OTA ZIP sideload.
+- ADB shell and advanced host ADB command execution (including device discovery, app install/transfer commands), online/authorization-state gating, explicit device refresh/selection, ADB/Fastboot-aware reboot routing, recovery reboot, bootloader reboot, logcat start/stop/pause/filter/export, bugreport and OTA ZIP sideload.
 - Mode-aware reboot dispatch: ADB is used while the target is in ADB/recovery; Fastboot is used when the same serial is already in bootloader mode. Device rediscovery is retried after the transition.
 - Device metadata for manufacturer, model, model code/codename, active slot, bootloader lock state, Android version/SDK and battery where the transport exposes the values.
 - Device details available from Device Manager and both device-tool views.
 - Fastboot flash, erase, cache/userdata erase, factory wipe, reboot system/recovery/bootloader, advanced command preview and exact destructive confirmation.
-- Fastboot active-slot A/B switching using the primary `--set-active` syntax and legacy `set_active` fallback, with fresh target validation. Unlock/lock remain available only through the confirmed advanced Fastboot command rather than dedicated buttons.
+- Fastboot active-slot A/B switching using the primary `--set-active` syntax and legacy `set_active` fallback, with fresh target validation. Advanced Fastboot accepts device-targeted commands and no-target discovery/help/version commands; unlock/lock remain available through explicit command entry and confirmation rather than dedicated buttons.
 - Native file pickers for OTA/payload input, output directory, Fastboot image and recovery ZIP, plus drag-and-drop.
 - User-mounted/available storage selection: Linux user media roots, macOS `/Volumes`, and Windows volume roots, with refresh and use-as-output controls.
 - OTA ZIP/BIN inspection and selected/all partition extraction with isolated staging, nonempty artifact checks, no-overwrite publication, rollback and optional SHA-256.
@@ -29,7 +29,7 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - Bundled Python runtime and Android platform-tools for Windows/macOS; these builds still depend on host Python and ADB/Fastboot installation.
 - Native discovery of only removable devices on Windows; the current selector enumerates available drive roots there. Linux and macOS scans use their standard user media mount directories.
 - Persistent diagnostics report export/redaction matching the complete legacy report format and a dedicated log-folder opener.
-- Full advanced ADB host-command workflows and every legacy drag/drop entrypoint.
+- Additional ADB workflows such as every legacy host-command variant and every legacy drag/drop entrypoint.
 - Controlled physical-device validation for different OEMs, recovery implementations, Fastbootd vs bootloader Fastboot and A/B slot behavior. Automated CI uses fake ADB/Fastboot executables and cannot validate USB/RSA authorization on a physical phone.
 - Clean-machine smoke tests covering the AppImage on supported Linux distributions and runtime library combinations.
 

@@ -304,21 +304,29 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
 
     final fastbootArguments = _stripHostExecutable(command, 'fastboot');
     if (fastbootArguments != null) {
-      if (transport != 'fastboot' || serial == null || state != 'fastboot') {
+      final verb = fastbootArguments.split(RegExp(r'\\s+')).first.toLowerCase();
+      const discovery = {'devices', 'help', '--help', '--version', 'version'};
+      final isDiscovery = discovery.contains(verb);
+      if (!isDiscovery && (transport != 'fastboot' || serial == null || state != 'fastboot')) {
         setState(() => _output =
-            'Select a detected Fastboot device before running a host Fastboot command.');
+            'Select a detected Fastboot device before running a device-targeted Fastboot command. Discovery commands such as fastboot devices do not need a selected device.');
         return;
       }
       if (fastbootArguments.isEmpty) {
-        setState(() => _output = 'Enter Fastboot arguments, for example: getvar all.');
+        setState(() => _output = 'Enter Fastboot arguments, for example: devices or getvar all.');
         return;
       }
+      final fastbootTarget = isDiscovery ? null : serial;
+      final fastbootPreview = 'fastboot ' +
+          (fastbootTarget == null ? '' : '-s $fastbootTarget ') +
+          fastbootArguments;
       final confirmed = await _confirmCommand(
         title: 'Confirm advanced Fastboot command',
-        target: serial,
-        command: 'fastboot -s $serial $fastbootArguments',
-        warning:
-            'Advanced Fastboot commands can change boot state, erase data, or make the device unbootable. Verify the exact command and device.',
+        target: fastbootTarget ?? 'host / discovery command',
+        command: fastbootPreview,
+        warning: isDiscovery
+            ? 'This runs a host-side Fastboot discovery/help command and does not target a device.'
+            : 'Advanced Fastboot commands can change boot state, erase data, or make the device unbootable. Verify the exact command and device.',
       );
       if (!confirmed) return;
       setState(() => _busy = true);
@@ -326,14 +334,14 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         final result = await trackOperation(
           ref,
           operation: 'Advanced Fastboot: ' + fastbootArguments,
-          target: serial,
+          target: fastbootTarget ?? 'host',
           action: () => ref.read(backendClientProvider).request('fastboot.command', {
-            'serial': serial,
+            'serial': fastbootTarget,
             'command': fastbootArguments,
             'confirmed': true,
             'confirmation': {
               'operation': 'fastboot.command',
-              'serial': serial,
+              'serial': fastbootTarget,
               'command': fastbootArguments,
             },
           }, timeout: const Duration(minutes: 30)),
