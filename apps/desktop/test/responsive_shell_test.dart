@@ -29,7 +29,12 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(const ProviderScope(child: DroidLabApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: testBackendOverrides(),
+        child: const DroidLabApp(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byTooltip('Hide console'));
