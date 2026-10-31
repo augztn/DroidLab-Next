@@ -31,7 +31,7 @@ def terminate_process(proc,grace_seconds=1.0):
  try: proc.wait(timeout=grace_seconds)
  except subprocess.TimeoutExpired: pass
 def run_streaming(command:Sequence[str],*,timeout:float|None=None,cancel_event:threading.Event|None=None,on_line:Callable[[str],None]|None=None,max_output_chars=2*1024*1024,max_queue_lines=1000):
- if not command or any(not isinstance(a,str) or "\\x00" in a for a in command): raise ValueError("command must be a non-empty string argument list without NUL bytes")
+ if not command or any(not isinstance(a,str) or "\x00" in a for a in command): raise ValueError("command must be a non-empty string argument list without NUL bytes")
  if max_output_chars < 1 or max_queue_lines < 1: raise ValueError("output and queue bounds must be positive")
  if timeout is not None and (not math.isfinite(timeout) or timeout<0): raise ValueError("timeout must be finite and non-negative")
  if cancel_event and cancel_event.is_set(): raise ProcessCancelledError("Cancelled before launch")
