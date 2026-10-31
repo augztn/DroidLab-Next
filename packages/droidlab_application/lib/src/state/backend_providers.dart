@@ -1,18 +1,53 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+
 import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+String _userConfigPath() {
+  final home = Platform.environment['USERPROFILE'] ??
+      Platform.environment['HOME'] ?? Directory.current.path;
+  return '$home${Platform.pathSeparator}DroidLab${Platform.pathSeparator}config.json';
+}
+
+Map<String, dynamic> _savedSettings() {
+  try {
+    final value = jsonDecode(File(_userConfigPath()).readAsStringSync());
+    return value is Map<String, dynamic> ? value : <String, dynamic>{};
+  } on FileSystemException {
+    return <String, dynamic>{};
+  } on FormatException {
+    return <String, dynamic>{};
+  }
+}
+
+String _settingPath(String envName, String settingName, String fallback) {
+  final environment = Platform.environment[envName]?.trim();
+  if (environment != null && environment.isNotEmpty) return environment;
+  final value = _savedSettings()[settingName];
+  if (value is String && value.trim().isNotEmpty) return value.trim();
+  return fallback;
+}
+
 final backendClientProvider = Provider<BackendClient>((ref) {
-  final python = Platform.environment['DROIDLAB_PYTHON'] ??
-      (Platform.isWindows ? 'python' : 'python3');
-  final configured = Platform.environment['DROIDLAB_BACKEND_SCRIPT'];
+  final python = _settingPath(
+    'DROIDLAB_PYTHON',
+    'python_path',
+    Platform.isWindows ? 'python' : 'python3',
+  );
+  final configured = _settingPath(
+    'DROIDLAB_BACKEND_SCRIPT',
+    'backend_path',
+    '',
+  );
   final executableDirectory = File(Platform.resolvedExecutable).parent;
   final candidates = <String>[
-    if (configured != null && configured.isNotEmpty) configured,
+    if (configured.isNotEmpty) configured,
     '${Directory.current.path}/../backend/python/server.py',
     '${Directory.current.path}/backend/python/server.py',
     '${executableDirectory.path}/backend/python/server.py',
+    '${executableDirectory.parent.path}/Resources/backend/server.py',
     '${executableDirectory.parent.path}/Resources/backend/python/server.py',
   ];
   final script = candidates.firstWhere(
