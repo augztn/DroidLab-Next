@@ -1,16 +1,22 @@
+import 'dart:async';
+import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../state/backend_providers.dart';
 
-class DesktopShell extends StatefulWidget {
+class DesktopShell extends ConsumerStatefulWidget {
   const DesktopShell({required this.child, required this.currentLocation, super.key});
   final Widget child;
   final String currentLocation;
-  @override State<DesktopShell> createState() => _DesktopShellState();
+  @override ConsumerState<DesktopShell> createState() => _DesktopShellState();
 }
 
-class _DesktopShellState extends State<DesktopShell> {
+class _DesktopShellState extends ConsumerState<DesktopShell> {
   bool _expanded = true;
   bool _consoleVisible = true;
+  final List<String> _consoleLines = [];
+  StreamSubscription<BackendEvent>? _events;
   static const _groups = <(String, List<(String, String, IconData)>)>[
     ('WORKSPACE', [('Dashboard','/dashboard',Icons.grid_view_rounded),('Device Manager','/devices',Icons.devices_rounded)]),
     ('FIRMWARE', [('Firmware Explorer','/firmware',Icons.folder_open_rounded),('Payload Extractor','/payload',Icons.inventory_2_outlined)]),
@@ -19,58 +25,108 @@ class _DesktopShellState extends State<DesktopShell> {
   ];
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
-    final compact = constraints.maxWidth < 1000;
-    final expanded = _expanded && !compact;
-    final colors = Theme.of(context).colorScheme;
-    return Scaffold(body: SafeArea(child: Column(children: [
-      Container(height: 62, padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(color: colors.surface, border: Border(bottom: BorderSide(color: colors.outlineVariant))),
-        child: Row(children: [
-          IconButton(tooltip: 'Toggle navigation', onPressed: () => setState(() => _expanded = !_expanded), icon: const Icon(Icons.menu)),
-          Container(width: 34,height: 34,alignment: Alignment.center,decoration: BoxDecoration(color: colors.primary,borderRadius: BorderRadius.circular(9)),child: const Text('DL',style: TextStyle(fontWeight: FontWeight.bold,color: Colors.white))),
-          const SizedBox(width: 12),
-          Text('DroidLab',style: Theme.of(context).textTheme.titleLarge),
-          if (!compact) ...[const SizedBox(width: 12),Text('ANDROID ENGINEERING WORKSTATION',style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 1))],
-          const Spacer(),
-          const Chip(avatar: Icon(Icons.usb_off,size: 14),label: Text('No device')),
-          const SizedBox(width: 8),
-          IconButton(tooltip: 'Settings',onPressed: () => context.go('/settings'),icon: const Icon(Icons.settings_outlined)),
-        ]),
-      ),
-      Expanded(child: Row(children: [
-        AnimatedContainer(duration: const Duration(milliseconds: 160),width: expanded ? 232 : 68,color: colors.surface,
-          child: ListView(padding: const EdgeInsets.symmetric(vertical: 14),children: [
-            for (final group in _groups) ...[
-              if (expanded) Padding(padding: const EdgeInsets.fromLTRB(16,14,8,8),child: Text(group.$1,style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant,letterSpacing: 1))),
-              for (final item in group.$2)
-                Padding(padding: const EdgeInsets.symmetric(horizontal: 8,vertical: 2),
-                  child: Tooltip(message: item.$1,child: ListTile(
-                    selected: widget.currentLocation == item.$2,
-                    leading: Icon(item.$3),
-                    title: expanded ? Text(item.$1,maxLines: 1,overflow: TextOverflow.ellipsis) : null,
-                    dense: true, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-                    onTap: () => context.go(item.$2),
-                  )),
-                ),
-            ],
-            const Divider(),
-            ListTile(leading: const Icon(Icons.settings_outlined),title: expanded ? const Text('Settings') : null,onTap: () => context.go('/settings')),
+  void initState() {
+    super.initState();
+    _events = ref.read(backendClientProvider).events.listen((event) {
+      if (!mounted) return;
+      final line = switch (event) {
+        BackendOutput() => '[${event.stream}] ${event.line}',
+        BackendPreflight() => '[preflight] ${event.target}: ${event.command.join(' ')}',
+        BackendAccepted() => '[accepted] ${event.requestId}',
+      };
+      setState(() {
+        _consoleLines.add(line);
+        if (_consoleLines.length > 300) {
+          _consoleLines.removeRange(0, _consoleLines.length - 300);
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    unawaited(_events?.cancel() ?? Future<void>.value());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final backend = ref.watch(backendReadyProvider);
+    final devices = ref.watch(deviceListProvider);
+    return LayoutBuilder(builder: (context, constraints) {
+      final compact = constraints.maxWidth < 1000;
+      final expanded = _expanded && !compact;
+      final colors = Theme.of(context).colorScheme;
+      final deviceLabel = devices.when(
+        data: (data) {
+          final count = (data['devices'] as List<dynamic>? ?? const []).length;
+          return count == 0 ? 'No device' : '$count device${count == 1 ? '' : 's'}';
+        },
+        error: (_, __) => 'Device scan error',
+        loading: () => 'Scanning',
+      );
+      final backendLabel = backend.when(
+        data: (_) => 'Backend online',
+        error: (_, __) => 'Backend unavailable',
+        loading: () => 'Backend starting',
+      );
+      return Scaffold(body: SafeArea(child: Column(children: [
+        Container(height: 62, padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(color: colors.surface, border: Border(bottom: BorderSide(color: colors.outlineVariant))),
+          child: Row(children: [
+            IconButton(tooltip: 'Toggle navigation', onPressed: () => setState(() => _expanded = !_expanded), icon: const Icon(Icons.menu)),
+            Container(width: 34,height: 34,alignment: Alignment.center,decoration: BoxDecoration(color: colors.primary,borderRadius: BorderRadius.circular(9)),child: const Text('DL',style: TextStyle(fontWeight: FontWeight.bold,color: Colors.white))),
+            const SizedBox(width: 12),
+            Text('DroidLab',style: Theme.of(context).textTheme.titleLarge),
+            if (!compact) ...[const SizedBox(width: 12),Text('ANDROID ENGINEERING WORKSTATION',style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 1))],
+            const Spacer(),
+            Chip(avatar: const Icon(Icons.usb,size: 14),label: Text(deviceLabel)),
+            const SizedBox(width: 8),
+            Chip(avatar: Icon(Icons.circle,size: 9,color: backend.hasValue ? Colors.green : colors.onSurfaceVariant),label: Text(backendLabel)),
+            const SizedBox(width: 8),
+            IconButton(tooltip: 'Settings',onPressed: () => context.go('/settings'),icon: const Icon(Icons.settings_outlined)),
           ]),
         ),
-        const VerticalDivider(width: 1),
-        Expanded(child: Padding(padding: EdgeInsets.all(compact ? 12 : 20),child: widget.child)),
-      ])),
-      if (_consoleVisible)
-        Container(height: 116,decoration: BoxDecoration(color: colors.surface,border: Border(top: BorderSide(color: colors.outlineVariant))),
-          child: Column(children: [
-            ListTile(dense: true,leading: Icon(Icons.terminal,color: colors.primary),title: const Text('OPERATION CONSOLE'),trailing: IconButton(tooltip: 'Hide console',onPressed: () => setState(() => _consoleVisible = false),icon: const Icon(Icons.keyboard_arrow_down))),
-            const Divider(height: 1),
-            const Expanded(child: Padding(padding: EdgeInsets.all(12),child: Align(alignment: Alignment.topLeft,child: Text('Live backend output is available in Logs & Diagnostics.',style: TextStyle(fontFamily: 'monospace'))))),
-          ]),
-        )
-      else
-        Align(alignment: Alignment.centerRight,child: TextButton.icon(onPressed: () => setState(() => _consoleVisible = true),icon: const Icon(Icons.terminal),label: const Text('Show console'))),
-    ])));
-  });
+        Expanded(child: Row(children: [
+          AnimatedContainer(duration: const Duration(milliseconds: 160),width: expanded ? 232 : 68,color: colors.surface,
+            child: ListView(padding: const EdgeInsets.symmetric(vertical: 14),children: [
+              for (final group in _groups) ...[
+                if (expanded) Padding(padding: const EdgeInsets.fromLTRB(16,14,8,8),child: Text(group.$1,style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant,letterSpacing: 1))),
+                for (final item in group.$2)
+                  Padding(padding: const EdgeInsets.symmetric(horizontal: 8,vertical: 2),
+                    child: Tooltip(message: item.$1,child: ListTile(
+                      selected: widget.currentLocation == item.$2,
+                      leading: Icon(item.$3),
+                      title: expanded ? Text(item.$1,maxLines: 1,overflow: TextOverflow.ellipsis) : null,
+                      dense: true, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+                      onTap: () => context.go(item.$2),
+                    )),
+                  ),
+              ],
+              const Divider(),
+              ListTile(leading: const Icon(Icons.settings_outlined),title: expanded ? const Text('Settings') : null,onTap: () => context.go('/settings')),
+            ]),
+          ),
+          const VerticalDivider(width: 1),
+          Expanded(child: Padding(padding: EdgeInsets.all(compact ? 12 : 20),child: widget.child)),
+        ])),
+        if (_consoleVisible)
+          Container(height: 132,decoration: BoxDecoration(color: colors.surface,border: Border(top: BorderSide(color: colors.outlineVariant))),
+            child: Column(children: [
+              ListTile(dense: true,leading: Icon(Icons.terminal,color: colors.primary),title: const Text('OPERATION CONSOLE'),trailing: Row(mainAxisSize: MainAxisSize.min,children: [
+                IconButton(tooltip: 'Clear console',onPressed: () => setState(_consoleLines.clear),icon: const Icon(Icons.clear_all)),
+                IconButton(tooltip: 'Hide console',onPressed: () => setState(() => _consoleVisible = false),icon: const Icon(Icons.keyboard_arrow_down)),
+              ])),
+              const Divider(height: 1),
+              Expanded(child: _consoleLines.isEmpty
+                ? const Padding(padding: EdgeInsets.all(12),child: Align(alignment: Alignment.topLeft,child: Text('Backend output and preflight events will stream here.',style: TextStyle(fontFamily: 'monospace'))))
+                : ListView.builder(reverse: true,padding: const EdgeInsets.symmetric(horizontal: 12,vertical: 6),itemCount: _consoleLines.length,itemBuilder: (context,index) => Text(_consoleLines[_consoleLines.length-index-1],style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),maxLines: 2,overflow: TextOverflow.ellipsis)),
+              ),
+            ]),
+          )
+        else
+          Align(alignment: Alignment.centerRight,child: TextButton.icon(onPressed: () => setState(() => _consoleVisible = true),icon: const Icon(Icons.terminal),label: const Text('Show console'))),
+      ])));
+    });
+  }
 }
