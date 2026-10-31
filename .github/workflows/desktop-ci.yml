@@ -61,12 +61,12 @@ jobs:
       - name: Install AppImage tooling
         if: runner.os == 'Linux'
         run: |
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O /usr/local/bin/appimagetool
-          sudo chmod +x /usr/local/bin/appimagetool
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O "$RUNNER_TEMP/appimagetool"
+          sudo install -m 0755 "$RUNNER_TEMP/appimagetool" /usr/local/bin/appimagetool
       - name: Build Linux AppImage
         if: runner.os == 'Linux'
         env:
-          VERSION: ${{ github.ref_name == 'main' && '0.1.0' || '0.1.0' }}
+          VERSION: 0.1.0
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: bash scripts/build-linux-appimage.sh
       - uses: actions/upload-artifact@v4
