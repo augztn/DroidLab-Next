@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state/backend_providers.dart';
@@ -70,19 +72,129 @@ class AdbToolkitPage extends ConsumerStatefulWidget {
 class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   final _serial = TextEditingController();
   final _command = TextEditingController(text: 'getprop ro.build.version.release');
+  final _package = TextEditingController();
+  final _bugreport = TextEditingController();
+  StreamSubscription<BackendEvent>? _eventSubscription;
+  String? _logcatRequestId;
+  final List<String> _logLines = [];
   String _output = '';
   bool _busy = false;
   @override
-  void dispose() { _serial.dispose(); _command.dispose(); super.dispose(); }
+  void initState() {
+    super.initState();
+    _eventSubscription = ref.read(backendClientProvider).events.listen((event) {
+      if (event is BackendOutput && event.stream == 'logcat' && mounted) {
+        setState(() {
+          _logLines.add(event.line);
+          if (_logLines.length > 500) _logLines.removeRange(0, _logLines.length - 500);
+        });
+      }
+    });
+  }
+  @override
+  void dispose() {
+    _eventSubscription?.cancel();
+    _serial.dispose(); _command.dispose(); _package.dispose(); _bugreport.dispose();
+    super.dispose();
+  }
 
   Future<void> _run() async {
     if (_serial.text.trim().isEmpty || _command.text.trim().isEmpty) return;
+    final serial = _serial.text.trim();
+    final command = _command.text.trim();
+    final potentiallyDestructive = RegExp(
+      r'(^|[;&|]\\s*)(rm\\s+-.*r|mkfs(\\.[\\w-]+)?|dd\\s|reboot\\b|poweroff\\b|shutdown\\b|setprop\\b|pm\\s+(uninstall|disable-user)\\b|svc\\b.*\\bdisable\\b|wipe\\b|format\\b)',
+      caseSensitive: false,
+    ).hasMatch(command);
+    var confirmed = false;
+    if (potentiallyDestructive) {
+      confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+        title: const Text('Potentially destructive shell command'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Target: $serial'),
+          const SizedBox(height: 8),
+          SelectableText(command, style: const TextStyle(fontFamily: 'monospace')),
+          const SizedBox(height: 12),
+          const Text('This command may modify system state or remove data. Review it before execution.'),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Execute command')),
+        ],
+      )) ?? false;
+      if (!confirmed) return;
+    }
     setState(() => _busy = true);
     try {
       final result = await ref.read(backendClientProvider).request('adb.shell', {
-        'serial': _serial.text.trim(), 'command': [_command.text.trim()],
+        'serial': serial, 'command': [command], 'confirmed': confirmed,
       });
       setState(() => _output = result.data['output'] as String? ?? 'Command completed.');
+    } catch (error) { setState(() => _output = error.toString()); }
+    finally { if (mounted) setState(() => _busy = false); }
+  }
+
+  Future<void> _startLogcat() async {
+    final serial = _serial.text.trim();
+    if (serial.isEmpty) return;
+    try {
+      final handle = await ref.read(backendClientProvider).startOperation(
+        'adb.logcat.start', {'serial': serial, 'filters': <String>[]},
+      );
+      setState(() { _logcatRequestId = handle.requestId; _logLines.clear(); });
+      unawaited(handle.result.then((result) {
+        if (mounted) setState(() { _logcatRequestId = null; _output = result.data.toString(); });
+      }, onError: (Object error) {
+        if (mounted) setState(() { _logcatRequestId = null; _output = error.toString(); });
+      }));
+    } catch (error) {
+      setState(() => _output = error.toString());
+    }
+  }
+
+  Future<void> _stopLogcat() async {
+    final id = _logcatRequestId;
+    if (id == null) return;
+    await ref.read(backendClientProvider).cancel(id);
+    if (mounted) setState(() => _logcatRequestId = null);
+  }
+
+  Future<void> _sideload() async {
+    final serial = _serial.text.trim();
+    final package = _package.text.trim();
+    if (serial.isEmpty || package.isEmpty) return;
+    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+      title: const Text('Confirm recovery sideload'),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Target: $serial'), Text('OTA package: $package'),
+        const SizedBox(height: 12),
+        const Text('Recovery sideload may update device partitions. A successful host exit does not prove Android accepted the update.'),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sideload')),
+      ],
+    ));
+    if (confirmed != true) return;
+    setState(() => _busy = true);
+    try {
+      final result = await ref.read(backendClientProvider).request('adb.sideload', {
+        'serial': serial, 'package_path': package, 'confirmed': true,
+      }, timeout: const Duration(minutes: 35));
+      setState(() => _output = result.data.toString());
+    } catch (error) { setState(() => _output = error.toString()); }
+    finally { if (mounted) setState(() => _busy = false); }
+  }
+
+  Future<void> _createBugreport() async {
+    final serial = _serial.text.trim(), output = _bugreport.text.trim();
+    if (serial.isEmpty || output.isEmpty) return;
+    setState(() => _busy = true);
+    try {
+      final result = await ref.read(backendClientProvider).request('adb.bugreport', {
+        'serial': serial, 'output_path': output,
+      }, timeout: const Duration(minutes: 20));
+      setState(() => _output = result.data.toString());
     } catch (error) { setState(() => _output = error.toString()); }
     finally { if (mounted) setState(() => _busy = false); }
   }
@@ -119,9 +231,24 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         OutlinedButton(onPressed: _busy ? null : () => _reboot('system'), child: const Text('Reboot')),
         OutlinedButton(onPressed: _busy ? null : () => _reboot('bootloader'), child: const Text('Bootloader')),
         OutlinedButton(onPressed: _busy ? null : () => _reboot('recovery'), child: const Text('Recovery')),
+        OutlinedButton(onPressed: _logcatRequestId == null ? _startLogcat : _stopLogcat, child: Text(_logcatRequestId == null ? 'Start logcat' : 'Stop logcat')),
       ]),
+      const SizedBox(height: 14),
+      _TextField(controller: _package, label: 'Recovery OTA ZIP path'),
+      const SizedBox(height: 8),
+      OutlinedButton(onPressed: _busy ? null : _sideload, child: const Text('Sideload OTA')),
+      const SizedBox(height: 12),
+      _TextField(controller: _bugreport, label: 'Bugreport output ZIP path'),
+      const SizedBox(height: 8),
+      OutlinedButton(onPressed: _busy ? null : _createBugreport, child: const Text('Generate bugreport')),
       const SizedBox(height: 18),
       _OutputPanel(output: _output.isEmpty ? 'Command output appears here.' : _output),
+      if (_logLines.isNotEmpty) ...[
+        const SizedBox(height: 16),
+        Text('LIVE LOGCAT', style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 8),
+        _OutputPanel(output: _logLines.join('\\n')),
+      ],
     ]),
   );
 }
