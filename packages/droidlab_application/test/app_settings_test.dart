@@ -51,7 +51,7 @@ void main() {
 
     await container.read(droidLabSettingsProvider.future);
     const value = DroidLabSettings(theme: 'oled_black', adbPath: '/custom/adb');
-    await container.read(droidLabSettingsProvider.notifier).update(value);
+    await container.read(droidLabSettingsProvider.notifier).saveSettings(value);
 
     expect((await store.load()).toJson(), value.toJson());
   });
