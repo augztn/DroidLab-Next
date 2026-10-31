@@ -47,6 +47,104 @@ class ProtocolTests(unittest.TestCase):
                 with patch.object(server.shutil, "which", return_value=None):
                     self.assertEqual(server.tool_path("adb"), str(executable))
 
+
+    def test_advanced_adb_discovery_command_runs_without_device(self):
+        command_text = "devices -l"
+        args = {
+            "serial": None,
+            "command_text": command_text,
+            "confirmed": True,
+            "confirmation": {
+                "operation": "adb.command",
+                "serial": None,
+                "command_text": command_text,
+            },
+        }
+        with patch.object(server, "tool_path", return_value="adb"):
+            with patch.object(server, "run_streaming", return_value=result("SERIAL device\\n")) as run:
+                with patch.object(server, "response"):
+                    value = server.execute("id", "adb.command", args, threading.Event())
+        self.assertEqual(value["output"], "SERIAL device\\n")
+        self.assertEqual(run.call_args.args[0], ["adb", "devices", "-l"])
+
+    def test_advanced_adb_command_injects_selected_serial(self):
+        command_text = "install -r app.apk"
+        args = {
+            "serial": "SERIAL",
+            "command_text": command_text,
+            "confirmed": True,
+            "confirmation": {
+                "operation": "adb.command",
+                "serial": "SERIAL",
+                "command_text": command_text,
+            },
+        }
+        with patch.object(server, "tool_path", return_value="adb"):
+            with patch.object(server, "run_capture", return_value=result("List of devices attached\\nSERIAL device\\n")):
+                with patch.object(server, "run_streaming", return_value=result("Success\\n")) as run:
+                    with patch.object(server, "response"):
+                        value = server.execute("id", "adb.command", args, threading.Event())
+        self.assertEqual(value["serial"], "SERIAL")
+        self.assertEqual(run.call_args.args[0], ["adb", "-s", "SERIAL", "install", "-r", "app.apk"])
+
+    def test_advanced_adb_command_rejects_conflicting_serial(self):
+        command_text = "-s OTHER install app.apk"
+        args = {
+            "serial": "SERIAL",
+            "command_text": command_text,
+            "confirmed": True,
+            "confirmation": {
+                "operation": "adb.command",
+                "serial": "SERIAL",
+                "command_text": command_text,
+            },
+        }
+        with self.assertRaises(ValueError):
+            server.execute("id", "adb.command", args, threading.Event())
+
+    def test_advanced_adb_targeted_command_requires_selected_device(self):
+        command_text = "install app.apk"
+        args = {
+            "serial": None,
+            "command_text": command_text,
+            "confirmed": True,
+            "confirmation": {
+                "operation": "adb.command",
+                "serial": None,
+                "command_text": command_text,
+            },
+        }
+        with self.assertRaises(ValueError):
+            server.execute("id", "adb.command", args, threading.Event())
+
+    def test_advanced_adb_command_requires_exact_confirmation(self):
+        with self.assertRaises(PermissionError):
+            server.execute("id", "adb.command", {
+                "serial": None,
+                "command_text": "devices",
+                "confirmed": True,
+            }, threading.Event())
+
+    def test_adb_shell_parses_multi_argument_command_text(self):
+        command_text = 'getprop ro.build.version.release'
+        args = {
+            "serial": "SERIAL",
+            "command_text": command_text,
+            "confirmed": True,
+            "confirmation": {
+                "operation": "adb.shell",
+                "serial": "SERIAL",
+                "command_text": command_text,
+            },
+        }
+        with patch.object(server, "tool_path", return_value="adb"):
+            with patch.object(server, "run_capture", return_value=result("List of devices attached\\nSERIAL device\\n")):
+                with patch.object(server, "run_streaming", return_value=result("15\\n")) as run:
+                    with patch.object(server, "response"):
+                        value = server.execute("id", "adb.shell", args, threading.Event())
+        self.assertEqual(value["output"], "15\\n")
+        self.assertEqual(run.call_args.args[0], ["adb", "-s", "SERIAL", "shell", "getprop", "ro.build.version.release"])
+
     def test_invalid_partition_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / "boot.img"
