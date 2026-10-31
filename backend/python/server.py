@@ -5,8 +5,8 @@ import json, logging, math, os, re, shlex, shutil, signal, subprocess, sys, thre
 from pathlib import Path
 from typing import Any
 from droidlab.core.command_guards import (
-    is_adb_target_connected, is_fastboot_target_connected,
-    is_destructive_adb, is_valid_partition_name,
+    explicit_device_selector, is_adb_target_connected, is_fastboot_target_connected,
+    is_destructive_adb, is_valid_partition_name, validate_device_selector,
 )
 from droidlab.core.process_runner import run_streaming, ProcessCancelledError
 from droidlab.core import payload_dumper
@@ -18,7 +18,7 @@ _WRITE_LOCK = threading.Lock()
 _ACTIVE: dict[str, threading.Event] = {}
 _DEVICE_LOCKS: dict[str, threading.Lock] = {}
 _DEVICE_LOCKS_LOCK = threading.Lock()
-_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.command", "fastboot.set_active"}
+_MUTATING = {"adb.shell", "adb.command", "adb.reboot", "adb.sideload", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.command", "fastboot.set_active"}
 
 def emit(message: dict[str, Any]) -> None:
     envelope = {"version": PROTOCOL_VERSION, "timestamp": time.time(), **message}
@@ -212,19 +212,88 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         return {"devices": devices, "warnings": warnings}
     if operation == "adb.shell":
         serial = args.get("serial")
-        command = string_list(args.get("command"), "command")
+        command_text = args.get("command_text")
+        if command_text is not None:
+            if not isinstance(command_text, str) or not command_text.strip() or "\\x00" in command_text:
+                raise ValueError("A non-empty Android shell command is required.")
+            command = shlex.split(command_text, posix=(os.name != "nt"))
+            confirmation = {"operation": "adb.shell", "serial": serial, "command_text": command_text}
+        else:
+            command = string_list(args.get("command"), "command")
+            confirmation = {"operation": "adb.shell", "serial": serial, "command": command}
+        if not command:
+            raise ValueError("A non-empty Android shell command is required.")
         require_adb(serial, cancel_event=cancel)
-        guard_tokens = ["shell", *shlex.split(" ".join(command))]
-        require_confirmation(args, "ADB shell command", {
-            "operation": "adb.shell", "serial": serial, "command": command,
-        })
+        require_confirmation(args, "ADB shell command", confirmation)
         cmd = [tool_path("adb"), "-s", serial, "shell", *command]
-        response(request_id, "preflight", target=serial, command=cmd, destructive=is_destructive_adb(guard_tokens))
+        response(request_id, "preflight", target=serial, command=cmd,
+            destructive=is_destructive_adb(["shell", *command]))
         result = run_streaming(cmd, timeout=bounded_timeout(args.get("timeout_seconds"), 60, 900),
             cancel_event=cancel, on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
         if result.returncode:
             raise RuntimeError(f"ADB shell exited with status {result.returncode}: {result.stdout[-MAX_RETAINED_OUTPUT:]}")
         return {"exit_code": result.returncode, "output": result.stdout}
+
+    if operation == "adb.command":
+        serial = args.get("serial")
+        command_text = args.get("command_text")
+        if not isinstance(command_text, str) or not command_text.strip() or "\\x00" in command_text:
+            raise ValueError("A non-empty host ADB command is required.")
+        command_args = shlex.split(command_text, posix=(os.name != "nt"))
+        if not command_args:
+            raise ValueError("A non-empty host ADB command is required.")
+        command_args = string_list(command_args, "arguments")
+        explicit_serial = explicit_device_selector(command_args, "adb")
+        validate_device_selector(command_args, "adb", serial)
+        values = list(command_args)
+        index = 0
+        takes_value = {"-s", "-t", "-H", "-P", "-L"}
+        no_value = {"-d", "-e"}
+        while index < len(values):
+            token = values[index]
+            if token in takes_value:
+                index += 2
+            elif token in no_value:
+                index += 1
+            elif token.startswith("-s="):
+                index += 1
+            elif token.startswith("-"):
+                index += 1
+            else:
+                break
+        verb = values[index].lower() if index < len(values) else ""
+        discovery = verb in {"devices", "version", "help"}
+        if discovery:
+            if serial and explicit_serial is None:
+                # Host discovery commands deliberately do not inherit a selected target.
+                serial = None
+        else:
+            if not serial:
+                raise ValueError("Select an authorized ADB device for this host command.")
+            require_adb(serial, cancel_event=cancel)
+            if explicit_serial is None:
+                command_args = ["-s", serial, *command_args]
+        if verb in {"reboot", "sideload"}:
+            raise ValueError(f"Use the dedicated DroidLab {verb} workflow so transport state and confirmation are validated.")
+        intent = {
+            "operation": "adb.command",
+            "serial": serial,
+            "command_text": command_text,
+        }
+        require_confirmation(args, "Advanced host ADB command", intent)
+        command = [tool_path("adb"), *command_args]
+        response(request_id, "preflight", target=serial or "host",
+            command=command, destructive=is_destructive_adb(["adb", *command_args]))
+        result = run_streaming(command,
+            timeout=bounded_timeout(args.get("timeout_seconds"), 180, 1800),
+            cancel_event=cancel,
+            on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
+        if result.returncode:
+            raise RuntimeError(
+                f"ADB host command exited with status {result.returncode}: "
+                f"{result.stdout[-MAX_RETAINED_OUTPUT:]}"
+            )
+        return {"exit_code": result.returncode, "output": result.stdout, "serial": serial}
     if operation == "adb.reboot":
         serial, mode = args.get("serial"), args.get("mode", "system")
         if mode not in {"system", "bootloader", "recovery"}:
@@ -519,14 +588,19 @@ def handle(message: dict[str, Any], cancel: threading.Event) -> None:
         response(request_id, "accepted", operation=operation)
         if operation in _MUTATING:
             serial = args.get("serial")
-            if not isinstance(serial, str) or not serial:
-                raise ValueError("An explicit target serial is required.")
-            with _DEVICE_LOCKS_LOCK:
-                lock = _DEVICE_LOCKS.setdefault(serial, threading.Lock())
-            if not lock.acquire(timeout=0.1):
-                lock = None
-                raise RuntimeError(f"Another mutating operation is already active for device {serial}.")
-            lock_acquired = True
+            if operation == "adb.command" and not serial:
+                # ADB discovery/version/help commands are host operations and do
+                # not mutate a selected device, so they intentionally have no lock.
+                pass
+            else:
+                if not isinstance(serial, str) or not serial:
+                    raise ValueError("An explicit target serial is required.")
+                with _DEVICE_LOCKS_LOCK:
+                    lock = _DEVICE_LOCKS.setdefault(serial, threading.Lock())
+                if not lock.acquire(timeout=0.1):
+                    lock = None
+                    raise RuntimeError(f"Another mutating operation is already active for device {serial}.")
+                lock_acquired = True
         result = execute(request_id, operation, args, cancel)
         response(request_id, "completed", result=result, cancelled=cancel.is_set())
     except ProcessCancelledError:
