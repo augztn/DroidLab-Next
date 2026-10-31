@@ -62,12 +62,11 @@ The legacy page supports OTA ZIP/BIN browse, typed path validation, drag/drop, o
 
 ## Remaining gaps confirmed by the comparison
 
-1. Full one-hour logcat stream capture directly to a file (current UI saves the bounded in-memory buffer).
-2. Persistent diagnostics report export with the legacy report format/redaction and an explicit log-folder opener.
-3. Windows discovery of removable drives specifically; current Windows storage UI enumerates drive roots.
-4. Dedicated unlock/lock UI actions (the generic advanced Fastboot command path is available, guarded and confirmed).
-5. Complete parity for every legacy host command variant and every drag/drop entrypoint.
-6. Bundled Python runtime and Android platform-tools on Windows/macOS; those bundles depend on host Python and ADB/Fastboot.
-7. Clean-machine AppImage validation across supported Linux distributions and physical-device validation across OEMs, recovery implementations, Fastbootd/bootloader Fastboot and A/B slots.
+1. Automatic redaction of serials, paths and potentially sensitive command output in diagnostic reports (export and log-folder opening are implemented, but reports should be reviewed before sharing).
+2. Windows discovery of removable drives specifically; current Windows storage UI enumerates drive roots.
+3. Dedicated unlock/lock UI actions (the generic advanced Fastboot command path is available, guarded and confirmed).
+4. Complete parity for every legacy host command variant and every drag/drop entrypoint.
+5. Bundled Python runtime and Android platform-tools on Windows/macOS; those bundles depend on host Python and ADB/Fastboot.
+6. Clean-machine AppImage validation across supported Linux distributions and physical-device validation across OEMs, recovery implementations, Fastbootd/bootloader Fastboot and A/B slots.
 
 CI uses fake executables and validates code/build/package structure only. It does not validate real USB authorization, OEM-specific device responses or firmware mutation outcomes.

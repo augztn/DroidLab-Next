@@ -224,7 +224,7 @@ class ProtocolTests(unittest.TestCase):
             "timeout_seconds": 3600,
         }
         with patch.object(server, "tool_path", return_value="adb"):
-            with patch.object(server, "run_capture", return_value=result("List of devices attached\\nSERIAL device\\n")):
+            with patch.object(server, "run_capture", return_value=result("List of devices attached\nSERIAL device\n")):
                 with patch.object(server, "run_streaming", side_effect=server.subprocess.TimeoutExpired(["adb"], 3600)) as run:
                     with patch.object(server, "response"):
                         value = server.execute("id", "adb.logcat.start", args, threading.Event())

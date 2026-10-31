@@ -567,7 +567,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     if (serial.isEmpty || _logcatRequestId != null) return;
     final filters = _logcatFilters.text.trim().isEmpty
         ? <String>[]
-        : _logcatFilters.text.trim().split(RegExp(r'\\s+'));
+        : _logcatFilters.text.trim().split(RegExp(r'\s+'));
     try {
       final handle = await ref.read(backendClientProvider).startOperation(
         'adb.logcat.start',
