@@ -8,7 +8,7 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - Managed Dart backend process bridge, JSONL protocol, bounded streaming output, cancellation, timeout and process cleanup.
 - Python backend with fresh ADB/Fastboot scans, explicit target requirements, exact destructive-operation confirmation and per-device mutation serialization.
 - ADB and Fastboot targets displayed in the shared ADB selector; dedicated Fastboot selector and refresh control.
-- ADB shell command execution, online/authorization-state gating, reboot, recovery reboot, bootloader reboot, logcat start/stop/pause/filter/export, bugreport and OTA ZIP sideload.
+- ADB shell command execution, online/authorization-state gating, explicit device refresh/selection, ADB/Fastboot-aware reboot routing, recovery reboot, bootloader reboot, logcat start/stop/pause/filter/export, bugreport and OTA ZIP sideload.
 - Mode-aware reboot dispatch: ADB is used while the target is in ADB/recovery; Fastboot is used when the same serial is already in bootloader mode. Device rediscovery is retried after the transition.
 - Device metadata for manufacturer, model, model code/codename, active slot, bootloader lock state, Android version/SDK and battery where the transport exposes the values.
 - Device details available from Device Manager and both device-tool views.
@@ -30,7 +30,7 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - Native discovery of only removable devices on Windows; the current selector enumerates available drive roots there. Linux and macOS scans use their standard user media mount directories.
 - Persistent diagnostics report export/redaction matching the complete legacy report format and a dedicated log-folder opener.
 - Full advanced ADB host-command workflows and every legacy drag/drop entrypoint.
-- Controlled physical-device validation for different OEMs, recovery implementations, Fastbootd vs bootloader Fastboot and A/B slot behavior.
+- Controlled physical-device validation for different OEMs, recovery implementations, Fastbootd vs bootloader Fastboot and A/B slot behavior. Automated CI uses fake ADB/Fastboot executables and cannot validate USB/RSA authorization on a physical phone.
 - Clean-machine smoke tests covering the AppImage on supported Linux distributions and runtime library combinations.
 
 CI uses fake executables only. Passing tests/builds do not prove device mutation safety on every OEM or release readiness.
