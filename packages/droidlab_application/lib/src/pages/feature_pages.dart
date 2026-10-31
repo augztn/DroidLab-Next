@@ -2004,7 +2004,7 @@ class LogsPage extends ConsumerWidget {
       if (diagnostics.isEmpty) {
         contents.writeln('No backend stderr diagnostics have been captured.');
       } else {
-        contents.write(diagnostics.join('\\n'));
+        contents.write(diagnostics.join('\n'));
         contents.writeln();
       }
       final file = File(location.path);
