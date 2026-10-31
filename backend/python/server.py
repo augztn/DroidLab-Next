@@ -162,7 +162,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         require_confirmation(args, "ADB reboot", {
             "operation": "adb.reboot", "serial": serial, "mode": mode,
         })
-        require_adb(serial)
+        require_adb(serial, cancel_event=cancel)
         command = [tool_path("adb"), "-s", serial, "reboot"] + ([] if mode == "system" else [mode])
         result = run_streaming(command, timeout=20, cancel_event=cancel)
         if result.returncode:
@@ -185,7 +185,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         return {"exit_code": 0, "message": "ADB reported sideload command completion; update acceptance and boot are not verified."}
     if operation == "adb.bugreport":
         serial, output = args.get("serial"), args.get("output_path")
-        require_adb(serial)
+        require_adb(serial, cancel_event=cancel)
         if not isinstance(output, str) or not output.strip():
             raise ValueError("output_path is required.")
         destination = Path(output).expanduser().resolve()
@@ -200,7 +200,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         return {"path": str(destination), "exit_code": 0}
     if operation == "adb.device_info":
         serial = args.get("serial")
-        require_adb(serial)
+        require_adb(serial, cancel_event=cancel)
         keys = ["ro.product.manufacturer", "ro.product.model", "ro.product.device",
             "ro.build.version.release", "ro.build.version.sdk", "ro.boot.slot_suffix"]
         result = run_streaming([tool_path("adb"), "-s", serial, "shell", "getprop"],
@@ -215,7 +215,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         return {"serial": serial, "properties": {key: properties.get(key, "") for key in keys}}
     if operation == "adb.logcat.start":
         serial, filters = args.get("serial"), args.get("filters", [])
-        require_adb(serial)
+        require_adb(serial, cancel_event=cancel)
         if not isinstance(filters, list) or any(not isinstance(item, str) or "\x00" in item for item in filters):
             raise ValueError("filters must be strings.")
         command = [tool_path("adb"), "-s", serial, "logcat", *filters]
@@ -248,7 +248,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         require_confirmation(args, "Fastboot erase", {
             "operation": "fastboot.erase", "serial": serial, "partition": partition,
         })
-        require_fastboot(serial)
+        require_fastboot(serial, cancel_event=cancel)
         command = [tool_path("fastboot"), "-s", serial, "erase", partition]
         response(request_id, "preflight", target=serial, command=command, destructive=True)
         result = run_streaming(command, timeout=180, cancel_event=cancel,
@@ -261,7 +261,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         require_confirmation(args, "Fastboot reboot", {
             "operation": "fastboot.reboot", "serial": serial,
         })
-        require_fastboot(serial)
+        require_fastboot(serial, cancel_event=cancel)
         result = run_streaming([tool_path("fastboot"), "-s", serial, "reboot"], timeout=30, cancel_event=cancel)
         if result.returncode:
             raise RuntimeError(f"Fastboot reboot failed: {result.stdout}")
