@@ -232,7 +232,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             token in {"-s", "--serial"} for token in tokens
         ):
             raise ValueError("Provide Fastboot subcommand arguments only; device selection is managed by DroidLab.")
-        intent = {"operation": "fastboot.command", "serial": serial, "command": tokens}
+        intent = {"operation": "fastboot.command", "serial": serial, "command": raw_command}
         require_confirmation(args, "Advanced Fastboot command", intent)
         require_fastboot(serial, cancel_event=cancel)
         command = [tool_path("fastboot"), "-s", serial, *tokens]
