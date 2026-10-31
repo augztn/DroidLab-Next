@@ -327,6 +327,10 @@ def main() -> None:
             workers = [thread for thread in workers if thread.is_alive()]
         except Exception as exc:
             logging.warning("Rejected protocol input: %s", exc)
+    # EOF is the bridge shutdown signal. Cancel every child operation before
+    # waiting so no ADB/Fastboot/payload process is orphaned on app exit.
+    for event in list(_ACTIVE.values()):
+        event.set()
     for worker in workers:
         worker.join()
 
