@@ -136,6 +136,9 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         target: serial,
         action: () => ref.read(backendClientProvider).request('adb.shell', {
           'serial': serial, 'command': [command], 'confirmed': confirmed,
+          if (potentiallyDestructive) 'confirmation': {
+            'operation': 'adb.shell', 'serial': serial, 'command': [command],
+          },
         }),
       );
       if (mounted) setState(() => _output = result.data['output'] as String? ?? 'Command completed.');
@@ -202,6 +205,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         target: serial,
         action: () => ref.read(backendClientProvider).request('adb.sideload', {
           'serial': serial, 'package_path': package, 'confirmed': true,
+          'confirmation': {'operation': 'adb.sideload', 'serial': serial, 'package_path': package},
         }, timeout: const Duration(minutes: 35)),
       );
       if (mounted) setState(() => _output = result.data.toString());
@@ -281,7 +285,10 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       final result = await trackOperation(ref,
         operation: 'ADB reboot ($mode)',
         target: serial,
-        action: () => ref.read(backendClientProvider).request('adb.reboot', {'serial': serial, 'mode': mode, 'confirmed': true}),
+        action: () => ref.read(backendClientProvider).request('adb.reboot', {
+          'serial': serial, 'mode': mode, 'confirmed': true,
+          'confirmation': {'operation': 'adb.reboot', 'serial': serial, 'mode': mode},
+        }),
       );
       if (mounted) setState(() => _output = result.data.toString());
     } catch (error) { if (mounted) setState(() => _output = error.toString()); }
@@ -409,6 +416,9 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         'serial': serial,
         'partition': partition,
         'confirmed': true,
+        'confirmation': operation == 'fastboot.flash'
+            ? {'operation': 'fastboot.flash', 'serial': serial, 'partition': partition, 'image_path': image}
+            : {'operation': 'fastboot.erase', 'serial': serial, 'partition': partition},
       };
       if (operation == 'fastboot.flash') args['image_path'] = image;
       final result = await trackOperation(
@@ -453,7 +463,10 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         target: serial,
         action: () => ref.read(backendClientProvider).request(
           'fastboot.reboot',
-          {'serial': serial, 'confirmed': true},
+          {
+            'serial': serial, 'confirmed': true,
+            'confirmation': {'operation': 'fastboot.reboot', 'serial': serial},
+          },
         ),
       );
       if (mounted) setState(() => _output = result.data.toString());
@@ -523,7 +536,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
       final parts = (result.data['partitions'] as List<dynamic>).cast<Map<String, dynamic>>();
       if (!mounted) return;
       setState(() { _parts = parts; _selected.clear(); _status = 'Found ${parts.length} partitions.'; });
-    } catch (error) { setState(() => _status = error.toString()); }
+    } catch (error) { if (mounted) setState(() => _status = error.toString()); }
     finally { if (mounted) setState(() => _busy = false); }
   }
   Future<void> _extract() async {
