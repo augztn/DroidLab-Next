@@ -22,8 +22,7 @@ void main() {
     expect(find.text('DroidLab'), findsOneWidget);
     expect(find.text('Dashboard'), findsWidgets);
     expect(find.text('Device Manager'), findsOneWidget);
-    expect(find.text('Firmware Explorer'), findsOneWidget);
-    expect(find.text('Payload Extractor'), findsOneWidget);
+    expect(find.text('Firmware & Payload'), findsOneWidget);
     expect(find.text('ADB Toolkit'), findsOneWidget);
     expect(find.text('Fastboot Toolkit'), findsOneWidget);
     expect(find.text('Logs & Diagnostics'), findsOneWidget);
