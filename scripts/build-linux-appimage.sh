@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT="$(cd -- "$(dirname -- "\${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-VERSION="\${VERSION:-0.1.0}"
-BACKEND_VERSION="\${BACKEND_VERSION:-2.1.0}"
+VERSION="${VERSION:-0.1.0}"
+BACKEND_VERSION="${BACKEND_VERSION:-2.1.0}"
 APPDIR="$ROOT/build/AppDir"
 WORK="$ROOT/build/appimage"
 DIST="$ROOT/dist"
-ARCHIVE="payload-dumper-go_\${BACKEND_VERSION}_linux_amd64.tar.gz"
+ARCHIVE="payload-dumper-go_${BACKEND_VERSION}_linux_amd64.tar.gz"
 command -v flutter >/dev/null || { echo "Flutter stable is required." >&2; exit 1; }
 command -v python3 >/dev/null || { echo "Python 3.10+ is required on the target host." >&2; exit 1; }
 command -v wget >/dev/null || { echo "wget is required." >&2; exit 1; }
@@ -26,7 +26,7 @@ cp -a apps/desktop/build/linux/x64/release/bundle/. "$APPDIR/usr/bin/"
 cp -a backend/python/. "$APPDIR/usr/lib/droidlab/backend/"
 install -m 0755 "$(command -v xz)" "$APPDIR/opt/payload-dumper/bin/xz"
 mkdir -p "$WORK/download"
-wget -q --show-progress "https://github.com/ssut/payload-dumper-go/releases/download/\${BACKEND_VERSION}/\${ARCHIVE}" -O "$WORK/download/$ARCHIVE"
+wget -q --show-progress "https://github.com/ssut/payload-dumper-go/releases/download/${BACKEND_VERSION}/${ARCHIVE}" -O "$WORK/download/$ARCHIVE"
 case "$BACKEND_VERSION" in
   2.1.0) EXPECTED_SHA256="bbbb53a71955c69272afdef7bc7e83a1bb1770f453d0c21dcaf61a3ba0463c11" ;;
   *) echo "No verified payload-dumper-go checksum for version $BACKEND_VERSION." >&2; exit 1 ;;
@@ -37,7 +37,7 @@ tar -xzf "$WORK/download/$ARCHIVE" -C "$WORK/extract"
 PAYLOAD_DUMPER="$(find "$WORK/extract" -type f -name payload-dumper-go -print -quit)"
 [[ -n "$PAYLOAD_DUMPER" ]] || { echo "payload-dumper-go binary not found in release archive." >&2; exit 1; }
 install -m 0755 "$PAYLOAD_DUMPER" "$APPDIR/usr/bin/payload-dumper-go"
-wget -q "https://raw.githubusercontent.com/ssut/payload-dumper-go/\${BACKEND_VERSION}/LICENSE" -O "$APPDIR/usr/share/licenses/payload-dumper-go/LICENSE"
+wget -q "https://raw.githubusercontent.com/ssut/payload-dumper-go/${BACKEND_VERSION}/LICENSE" -O "$APPDIR/usr/share/licenses/payload-dumper-go/LICENSE"
 if command -v ldd >/dev/null; then
   ldd "$(command -v xz)" | awk '/=> \// {print $3} /^[[:space:]]*\// {print $1}' | sort -u | while read -r dependency; do
     [[ -f "$dependency" ]] || continue
@@ -50,10 +50,10 @@ cat > "$APPDIR/AppRun" <<'RUN'
 set -euo pipefail
 HERE="$(cd -- "$(dirname -- "$0")" && pwd)"
 export DROIDLAB_BACKEND_SCRIPT="$HERE/usr/lib/droidlab/backend/server.py"
-export DROIDLAB_PYTHON="\${DROIDLAB_PYTHON:-python3}"
+export DROIDLAB_PYTHON="${DROIDLAB_PYTHON:-python3}"
 export DROIDLAB_PAYLOAD_DUMPER_GO_PATH="$HERE/usr/bin/payload-dumper-go"
 export PATH="$HERE/opt/payload-dumper/bin:$HERE/usr/bin:$PATH"
-export LD_LIBRARY_PATH="$HERE/opt/payload-dumper/lib\${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="$HERE/opt/payload-dumper/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec "$HERE/usr/bin/droidlab_desktop" "$@"
 RUN
 chmod 0755 "$APPDIR/AppRun"
@@ -79,9 +79,9 @@ cp "$APPDIR/droidlab.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/droidla
 cp "$APPDIR/droidlab.svg" "$APPDIR/.DirIcon"
 mkdir -p "$DIST"
 APPIMAGE_ARGS=()
-if [[ -n "\${APPIMAGE_RUNTIME_FILE:-}" ]]; then
+if [[ -n "${APPIMAGE_RUNTIME_FILE:-}" ]]; then
   [[ -f "$APPIMAGE_RUNTIME_FILE" ]] || { echo "Pinned AppImage runtime not found: $APPIMAGE_RUNTIME_FILE" >&2; exit 1; }
   APPIMAGE_ARGS+=(--runtime-file "$APPIMAGE_RUNTIME_FILE")
 fi
-ARCH=x86_64 appimagetool "\${APPIMAGE_ARGS[@]}" "$APPDIR" "$DIST/DroidLab-\${VERSION}-x86_64.AppImage"
-echo "Built $DIST/DroidLab-\${VERSION}-x86_64.AppImage"
+ARCH=x86_64 appimagetool "${APPIMAGE_ARGS[@]}" "$APPDIR" "$DIST/DroidLab-${VERSION}-x86_64.AppImage"
+echo "Built $DIST/DroidLab-${VERSION}-x86_64.AppImage"
