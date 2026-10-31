@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('renders desktop shell and feature navigation', (tester) async {
-    tester.view.physicalSize = const Size(1440, 1000));
-    tester.view.devicePixelRatio = 1);
+    tester.view.physicalSize = const Size(1440, 1000);
+    tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
@@ -27,8 +27,8 @@ void main() {
   });
 
   testWidgets('sidebar navigation opens the Fastboot workflow', (tester) async {
-    tester.view.physicalSize = const Size(1440, 1000));
-    tester.view.devicePixelRatio = 1);
+    tester.view.physicalSize = const Size(1440, 1000);
+    tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
