@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../state/app_settings.dart';
 import '../state/backend_providers.dart';
 import '../state/operation_history.dart';
 
@@ -89,8 +90,6 @@ class DeviceManagerPage extends ConsumerWidget {
     }
   }
 
-  const DeviceManagerPage({super.key});
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final devices = ref.watch(deviceListProvider);
@@ -157,7 +156,7 @@ class DeviceManagerPage extends ConsumerWidget {
                   leading: Icon(transport == 'fastboot' ? Icons.memory : Icons.phone_android),
                   title: SelectableText(serial),
                   subtitle: Text(transport + ' · ' + state + (product == null ? '' : ' · ' + product)),
-                  trailing: Wrap(mainAxisSize: MainAxisSize.min, children: [
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                     IconButton(
                       tooltip: 'Device details',
                       icon: const Icon(Icons.info_outline),
@@ -581,8 +580,10 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         .toList();
     final selectedDevice = selectedDevices.isEmpty ? null : selectedDevices.first;
     final selectedTransport = selectedDevice?['transport'] as String?;
-    final selectedAdbState = selectedTransport == 'adb'
-        ? selectedDevice?['state'] as String?
+    final Object? selectedState =
+        selectedDevice == null ? null : selectedDevice['state'];
+    final String? selectedAdbState = selectedTransport == 'adb'
+        ? selectedState as String?
         : null;
     final selectedFastboot = selectedTransport == 'fastboot' &&
         selectedDevice?['state'] == 'fastboot';
