@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DroidLab versioned JSON Lines backend. stdout is protocol-only; diagnostics use stderr."""
 from __future__ import annotations
-import json, logging, math, os, shlex, shutil, subprocess, sys, threading, time
+import json, logging, math, os, shlex, shutil, signal, subprocess, sys, threading, time
 from pathlib import Path
 from typing import Any
 from droidlab.core.command_guards import (
@@ -292,7 +292,17 @@ def main() -> None:
     logging.basicConfig(stream=sys.stderr, level=os.environ.get("DROIDLAB_LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)s %(message)s")
     workers: list[threading.Thread] = []
-    while True:
+
+    def request_shutdown(signum: int, _frame: Any) -> None:
+        logging.info("Received shutdown signal %s; cancelling active child operations.", signum)
+        for event in list(_ACTIVE.values()):
+            event.set()
+        raise SystemExit(128 + signum)
+
+    signal.signal(signal.SIGTERM, request_shutdown)
+    signal.signal(signal.SIGINT, request_shutdown)
+    try:
+      while True:
         raw = sys.stdin.buffer.readline(MAX_LINE_BYTES + 1)
         if not raw:
             break
@@ -327,12 +337,12 @@ def main() -> None:
             workers = [thread for thread in workers if thread.is_alive()]
         except Exception as exc:
             logging.warning("Rejected protocol input: %s", exc)
-    # EOF is the bridge shutdown signal. Cancel every child operation before
-    # waiting so no ADB/Fastboot/payload process is orphaned on app exit.
-    for event in list(_ACTIVE.values()):
-        event.set()
-    for worker in workers:
-        worker.join()
+    finally:
+        # EOF and process signals both cancel children and wait for process-tree cleanup.
+        for event in list(_ACTIVE.values()):
+            event.set()
+        for worker in workers:
+            worker.join()
 
 if __name__ == "__main__":
     main()
