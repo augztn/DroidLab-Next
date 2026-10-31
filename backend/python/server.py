@@ -294,12 +294,12 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         serial, mode = args.get("serial"), args.get("mode", "system")
         if mode not in {"system", "bootloader", "recovery"}:
             raise ValueError("Unsupported reboot mode.")
-        require_confirmation(args, "ADB reboot", {
+        require_confirmation(args, "Device reboot", {
             "operation": "adb.reboot", "serial": serial, "mode": mode,
         })
         if not isinstance(serial, str) or not serial.strip():
             raise ValueError("An explicit device serial is required.")
-        # The shared legacy selector supports both Android ADB and bootloader modes.
+
         adb_result = run_capture([tool_path("adb"), "devices", "-l"], 10, cancel)
         adb_state = None
         if adb_result.returncode == 0:
@@ -308,31 +308,44 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
                 if len(fields) >= 2 and fields[0] == serial:
                     adb_state = fields[1]
                     break
+
         if adb_state in {"device", "recovery"}:
             transport = "adb"
             command = [tool_path("adb"), "-s", serial, "reboot"] + ([] if mode == "system" else [mode])
         elif adb_state == "sideload":
-            # Sideload mode is an ADB transport, but not an interactive shell.
-            # Reboot out of sideload using adb reboot rather than trying Fastboot.
             transport = "adb"
             command = [tool_path("adb"), "-s", serial, "reboot"] + ([] if mode == "system" else [mode])
         elif adb_state in {"unauthorized", "offline"}:
             require_adb(serial, cancel_event=cancel)
             raise RuntimeError("ADB device is not in a command-ready state.")
         else:
-            # The phone may have changed USB transport between the ADB and Fastboot
-            # scans; validate Fastboot explicitly before sending any bootloader command.
+            # USB may already have transitioned to bootloader after a previous request.
             require_fastboot(serial, cancel_event=cancel)
             if mode == "bootloader":
-                return {"exit_code": 0, "transport": "fastboot", "message": "Device is already in Fastboot/bootloader mode."}
+                return {
+                    "exit_code": 0,
+                    "transport": "fastboot",
+                    "message": "Device is already in Fastboot/bootloader mode.",
+                }
             transport = "fastboot"
-            command = [tool_path("fastboot"), "-s", serial, "reboot"] + (["recovery"] if mode == "recovery" else [])
+            command = [tool_path("fastboot"), "-s", serial, "reboot"]
+            if mode == "recovery":
+                command.append("recovery")
+
         response(request_id, "preflight", target=serial, command=command, destructive=False)
-        result = run_streaming(command, timeout=35, cancel_event=cancel,
-            on_line=lambda line: response(request_id, "output", stream=transport, line=line))
+        result = run_streaming(
+            command,
+            timeout=35,
+            cancel_event=cancel,
+            on_line=lambda line: response(request_id, "output", stream=transport, line=line),
+        )
         if result.returncode:
             raise RuntimeError(f"{transport.upper()} reboot failed ({result.returncode}): {result.stdout}")
-        return {"exit_code": 0, "transport": transport, "message": f"{transport.upper()} accepted reboot request to {mode}; USB mode transition is not verified."}
+        return {
+            "exit_code": 0,
+            "transport": transport,
+            "message": f"{transport.upper()} accepted reboot request to {mode}; USB mode transition is not verified.",
+        }
     if operation == "adb.sideload":
         serial, package = args.get("serial"), args.get("package_path")
         require_confirmation(args, "ADB recovery sideload", {

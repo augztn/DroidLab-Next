@@ -8,7 +8,7 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - Managed Dart backend process bridge, JSONL protocol, bounded streaming output, cancellation, timeout and process cleanup.
 - Python backend with fresh ADB/Fastboot scans, explicit target requirements, exact destructive-operation confirmation and per-device mutation serialization.
 - ADB and Fastboot targets displayed in the shared ADB selector; dedicated Fastboot selector and refresh control.
-- ADB shell and advanced host ADB command execution (including device discovery, app install/transfer commands), online/authorization-state gating, explicit device refresh/selection, ADB/Fastboot-aware reboot routing, recovery reboot, bootloader reboot, logcat start/stop/pause/filter/export, bugreport and OTA ZIP sideload.
+- ADB shell and advanced host ADB command execution (including device discovery and app install/transfer commands), online/authorization-state gating, explicit device refresh/selection, ADB/Fastboot-aware reboot routing, recovery reboot, bootloader reboot, logcat start/stop/pause/filter/export, bugreport and OTA ZIP sideload.
 - Mode-aware reboot dispatch: ADB is used while the target is in ADB/recovery; Fastboot is used when the same serial is already in bootloader mode. Device rediscovery is retried after the transition.
 - Device metadata for manufacturer, model, model code/codename, active slot, bootloader lock state, Android version/SDK and battery where the transport exposes the values. Fastboot metadata distinguishes bootloader Fastboot from userspace Fastbootd via `getvar is-userspace` and parses combined output.
 - Device details available from Device Manager and both device-tool views.
