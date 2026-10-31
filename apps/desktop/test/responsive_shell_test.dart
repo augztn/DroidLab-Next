@@ -1,6 +1,6 @@
-import 'package:droidlab_desktop/main.dart';
 import 'package:droidlab_application/src/state/backend_providers.dart';
 import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
+import 'package:droidlab_desktop/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
