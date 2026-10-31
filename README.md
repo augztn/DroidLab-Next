@@ -17,8 +17,8 @@ The original Tkinter implementation remains in [DroidLab-Next](https://github.co
 Requires Flutter stable with desktop support, Python 3.10+, Android platform tools (`adb` and `fastboot`) and `payload-dumper-go` for the corresponding workflows.
 
 ```sh
+bash scripts/bootstrap-flutter.sh
 cd apps/desktop
-flutter pub get
 flutter analyze
 flutter test
 flutter run -d linux
