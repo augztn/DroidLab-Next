@@ -17,4 +17,12 @@ class ProtocolTests(unittest.TestCase):
    with self.assertRaises(ValueError):server.execute("id","fastboot.flash",{"serial":"SERIAL","partition":"../userdata","image_path":str(image),"confirmed":True},threading.Event())
  def test_mutation_requires_confirmation(self):
   with self.assertRaises(PermissionError):server.require_confirmation({},"Fastboot flash")
+ def test_fastboot_reboot_rejects_unknown_mode(self):
+  with self.assertRaises(ValueError):
+   server.execute("id","fastboot.reboot",{"serial":"SERIAL","mode":"unsupported"},threading.Event())
+ def test_fastboot_wipe_requires_exact_confirmation(self):
+  with self.assertRaises(PermissionError):
+   server.execute("id","fastboot.wipe",{"serial":"SERIAL","confirmed":True},threading.Event())
+ def test_fastboot_wipe_is_serialized_as_mutation(self):
+  self.assertIn("fastboot.wipe",server._MUTATING)
 if __name__=="__main__":unittest.main()
