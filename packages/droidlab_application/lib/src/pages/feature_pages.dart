@@ -7,10 +7,40 @@ import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../state/app_settings.dart';
 import '../state/backend_providers.dart';
 import '../state/operation_history.dart';
+
+
+Future<bool> _waitForDeviceTransport({
+  required WidgetRef ref,
+  required String serial,
+  required String transport,
+}) async {
+  // USB disconnect/re-enumeration is asynchronous after reboot. Poll a bounded
+  // number of times and only navigate once the same serial is visible again
+  // on the expected transport.
+  for (var attempt = 0; attempt < 10; attempt++) {
+    if (attempt > 0) {
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+    }
+    ref.invalidate(deviceListProvider);
+    try {
+      final data = await ref.read(deviceListProvider.future);
+      final devices = (data['devices'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>();
+      if (devices.any((device) =>
+          device['serial'] == serial && device['transport'] == transport)) {
+        return true;
+      }
+    } catch (_) {
+      // The device may be temporarily absent while USB re-enumerates.
+    }
+  }
+  return false;
+}
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -497,21 +527,20 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       if (mounted) setState(() => _output = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
-      if (mounted) {
-        for (final delay in const [
-          Duration(seconds: 2),
-          Duration(seconds: 5),
-          Duration(seconds: 9),
-        ]) {
-          await Future<void>.delayed(delay);
-          if (!mounted) break;
-          ref.invalidate(deviceListProvider);
-          try {
-            await ref.read(deviceListProvider.future);
-          } catch (_) {
-            // The device may be between USB transports during reboot.
-          }
-        }
+      if (mounted && mode == 'bootloader') {
+        final transitioned = await _waitForDeviceTransport(
+          ref: ref,
+          serial: serial,
+          transport: 'fastboot',
+        );
+        if (mounted && transitioned) context.go('/fastboot');
+      } else if (mounted) {
+        // Recovery and normal Android boot remain on the ADB workspace.
+        await _waitForDeviceTransport(
+          ref: ref,
+          serial: serial,
+          transport: 'adb',
+        );
       }
     }
   }
@@ -1220,21 +1249,19 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       if (mounted) setState(() => _output = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
-      if (mounted) {
-        for (final delay in const [
-          Duration(seconds: 2),
-          Duration(seconds: 5),
-          Duration(seconds: 9),
-        ]) {
-          await Future<void>.delayed(delay);
-          if (!mounted) break;
-          ref.invalidate(deviceListProvider);
-          try {
-            await ref.read(deviceListProvider.future);
-          } catch (_) {
-            // The device may be transitioning between USB transports.
-          }
-        }
+      if (mounted && mode == 'system') {
+        final transitioned = await _waitForDeviceTransport(
+          ref: ref,
+          serial: serial,
+          transport: 'adb',
+        );
+        if (mounted && transitioned) context.go('/adb');
+      } else if (mounted) {
+        await _waitForDeviceTransport(
+          ref: ref,
+          serial: serial,
+          transport: 'fastboot',
+        );
       }
     }
   }
