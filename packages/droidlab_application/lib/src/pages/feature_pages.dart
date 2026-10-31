@@ -340,6 +340,22 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       if (mounted) setState(() => _output = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        for (final delay in const [
+          Duration(seconds: 2),
+          Duration(seconds: 5),
+          Duration(seconds: 9),
+        ]) {
+          await Future<void>.delayed(delay);
+          if (!mounted) break;
+          ref.invalidate(deviceListProvider);
+          try {
+            await ref.read(deviceListProvider.future);
+          } catch (_) {
+            // The device may be between USB transports during reboot.
+          }
+        }
+      }
     }
   }
 
@@ -635,7 +651,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('system'), child: const Text('Reboot')),
         OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('bootloader'), child: const Text('Bootloader')),
         OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('recovery'), child: const Text('Recovery')),
-        OutlinedButton(onPressed: _busy || !canRunAdbCommands ? null : _loadDeviceInfo, child: const Text('Device info')),
+        OutlinedButton(onPressed: _busy || !(canRunAdbCommands || selectedFastboot) ? null : _loadDeviceInfo, child: const Text('Device info')),
         OutlinedButton(
           onPressed: _logcatRequestId != null ? _stopLogcat : (canRunAdbCommands ? _startLogcat : null),
           child: Text(_logcatRequestId == null ? 'Start logcat' : 'Stop logcat'),
@@ -920,6 +936,32 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     }
   }
 
+  Future<void> _readFastbootInfo(String serial) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final result = await ref.read(backendClientProvider).request(
+        'device.info',
+        {'serial': serial},
+      );
+      if (mounted) {
+        final metadata = result.data['metadata'] as Map<String, dynamic>;
+        setState(() {
+          _output = metadata.entries
+              .map((entry) => entry.key + ': ' +
+                  (entry.value?.toString().isNotEmpty == true
+                      ? entry.value.toString()
+                      : '—'))
+              .join('\n');
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _output = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _setActiveSlot(String slot) async {
     final serial = _serial.text.trim();
     if (serial.isEmpty || _busy || !const {'a', 'b'}.contains(slot)) return;
@@ -1070,6 +1112,11 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       ),
       const SizedBox(height: 12),
       Wrap(spacing: 8, runSpacing: 8, children: [
+        OutlinedButton.icon(
+          onPressed: _busy || serial == null ? null : () => _readFastbootInfo(serial),
+          icon: const Icon(Icons.info_outline),
+          label: const Text('Device info'),
+        ),
         FilledButton.icon(
           onPressed: _busy ? null : () => _mutate('fastboot.flash'),
           icon: const Icon(Icons.flash_on),
