@@ -280,6 +280,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       ),
     );
     if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
     try {
       final result = await trackOperation(
         ref,
@@ -295,6 +296,8 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       if (mounted) setState(() => _output = result.data.toString());
     } catch (error) {
       if (mounted) setState(() => _output = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -482,6 +485,17 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   @override
   Widget build(BuildContext context) {
     final devicesAsync = ref.watch(deviceListProvider);
+    final discoveredAdbDevices = (devicesAsync.valueOrNull?['devices'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .where((device) => device['transport'] == 'adb')
+        .toList();
+    final selectedDevices = discoveredAdbDevices
+        .where((device) => device['serial'] == _serial.text.trim())
+        .toList();
+    final selectedAdbState = selectedDevices.isEmpty
+        ? null
+        : selectedDevices.first['state'] as String?;
+    final canRunAdbCommands = selectedAdbState == 'device';
     return _PageFrame(
     title: 'ADB Toolkit',
     subtitle: 'Diagnostics and device operations require an explicit serial target.',
@@ -570,13 +584,13 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       _TextField(controller: _command, label: 'Android shell command'),
       const SizedBox(height: 8),
       Wrap(spacing: 8, runSpacing: 8, children: [
-        FilledButton(onPressed: _busy ? null : _runShell, child: const Text('Run shell command')),
-        OutlinedButton(onPressed: _busy ? null : () => _reboot('system'), child: const Text('Reboot')),
-        OutlinedButton(onPressed: _busy ? null : () => _reboot('bootloader'), child: const Text('Bootloader')),
-        OutlinedButton(onPressed: _busy ? null : () => _reboot('recovery'), child: const Text('Recovery')),
-        OutlinedButton(onPressed: _busy ? null : _loadDeviceInfo, child: const Text('Device info')),
+        FilledButton(onPressed: _busy || !canRunAdbCommands ? null : _runShell, child: const Text('Run shell command')),
+        OutlinedButton(onPressed: _busy || !canRunAdbCommands ? null : () => _reboot('system'), child: const Text('Reboot')),
+        OutlinedButton(onPressed: _busy || !canRunAdbCommands ? null : () => _reboot('bootloader'), child: const Text('Bootloader')),
+        OutlinedButton(onPressed: _busy || !canRunAdbCommands ? null : () => _reboot('recovery'), child: const Text('Recovery')),
+        OutlinedButton(onPressed: _busy || !canRunAdbCommands ? null : _loadDeviceInfo, child: const Text('Device info')),
         OutlinedButton(
-          onPressed: _logcatRequestId == null ? _startLogcat : _stopLogcat,
+          onPressed: _logcatRequestId != null ? _stopLogcat : (canRunAdbCommands ? _startLogcat : null),
           child: Text(_logcatRequestId == null ? 'Start logcat' : 'Stop logcat'),
         ),
       ]),
@@ -594,11 +608,14 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         child: _TextField(controller: _package, label: 'Recovery OTA ZIP path'),
       ),
       const SizedBox(height: 8),
-      OutlinedButton(onPressed: _busy ? null : _sideload, child: const Text('Sideload OTA')),
+      OutlinedButton(
+        onPressed: _busy || !(selectedAdbState == 'device' || selectedAdbState == 'recovery' || selectedAdbState == 'sideload') ? null : _sideload,
+        child: const Text('Sideload OTA'),
+      ),
       const SizedBox(height: 12),
       _TextField(controller: _bugreport, label: 'Bugreport output ZIP path'),
       const SizedBox(height: 8),
-      OutlinedButton(onPressed: _busy ? null : _createBugreport, child: const Text('Generate bugreport')),
+      OutlinedButton(onPressed: _busy || !canRunAdbCommands ? null : _createBugreport, child: const Text('Generate bugreport')),
       const SizedBox(height: 18),
       if (_busy) const LinearProgressIndicator(),
       _OutputPanel(output: _output.isEmpty ? 'Command output appears here.' : _output),
