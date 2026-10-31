@@ -1636,13 +1636,55 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
 class LogsPage extends ConsumerWidget {
   const LogsPage({super.key});
 
+  Future<void> _exportReport(BuildContext context, WidgetRef ref) async {
+    final location = await getSaveLocation(
+      suggestedName: 'DroidLab-diagnostics.txt',
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'Diagnostic text report', extensions: ['txt', 'log']),
+      ],
+    );
+    if (location == null) return;
+    try {
+      final diagnostics = ref.read(backendClientProvider).diagnostics;
+      final report = [
+        'DroidLab diagnostic report',
+        'Generated: ${DateTime.now().toIso8601String()}',
+        'Diagnostics remain local and have not been uploaded.',
+        '',
+        if (diagnostics.isEmpty) 'No backend stderr diagnostics captured.',
+        ...diagnostics,
+      ].join('\n');
+      final file = File(location.path);
+      await file.parent.create(recursive: true);
+      await file.writeAsString(report, flush: true);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Diagnostic report saved to ${file.path}')),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not export diagnostic report: $error')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final backend = ref.watch(backendReadyProvider);
     final diagnostics = ref.read(backendClientProvider).diagnostics;
     return _PageFrame(
       title: 'Logs & Diagnostics',
-      subtitle: 'Recent bounded backend diagnostics. Device output remains local and is not uploaded.',
+      subtitle: 'Diagnostics stay on this computer. Reports can contain device serials and command details; review before sharing.',
+      actions: [
+        OutlinedButton.icon(
+          onPressed: () => _exportReport(context, ref),
+          icon: const Icon(Icons.save_alt),
+          label: const Text('Export diagnostic report'),
+        ),
+      ],
       child: backend.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => _ErrorPanel(
