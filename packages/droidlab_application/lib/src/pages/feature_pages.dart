@@ -624,14 +624,15 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     }
   }
 
-  Future<void> _rebootFastboot() async {
+  Future<void> _rebootFastboot(String mode) async {
     final serial = _serial.text.trim();
     if (serial.isEmpty || _busy) return;
+    final label = mode == 'system' ? 'Android' : mode;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirm Fastboot reboot'),
-        content: Text('Reboot Fastboot target ' + serial + ' to Android?'),
+        content: Text('Reboot Fastboot target ' + serial + ' to ' + label + '?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Reboot')),
@@ -639,23 +640,73 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       ),
     );
     if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
     try {
       final result = await trackOperation(
         ref,
-        operation: 'Fastboot reboot',
+        operation: 'Fastboot reboot (' + mode + ')',
         target: serial,
         action: () => ref.read(backendClientProvider).request(
           'fastboot.reboot',
           {
             'serial': serial,
+            'mode': mode,
             'confirmed': true,
-            'confirmation': {'operation': 'fastboot.reboot', 'serial': serial},
+            'confirmation': {'operation': 'fastboot.reboot', 'serial': serial, 'mode': mode},
           },
         ),
       );
       if (mounted) setState(() => _output = result.data.toString());
     } catch (error) {
       if (mounted) setState(() => _output = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _wipeUserdata() async {
+    final serial = _serial.text.trim();
+    if (serial.isEmpty || _busy) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm factory data wipe'),
+        content: Text(
+          'fastboot -w will erase userdata and cache on ' + serial +
+          '. This permanently removes local data. Confirm only after verifying your backup and target.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Erase all user data'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final result = await trackOperation(
+        ref,
+        operation: 'Fastboot wipe userdata and cache',
+        target: serial,
+        action: () => ref.read(backendClientProvider).request('fastboot.wipe', {
+          'serial': serial,
+          'confirmed': true,
+          'confirmation': {
+            'operation': 'fastboot.wipe',
+            'serial': serial,
+            'mode': 'wipe-userdata',
+          },
+        }, timeout: const Duration(minutes: 12)),
+      );
+      if (mounted) setState(() => _output = result.data.toString());
+    } catch (error) {
+      if (mounted) setState(() => _output = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -682,11 +733,42 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         OutlinedButton.icon(
           onPressed: _busy ? null : () => _mutate('fastboot.erase'),
           icon: const Icon(Icons.delete_outline),
-          label: const Text('Erase partition'),
+          label: const Text('Erase selected partition'),
         ),
         OutlinedButton(
-          onPressed: _busy ? null : _rebootFastboot,
-          child: const Text('Reboot'),
+          onPressed: _busy ? null : () => _rebootFastboot('system'),
+          child: const Text('Reboot system'),
+        ),
+        OutlinedButton(
+          onPressed: _busy ? null : () => _rebootFastboot('recovery'),
+          child: const Text('Reboot recovery'),
+        ),
+        OutlinedButton(
+          onPressed: _busy ? null : () => _rebootFastboot('bootloader'),
+          child: const Text('Reboot bootloader'),
+        ),
+      ]),
+      const SizedBox(height: 16),
+      Text('ERASE & FORMAT', style: Theme.of(context).textTheme.titleSmall),
+      const SizedBox(height: 8),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        OutlinedButton(
+          onPressed: _busy ? null : () {
+            _partition.text = 'cache';
+            _mutate('fastboot.erase');
+          },
+          child: const Text('Erase cache'),
+        ),
+        OutlinedButton(
+          onPressed: _busy ? null : () {
+            _partition.text = 'userdata';
+            _mutate('fastboot.erase');
+          },
+          child: const Text('Erase userdata'),
+        ),
+        FilledButton.tonal(
+          onPressed: _busy ? null : _wipeUserdata,
+          child: const Text('Wipe data (fastboot -w)'),
         ),
       ]),
       const SizedBox(height: 18),
