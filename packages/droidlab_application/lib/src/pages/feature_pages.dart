@@ -172,6 +172,10 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
 
   @override
   void dispose() {
+    final logcatRequestId = _logcatRequestId;
+    if (logcatRequestId != null) {
+      unawaited(ref.read(backendClientProvider).cancel(logcatRequestId));
+    }
     unawaited(_eventSubscription?.cancel() ?? Future<void>.value());
     _serial.dispose();
     _command.dispose();
@@ -692,7 +696,9 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
 }
 
 class PayloadExtractorPage extends ConsumerStatefulWidget {
-  const PayloadExtractorPage({super.key});
+  const PayloadExtractorPage({super.key, this.firmwareMode = false});
+
+  final bool firmwareMode;
 
   @override
   ConsumerState<PayloadExtractorPage> createState() => _PayloadExtractorPageState();
@@ -770,8 +776,10 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
 
   @override
   Widget build(BuildContext context) => _PageFrame(
-    title: 'Payload Extractor',
-    subtitle: 'Inspect OTA metadata and extract verified images without overwriting existing files.',
+    title: widget.firmwareMode ? 'Firmware Explorer' : 'Payload Extractor',
+    subtitle: widget.firmwareMode
+        ? 'Explore OTA ZIP and payload BIN contents, partition metadata and image artifacts.'
+        : 'Inspect OTA metadata and extract verified images without overwriting existing files.',
     child: DropTarget(
       onDragDone: _drop,
       child: ListView(children: [

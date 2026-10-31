@@ -10,7 +10,7 @@ final backendClientProvider = Provider<BackendClient>((ref) {
   final executableDirectory = File(Platform.resolvedExecutable).parent;
   final candidates = <String>[
     if (configured != null && configured.isNotEmpty) configured,
-    '${Directory.current.path}/../../backend/python/server.py',
+    '${Directory.current.path}/../backend/python/server.py',
     '${Directory.current.path}/backend/python/server.py',
     '${executableDirectory.path}/backend/python/server.py',
     '${executableDirectory.parent.path}/Resources/backend/python/server.py',
