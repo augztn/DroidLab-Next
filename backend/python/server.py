@@ -18,7 +18,7 @@ _WRITE_LOCK = threading.Lock()
 _ACTIVE: dict[str, threading.Event] = {}
 _DEVICE_LOCKS: dict[str, threading.Lock] = {}
 _DEVICE_LOCKS_LOCK = threading.Lock()
-_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe"}
+_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.command"}
 
 def emit(message: dict[str, Any]) -> None:
     envelope = {"version": PROTOCOL_VERSION, "timestamp": time.time(), **message}
@@ -223,6 +223,28 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             on_line=lambda line: response(request_id, "output", stream="logcat", line=line),
             max_output_chars=1024)
         return {"exit_code": result.returncode, "cancelled": cancel.is_set()}
+    if operation == "fastboot.command":
+        serial, raw_command = args.get("serial"), args.get("command")
+        if not isinstance(raw_command, str) or not raw_command.strip() or "\\x00" in raw_command:
+            raise ValueError("A non-empty Fastboot command is required.")
+        tokens = shlex.split(raw_command)
+        if not tokens or tokens[0].startswith("-") or any(
+            token in {"-s", "--serial"} for token in tokens
+        ):
+            raise ValueError("Provide Fastboot subcommand arguments only; device selection is managed by DroidLab.")
+        intent = {"operation": "fastboot.command", "serial": serial, "command": tokens}
+        require_confirmation(args, "Advanced Fastboot command", intent)
+        require_fastboot(serial, cancel_event=cancel)
+        command = [tool_path("fastboot"), "-s", serial, *tokens]
+        response(request_id, "preflight", target=serial, command=command, destructive=True)
+        result = run_streaming(command, timeout=bounded_timeout(args.get("timeout_seconds"), 900, 1800),
+            cancel_event=cancel,
+            on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
+        if result.returncode:
+            raise RuntimeError(
+                f"Advanced Fastboot command failed ({result.returncode}); inspect device state before retrying."
+            )
+        return {"exit_code": 0, "command": tokens, "output": result.stdout}
     if operation == "fastboot.flash":
         serial, partition, image = args.get("serial"), args.get("partition"), args.get("image_path")
         if not is_valid_partition_name(partition):
