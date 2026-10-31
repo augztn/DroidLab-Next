@@ -1021,7 +1021,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
         const SizedBox(height: 12),
         Text('ACTIVITY LOG', style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 6),
-        _OutputPanel(output: _activityLines.isEmpty ? _status : _activityLines.join('\\n')),
+        _OutputPanel(output: _activityLines.isEmpty ? _status : _activityLines.join('\n')),
         if (_busy) const LinearProgressIndicator(),
       ]),
     ),
