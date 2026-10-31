@@ -25,4 +25,16 @@ class ProtocolTests(unittest.TestCase):
    server.execute("id","fastboot.wipe",{"serial":"SERIAL","confirmed":True},threading.Event())
  def test_fastboot_wipe_is_serialized_as_mutation(self):
   self.assertIn("fastboot.wipe",server._MUTATING)
+ def test_advanced_fastboot_command_requires_confirmation(self):
+  with self.assertRaises(PermissionError):
+   server.execute("id","fastboot.command",{
+    "serial":"SERIAL","command":"getvar all","confirmed":True
+   },threading.Event())
+ def test_advanced_fastboot_command_rejects_target_override(self):
+  with self.assertRaises(ValueError):
+   server.execute("id","fastboot.command",{
+    "serial":"SERIAL","command":"-s OTHER devices"
+   },threading.Event())
+ def test_advanced_fastboot_command_is_serialized_as_mutation(self):
+  self.assertIn("fastboot.command",server._MUTATING)
 if __name__=="__main__":unittest.main()
