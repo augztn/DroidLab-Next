@@ -93,7 +93,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   }
   @override
   void dispose() {
-    _eventSubscription?.cancel();
+    unawaited(_eventSubscription?.cancel() ?? Future<void>.value());
     _serial.dispose(); _command.dispose(); _package.dispose(); _bugreport.dispose();
     super.dispose();
   }
