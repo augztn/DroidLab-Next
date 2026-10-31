@@ -43,9 +43,14 @@ def tool_path(name: str) -> str:
         raise RuntimeError(f"{name} was not found on PATH. Configure its path in DroidLab settings.")
     return found
 
-def run_capture(command: list[str], timeout: float = 10) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, capture_output=True, text=True, encoding="utf-8",
-        errors="replace", timeout=timeout, check=False, stdin=subprocess.DEVNULL)
+def run_capture(command: list[str], timeout: float = 10,
+                cancel_event: threading.Event | None = None) -> subprocess.CompletedProcess[str]:
+    return run_streaming(
+        command,
+        timeout=timeout,
+        cancel_event=cancel_event,
+        max_output_chars=512 * 1024,
+    )
 
 def bounded_timeout(value: Any, default: float, maximum: float) -> float:
     try:
@@ -56,8 +61,8 @@ def bounded_timeout(value: Any, default: float, maximum: float) -> float:
         return default
     return min(result, maximum)
 
-def adb_scan() -> list[dict[str, Any]]:
-    result = run_capture([tool_path("adb"), "devices", "-l"], 10)
+def adb_scan(cancel_event: threading.Event | None = None) -> list[dict[str, Any]]:
+    result = run_capture([tool_path("adb"), "devices", "-l"], 10, cancel_event)
     if result.returncode:
         raise RuntimeError(f"ADB scan failed: {result.stderr.strip() or result.returncode}")
     devices = []
@@ -72,8 +77,8 @@ def adb_scan() -> list[dict[str, Any]]:
             devices.append({"serial": fields[0], "transport": "adb", "state": fields[1], "details": details})
     return devices
 
-def fastboot_scan() -> list[dict[str, Any]]:
-    result = run_capture([tool_path("fastboot"), "devices", "-l"], 8)
+def fastboot_scan(cancel_event: threading.Event | None = None) -> list[dict[str, Any]]:
+    result = run_capture([tool_path("fastboot"), "devices", "-l"], 8, cancel_event)
     if result.returncode:
         raise RuntimeError(f"Fastboot scan failed: {result.stderr.strip() or result.returncode}")
     devices = []
@@ -88,17 +93,17 @@ def fastboot_scan() -> list[dict[str, Any]]:
             devices.append({"serial": fields[0], "transport": "fastboot", "state": "fastboot", "details": details})
     return devices
 
-def require_adb(serial: Any, states: tuple[str, ...] = ("device",)) -> None:
+def require_adb(serial: Any, states: tuple[str, ...] = ("device",), cancel_event: threading.Event | None = None) -> None:
     if not isinstance(serial, str) or not serial.strip():
         raise ValueError("An explicit device serial is required.")
-    result = run_capture([tool_path("adb"), "devices", "-l"], 10)
+    result = run_capture([tool_path("adb"), "devices", "-l"], 10, cancel_event)
     if not is_adb_target_connected(serial, result.stdout, result.returncode, states):
         raise RuntimeError(f"ADB target {serial!r} is not present in an allowed state ({', '.join(states)}). No command was dispatched.")
 
-def require_fastboot(serial: Any) -> None:
+def require_fastboot(serial: Any, cancel_event: threading.Event | None = None) -> None:
     if not isinstance(serial, str) or not serial.strip():
         raise ValueError("An explicit Fastboot serial is required.")
-    result = run_capture([tool_path("fastboot"), "devices", "-l"], 8)
+    result = run_capture([tool_path("fastboot"), "devices", "-l"], 8, cancel_event)
     if not is_fastboot_target_connected(serial, result.stdout, result.returncode):
         raise RuntimeError(f"Fastboot target {serial!r} is not present in a fresh scan. No command was dispatched.")
 
@@ -129,7 +134,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         return {"tools": tools}
     if operation == "devices.list":
         devices, warnings = [], []
-        for scanner, label in ((adb_scan, "adb"), (fastboot_scan, "fastboot")):
+        for scanner, label in ((lambda: adb_scan(cancel), "adb"), (lambda: fastboot_scan(cancel), "fastboot")):
             try:
                 devices.extend(scanner())
             except Exception as exc:
@@ -138,7 +143,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
     if operation == "adb.shell":
         serial = args.get("serial")
         command = string_list(args.get("command"), "command")
-        require_adb(serial)
+        require_adb(serial, cancel_event=cancel)
         guard_tokens = ["shell", *shlex.split(" ".join(command))]
         require_confirmation(args, "ADB shell command", {
             "operation": "adb.shell", "serial": serial, "command": command,
@@ -170,7 +175,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         })
         if not isinstance(package, str) or Path(package).suffix.lower() != ".zip" or not Path(package).expanduser().is_file():
             raise ValueError("Choose an existing OTA .zip package.")
-        require_adb(serial, ("sideload", "recovery", "device"))
+        require_adb(serial, ("sideload", "recovery", "device"), cancel_event=cancel)
         command = [tool_path("adb"), "-s", serial, "sideload", str(Path(package).expanduser().resolve())]
         response(request_id, "preflight", target=serial, command=command, destructive=True)
         result = run_streaming(command, timeout=1800, cancel_event=cancel,
@@ -228,7 +233,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             "operation": "fastboot.flash", "serial": serial,
             "partition": partition, "image_path": image,
         })
-        require_fastboot(serial)
+        require_fastboot(serial, cancel_event=cancel)
         command = [tool_path("fastboot"), "-s", serial, "flash", partition, str(Path(image).expanduser().resolve())]
         response(request_id, "preflight", target=serial, command=command, destructive=True)
         result = run_streaming(command, timeout=bounded_timeout(args.get("timeout_seconds"), 900, 3600),
