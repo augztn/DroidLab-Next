@@ -8,6 +8,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'test_support.dart';
 
+class _TestSettingsController extends DroidLabSettingsController {
+  @override
+  Future<DroidLabSettings> build() async => const DroidLabSettings();
+}
+
 void main() {
   testWidgets('renders desktop shell and feature navigation', (tester) async {
     tester.view.physicalSize = const Size(1440, 1000);
@@ -67,27 +72,17 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final temp =
-        await Directory.systemTemp.createTemp('droidlab-settings-widget-');
-    addTearDown(() => temp.delete(recursive: true));
-    final settingsStore = DroidLabSettingsStore(
-      file: File('${temp.path}/DroidLab/config.json'),
-    );
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           ...testBackendOverrides(),
-          droidLabSettingsStoreProvider.overrideWithValue(settingsStore),
+          droidLabSettingsProvider.overrideWith(_TestSettingsController.new),
         ],
         child: const DroidLabApp(),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Settings').last);
-    await tester.pump();
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    });
     await tester.pumpAndSettle();
 
     expect(find.text('Settings'), findsWidgets);
