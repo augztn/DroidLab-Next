@@ -49,7 +49,7 @@ abstract final class DroidLabTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: DroidLabTokens.background,
       dividerColor: DroidLabTokens.border,
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: DroidLabTokens.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
