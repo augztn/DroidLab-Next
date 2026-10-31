@@ -8,6 +8,11 @@ class BackendError(RuntimeError): pass
 INSPECTION_TIMEOUT=120
 EXTRACTION_TIMEOUT=3600
 def _find_cli():
+ configured=os.environ.get("DROIDLAB_PAYLOAD_DUMPER_GO_PATH","").strip()
+ if configured:
+  path=Path(configured).expanduser()
+  if path.is_file() and (os.name=="nt" or os.access(path,os.X_OK)):return [str(path.resolve())]
+  raise BackendError(f"Configured payload-dumper-go path is not executable: {path}")
  root=Path(__file__).resolve().parents[3]
  candidates=[root/"bin"/"payload-dumper-go",root/"opt"/"payload-dumper"/"bin"/"payload-dumper-go",Path(sys.executable).resolve().parent/"payload-dumper-go"]
  for path in candidates:
@@ -24,6 +29,7 @@ def _run(cli,args,progress=None,cancel_event=None,timeout=INSPECTION_TIMEOUT):
 def inspect_source(source,progress=None,cancel_event=None):
  path=Path(source).expanduser().resolve()
  if not path.is_file():raise BackendError(f"Input file does not exist: {path}")
+ if path.suffix.lower() not in {".bin",".zip"}:raise BackendError("Choose a payload .bin file or OTA .zip file.")
  cli=_find_cli()
  if not cli:raise BackendError("payload-dumper-go was not found. Install it or use the bundled AppImage.")
  result=_run(cli,["-l","-m",str(path)],progress,cancel_event,INSPECTION_TIMEOUT)
@@ -38,9 +44,10 @@ def inspect_source(source,progress=None,cancel_event=None):
  if not parts:raise BackendError("Payload backend returned no valid partition metadata.")
  return parts
 def extract(source,output_dir,selected=None,progress=None,cancel_event=None,fingerprint=False):
+ if not isinstance(source,str) or not source.strip():raise BackendError("Choose a payload .bin or OTA .zip file.")
+ if not isinstance(output_dir,str) or not output_dir.strip():raise BackendError("Choose an output directory.")
  src=Path(source).expanduser().resolve(); out=Path(output_dir).expanduser().resolve()
  if not src.is_file() or src.suffix.lower() not in {".bin",".zip"}:raise BackendError("Choose an existing payload .bin or OTA .zip file.")
- if not output_dir.strip():raise BackendError("Choose an output directory.")
  if selected and any(not is_valid_partition_name(p) for p in selected):raise BackendError("Invalid partition selection.")
  cli=_find_cli()
  if not cli:raise BackendError("payload-dumper-go was not found.")
@@ -52,7 +59,7 @@ def extract(source,output_dir,selected=None,progress=None,cancel_event=None,fing
   if result.returncode:raise BackendError(f"payload-dumper-go exited with status {result.returncode}; delta OTA operations may be unsupported.")
   artifacts=sorted(p for p in stage.rglob("*.img") if p.is_file() and not p.is_symlink() and p.stat().st_size>0)
   if not artifacts:raise BackendError("Extraction produced no non-empty image artifacts.")
-  if selected and {p.stem.casefold() for p in artifacts} < {x.casefold() for x in selected}:raise BackendError("Extraction did not produce every requested partition image.")
+  if selected and not {x.casefold() for x in selected}.issubset({p.stem.casefold() for p in artifacts}):raise BackendError("Extraction did not produce every requested partition image.")
   root=out.resolve()
   for artifact in artifacts:
    dest=out/artifact.relative_to(stage); dest.parent.mkdir(parents=True,exist_ok=True)
