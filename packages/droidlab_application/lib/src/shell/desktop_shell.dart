@@ -146,7 +146,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
             PopupMenuButton<String>(
               tooltip: 'Help',
               onSelected: (value) {
-                if (value == 'about') _showAbout();
+                if (value == 'about') context.go('/about');
                 if (value == 'logs') context.go('/logs');
               },
               itemBuilder: (context) => const [
@@ -181,6 +181,23 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                   ),
               ],
               const Divider(),
+              Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(9),
+                child: ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: expanded ? const Text('About DroidLab') : null,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: expanded ? 16 : 0,
+                  ),
+                  dense: true,
+                  selected: widget.currentLocation == '/about',
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  onTap: () => context.go('/about'),
+                ),
+              ),
               Material(
                 color: Colors.transparent,
                 borderRadius: BorderRadius.circular(9),
