@@ -55,57 +55,6 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     super.dispose();
   }
 
-  void _showAbout() {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('About DroidLab'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Column(
-                  children: [
-                    Text('DL', style: TextStyle(
-                      color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold,
-                    )),
-                    SizedBox(height: 8),
-                    Text('DroidLab', style: TextStyle(
-                      color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold,
-                    )),
-                    Text('Android firmware toolkit', style: TextStyle(color: Colors.white)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text('A toolkit for Android firmware workflows',
-                style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              const Text(
-                'Inspect and extract OTA payloads, review partition images, manage connected devices with ADB, and preview guarded Fastboot operations.',
-              ),
-              const SizedBox(height: 12),
-              Text('Flutter desktop rewrite · Version 0.1.0',
-                style: Theme.of(context).textTheme.bodySmall),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final backend = ref.watch(backendReadyProvider);
