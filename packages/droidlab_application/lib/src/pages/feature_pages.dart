@@ -192,6 +192,16 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     super.dispose();
   }
 
+  Future<void> _refreshDevices() async {
+    ref.invalidate(deviceListProvider);
+    try {
+      await ref.read(deviceListProvider.future);
+      if (mounted) setState(() => _output = 'Device scan completed. Select the intended ADB serial below.');
+    } catch (error) {
+      if (mounted) setState(() => _output = 'Device scan failed: $error');
+    }
+  }
+
   Future<void> _runShell() async {
     final serial = _serial.text.trim();
     final command = _command.text.trim();
@@ -470,11 +480,92 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   }
 
   @override
-  Widget build(BuildContext context) => _PageFrame(
+  Widget build(BuildContext context) {
+    final devicesAsync = ref.watch(deviceListProvider);
+    return _PageFrame(
     title: 'ADB Toolkit',
     subtitle: 'Diagnostics and device operations require an explicit serial target.',
     child: ListView(children: [
-      _TextField(controller: _serial, label: 'ADB serial'),
+      Row(children: [
+        Expanded(child: _TextField(controller: _serial, label: 'ADB serial')),
+        const SizedBox(width: 8),
+        IconButton.filledTonal(
+          tooltip: 'Refresh connected devices',
+          onPressed: _busy ? null : _refreshDevices,
+          icon: const Icon(Icons.refresh),
+        ),
+      ]),
+      const SizedBox(height: 8),
+      devicesAsync.when(
+        loading: () => const LinearProgressIndicator(),
+        error: (error, _) => Row(children: [
+          Expanded(child: Text('Device scan failed: $error')),
+          TextButton(onPressed: _refreshDevices, child: const Text('Retry')),
+        ]),
+        data: (data) {
+          final devices = (data['devices'] as List<dynamic>? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .where((device) => device['transport'] == 'adb')
+              .toList();
+          final warnings = (data['warnings'] as List<dynamic>? ?? const [])
+              .where((warning) => warning is Map && warning['transport'] == 'adb')
+              .toList();
+          final serials = devices.map((device) => device['serial'] as String).toSet();
+          final selected = serials.contains(_serial.text.trim()) ? _serial.text.trim() : null;
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            DropdownButtonFormField<String>(
+              value: selected,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Detected ADB devices',
+                border: OutlineInputBorder(),
+              ),
+              hint: const Text('Select a device explicitly'),
+              items: devices.map((device) {
+                final serial = device['serial'] as String;
+                final state = device['state'] as String? ?? 'unknown';
+                return DropdownMenuItem<String>(
+                  value: serial,
+                  child: Text('$serial  ·  $state', overflow: TextOverflow.ellipsis),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => _serial.text = value);
+              },
+            ),
+            for (final device in devices.where((item) => item['serial'] == selected))
+              if (device['state'] == 'unauthorized')
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'ADB authorization required: unlock the Android device and accept its USB debugging RSA prompt, then refresh devices.',
+                    style: TextStyle(color: Colors.orange),
+                  ),
+                )
+              else if (device['state'] == 'offline')
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Device is offline. Reconnect the USB cable or restart ADB, then refresh devices.',
+                    style: TextStyle(color: Colors.orange),
+                  ),
+                ),
+            for (final warning in warnings)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  warning['message'].toString(),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            if (devices.isEmpty && warnings.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text('No ADB devices found. Connect a device with USB debugging enabled and refresh.'),
+              ),
+          ]);
+        },
+      ),
       const SizedBox(height: 12),
       _TextField(controller: _command, label: 'Android shell command'),
       const SizedBox(height: 8),
@@ -550,6 +641,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       ],
     ]),
   );
+  }
 }
 
 class FastbootToolkitPage extends ConsumerStatefulWidget {

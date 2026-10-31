@@ -98,7 +98,31 @@ def require_adb(serial: Any, states: tuple[str, ...] = ("device",), cancel_event
         raise ValueError("An explicit device serial is required.")
     result = run_capture([tool_path("adb"), "devices", "-l"], 10, cancel_event)
     if not is_adb_target_connected(serial, result.stdout, result.returncode, states):
-        raise RuntimeError(f"ADB target {serial!r} is not present in an allowed state ({', '.join(states)}). No command was dispatched.")
+        state = None
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                fields = line.split()
+                if len(fields) >= 2 and fields[0] == serial:
+                    state = fields[1]
+                    break
+        if state == "unauthorized":
+            raise RuntimeError(
+                f"ADB device {serial!r} is unauthorized. Unlock the Android device, accept the "
+                "“Allow USB debugging?” RSA fingerprint prompt, then press Refresh devices. "
+                "If no prompt appears, revoke USB debugging authorizations in Developer options, "
+                "unplug/reconnect USB, and accept the prompt again. No command was dispatched."
+            )
+        if state == "offline":
+            raise RuntimeError(
+                f"ADB device {serial!r} is offline. Reconnect USB or restart the ADB server, "
+                "then refresh devices. No command was dispatched."
+            )
+        if result.returncode:
+            raise RuntimeError(f"ADB device scan failed: {result.stderr.strip() or result.returncode}")
+        raise RuntimeError(
+            f"ADB target {serial!r} is not present in an allowed state ({', '.join(states)}). "
+            "Refresh devices and select an online, authorized device. No command was dispatched."
+        )
 
 def require_fastboot(serial: Any, cancel_event: threading.Event | None = None) -> None:
     if not isinstance(serial, str) or not serial.strip():
