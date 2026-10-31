@@ -66,6 +66,34 @@ jobs:
           VERSION: 0.1.0
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: bash scripts/build-linux-appimage.sh
+      - name: Smoke-test AppImage contents
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          appimage="$(find dist -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          test -n "$appimage"
+          test -s "$appimage"
+          chmod +x "$appimage"
+          file "$appimage" | grep -q 'ELF'
+          smoke_dir="$(mktemp -d)"
+          trap 'rm -rf "$smoke_dir"' EXIT
+          (cd "$smoke_dir" && "$GITHUB_WORKSPACE/$appimage" --appimage-extract >/dev/null)
+          appdir="$smoke_dir/squashfs-root"
+          test -x "$appdir/AppRun"
+          test -x "$appdir/usr/bin/droidlab_desktop"
+          test -x "$appdir/usr/bin/payload-dumper-go"
+          test -f "$appdir/usr/lib/droidlab/backend/server.py"
+          test -f "$appdir/droidlab.desktop"
+          test -f "$appdir/.DirIcon"
+      - name: Upload portable AppImage
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: droidlab-linux-appimage
+          path: dist/*.AppImage
+          if-no-files-found: error
+          retention-days: 30
       - name: Package Linux bundle
         if: runner.os == 'Linux'
         run: tar -C apps/desktop/build/linux/x64/release/bundle -czf DroidLab-linux-x64.tar.gz .
