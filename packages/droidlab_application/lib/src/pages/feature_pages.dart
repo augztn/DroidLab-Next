@@ -305,6 +305,8 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       setState(() {
         _logcatRequestId = handle.requestId;
         _logLines.clear();
+        _pausedLogSnapshot = [];
+        _logPaused = false;
       });
       unawaited(trackOperation(
         ref,
@@ -1065,14 +1067,16 @@ class _PageFrame extends StatelessWidget {
 }
 
 class _TextField extends StatelessWidget {
-  const _TextField({required this.controller, required this.label, this.hint});
+  const _TextField({required this.controller, required this.label, this.hint, this.onChanged});
   final TextEditingController controller;
   final String label;
   final String? hint;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) => TextField(
     controller: controller,
+    onChanged: onChanged,
     decoration: InputDecoration(
       labelText: label,
       hintText: hint,
