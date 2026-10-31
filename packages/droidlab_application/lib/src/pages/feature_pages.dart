@@ -785,6 +785,28 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     }
   }
 
+  Future<void> _browseLogSavePath() async {
+    const group = XTypeGroup(label: 'Logcat text', extensions: ['txt', 'log']);
+    final location = await getSaveLocation(
+      suggestedName: 'droidlab-logcat.txt',
+      acceptedTypeGroups: [group],
+    );
+    if (location != null && mounted) {
+      setState(() => _logSavePath.text = location.path);
+    }
+  }
+
+  Future<void> _browseBugreportOutput() async {
+    const group = XTypeGroup(label: 'Bugreport ZIP', extensions: ['zip']);
+    final location = await getSaveLocation(
+      suggestedName: 'bugreport.zip',
+      acceptedTypeGroups: [group],
+    );
+    if (location != null && mounted) {
+      setState(() => _bugreport.text = location.path);
+    }
+  }
+
   Future<void> _saveLogcat() async {
     final path = _logSavePath.text.trim();
     if (path.isEmpty || _logLines.isEmpty) return;
@@ -1972,7 +1994,7 @@ class LogsPage extends ConsumerWidget {
         ..writeln('Log directory: ${logDirectory.path}')
         ..writeln()
         ..writeln('--- Application log (latest file) ---');
-      if (await logFile.isFile()) {
+      if (await logFile.exists()) {
         report.write(await logFile.readAsString());
       } else {
         report.writeln('No application log file found.');
