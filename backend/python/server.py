@@ -246,10 +246,17 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if adb_state in {"device", "recovery"}:
             transport = "adb"
             command = [tool_path("adb"), "-s", serial, "reboot"] + ([] if mode == "system" else [mode])
-        elif adb_state in {"unauthorized", "offline", "sideload"}:
+        elif adb_state == "sideload":
+            # Sideload mode is an ADB transport, but not an interactive shell.
+            # Reboot out of sideload using adb reboot rather than trying Fastboot.
+            transport = "adb"
+            command = [tool_path("adb"), "-s", serial, "reboot"] + ([] if mode == "system" else [mode])
+        elif adb_state in {"unauthorized", "offline"}:
             require_adb(serial, cancel_event=cancel)
             raise RuntimeError("ADB device is not in a command-ready state.")
         else:
+            # The phone may have changed USB transport between the ADB and Fastboot
+            # scans; validate Fastboot explicitly before sending any bootloader command.
             require_fastboot(serial, cancel_event=cancel)
             if mode == "bootloader":
                 return {"exit_code": 0, "transport": "fastboot", "message": "Device is already in Fastboot/bootloader mode."}
