@@ -5,6 +5,7 @@ import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state/backend_providers.dart';
+import '../state/operation_history.dart';
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -130,9 +131,13 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     }
     setState(() => _busy = true);
     try {
-      final result = await ref.read(backendClientProvider).request('adb.shell', {
-        'serial': serial, 'command': [command], 'confirmed': confirmed,
-      });
+      final result = await trackOperation(ref,
+        operation: 'ADB shell',
+        target: serial,
+        action: () => ref.read(backendClientProvider).request('adb.shell', {
+          'serial': serial, 'command': [command], 'confirmed': confirmed,
+        }),
+      );
       setState(() => _output = result.data['output'] as String? ?? 'Command completed.');
     } catch (error) { setState(() => _output = error.toString()); }
     finally { if (mounted) setState(() => _busy = false); }
@@ -149,7 +154,13 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         'adb.logcat.start', {'serial': serial, 'filters': filters},
       );
       setState(() { _logcatRequestId = handle.requestId; _logLines.clear(); });
-      unawaited(handle.result.then((result) {
+      unawaited(trackOperation(
+        ref,
+        operation: 'ADB logcat',
+        target: serial,
+        action: () => handle.result,
+        successSummary: (_) => 'Logcat stream stopped.',
+      ).then((result) {
         if (mounted) setState(() { _logcatRequestId = null; _output = result.data.toString(); });
       }, onError: (Object error) {
         if (mounted) setState(() { _logcatRequestId = null; _output = error.toString(); });
@@ -185,9 +196,13 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     if (confirmed != true) return;
     setState(() => _busy = true);
     try {
-      final result = await ref.read(backendClientProvider).request('adb.sideload', {
-        'serial': serial, 'package_path': package, 'confirmed': true,
-      }, timeout: const Duration(minutes: 35));
+      final result = await trackOperation(ref,
+        operation: 'ADB recovery sideload',
+        target: serial,
+        action: () => ref.read(backendClientProvider).request('adb.sideload', {
+          'serial': serial, 'package_path': package, 'confirmed': true,
+        }, timeout: const Duration(minutes: 35)),
+      );
       setState(() => _output = result.data.toString());
     } catch (error) { setState(() => _output = error.toString()); }
     finally { if (mounted) setState(() => _busy = false); }
@@ -227,9 +242,14 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     if (serial.isEmpty || output.isEmpty) return;
     setState(() => _busy = true);
     try {
-      final result = await ref.read(backendClientProvider).request('adb.bugreport', {
-        'serial': serial, 'output_path': output,
-      }, timeout: const Duration(minutes: 20));
+      final result = await trackOperation(ref,
+        operation: 'ADB bugreport',
+        target: serial,
+        action: () => ref.read(backendClientProvider).request('adb.bugreport', {
+          'serial': serial, 'output_path': output,
+        }, timeout: const Duration(minutes: 20)),
+        successSummary: (result) => 'Report saved to ${result.data['path']}',
+      );
       setState(() => _output = result.data.toString());
     } catch (error) { setState(() => _output = error.toString()); }
     finally { if (mounted) setState(() => _busy = false); }
@@ -248,7 +268,11 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     ));
     if (confirmed != true) return;
     try {
-      final result = await ref.read(backendClientProvider).request('adb.reboot', {'serial': serial, 'mode': mode, 'confirmed': true});
+      final result = await trackOperation(ref,
+        operation: 'ADB reboot ($mode)',
+        target: serial,
+        action: () => ref.read(backendClientProvider).request('adb.reboot', {'serial': serial, 'mode': mode, 'confirmed': true}),
+      );
       setState(() => _output = result.data.toString());
     } catch (error) { setState(() => _output = error.toString()); }
   }
@@ -334,7 +358,11 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     try {
       final args = <String, dynamic>{'serial': serial, 'partition': partition, 'confirmed': true};
       if (operation == 'fastboot.flash') args['image_path'] = image;
-      final result = await ref.read(backendClientProvider).request(operation, args, timeout: const Duration(minutes: 20));
+      final result = await trackOperation(ref,
+        operation: operation == 'fastboot.flash' ? 'Fastboot flash $partition' : 'Fastboot erase $partition',
+        target: serial,
+        action: () => ref.read(backendClientProvider).request(operation, args, timeout: const Duration(minutes: 20)),
+      );
       setState(() => _output = result.data.toString());
     } catch (error) { setState(() => _output = error.toString()); }
     finally { if (mounted) setState(() => _busy = false); }
@@ -353,8 +381,12 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     ));
     if (confirmed != true) return;
     try {
-      final result = await ref.read(backendClientProvider).request(
-        'fastboot.reboot', {'serial': serial, 'confirmed': true},
+      final result = await trackOperation(ref,
+        operation: 'Fastboot reboot',
+        target: serial,
+        action: () => ref.read(backendClientProvider).request(
+          'fastboot.reboot', {'serial': serial, 'confirmed': true},
+        ),
       );
       if (mounted) setState(() => _output = result.data.toString());
     } catch (error) {
@@ -413,10 +445,15 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
     if (_source.text.trim().isEmpty || _output.text.trim().isEmpty) return;
     setState(() => _busy = true);
     try {
-      final result = await ref.read(backendClientProvider).request('payload.extract', {
-        'source_path': _source.text.trim(), 'output_dir': _output.text.trim(),
-        'partitions': _selected.toList(), 'sha256': _sha,
-      }, timeout: const Duration(hours: 1));
+      final result = await trackOperation(ref,
+        operation: 'Payload extraction',
+        target: _source.text.trim(),
+        action: () => ref.read(backendClientProvider).request('payload.extract', {
+          'source_path': _source.text.trim(), 'output_dir': _output.text.trim(),
+          'partitions': _selected.toList(), 'sha256': _sha,
+        }, timeout: const Duration(hours: 1)),
+        successSummary: (value) => '${(value.data['files'] as List<dynamic>? ?? const []).length} image file(s) created.',
+      );
       final count = (result.data['files'] as List<dynamic>? ?? const []).length;
       setState(() => _status = 'Created $count image files.');
     } catch (error) { setState(() => _status = error.toString()); }
