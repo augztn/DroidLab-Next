@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Any
 from droidlab.core.command_guards import (
     explicit_device_selector, is_adb_target_connected, is_fastboot_target_connected,
-    is_destructive_adb, is_valid_partition_name, validate_device_selector,
+    is_destructive_adb, is_destructive_fastboot, is_valid_partition_name,
+    validate_device_selector,
 )
 from droidlab.core.process_runner import run_streaming, ProcessCancelledError
 from droidlab.core import payload_dumper
@@ -18,7 +19,7 @@ _WRITE_LOCK = threading.Lock()
 _ACTIVE: dict[str, threading.Event] = {}
 _DEVICE_LOCKS: dict[str, threading.Lock] = {}
 _DEVICE_LOCKS_LOCK = threading.Lock()
-_MUTATING = {"adb.shell", "adb.command", "adb.reboot", "adb.sideload", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.command", "fastboot.set_active"}
+_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active"}
 
 def emit(message: dict[str, Any]) -> None:
     envelope = {"version": PROTOCOL_VERSION, "timestamp": time.time(), **message}
@@ -517,7 +518,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
                 tokens = ["-s", serial, *tokens]
         command = [tool_path("fastboot"), *tokens]
         response(request_id, "preflight", target=serial or "host", command=command,
-            destructive=False if discovery else True)
+            destructive=False if discovery else is_destructive_fastboot(["fastboot", *tokens]))
         result = run_streaming(command, timeout=bounded_timeout(args.get("timeout_seconds"), 900, 1800),
             cancel_event=cancel,
             on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
