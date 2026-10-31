@@ -13,7 +13,7 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - Device metadata for manufacturer, model, model code/codename, active slot, bootloader lock state, Android version/SDK and battery where the transport exposes the values.
 - Device details available from Device Manager and both device-tool views.
 - Fastboot flash, erase, cache/userdata erase, factory wipe, reboot system/recovery/bootloader, advanced command preview and exact destructive confirmation.
-- Fastboot active-slot A/B switching using the primary `--set-active` syntax and legacy `set_active` fallback, with fresh target validation.
+- Fastboot active-slot A/B switching using the primary `--set-active` syntax and legacy `set_active` fallback, with fresh target validation. Unlock/lock remain available only through the confirmed advanced Fastboot command rather than dedicated buttons.
 - Native file pickers for OTA/payload input, output directory, Fastboot image and recovery ZIP, plus drag-and-drop.
 - User-mounted/available storage selection: Linux user media roots, macOS `/Volumes`, and Windows volume roots, with refresh and use-as-output controls.
 - OTA ZIP/BIN inspection and selected/all partition extraction with isolated staging, nonempty artifact checks, no-overwrite publication, rollback and optional SHA-256.
