@@ -29,11 +29,16 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     super.initState();
     _events = ref.read(backendClientProvider).events.listen((event) {
       if (!mounted) return;
-      final line = switch (event) {
-        BackendOutput() => '[${event.stream}] ${event.line}',
-        BackendPreflight() => '[preflight] ${event.target}: ${event.command.join(' ')}',
-        BackendAccepted() => '[accepted] ${event.requestId}',
-      };
+      late final String line;
+      if (event is BackendOutput) {
+        line = '[${event.stream}] ${event.line}';
+      } else if (event is BackendPreflight) {
+        line = '[preflight] ${event.target}: ${event.command.join(' ')}';
+      } else if (event is BackendAccepted) {
+        line = '[accepted] ${event.requestId}';
+      } else {
+        return;
+      }
       setState(() {
         _consoleLines.add(line);
         if (_consoleLines.length > 300) {
