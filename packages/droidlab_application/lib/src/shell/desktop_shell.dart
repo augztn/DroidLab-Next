@@ -19,7 +19,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   StreamSubscription<BackendEvent>? _events;
   static const _groups = <(String, List<(String, String, IconData)>)>[
     ('WORKSPACE', [('Dashboard','/dashboard',Icons.grid_view_rounded),('Device Manager','/devices',Icons.devices_rounded)]),
-    ('FIRMWARE', [('Firmware Explorer','/firmware',Icons.folder_open_rounded),('Payload Extractor','/payload',Icons.inventory_2_outlined)]),
+    ('FIRMWARE', [('Firmware & Payload','/firmware',Icons.folder_open_rounded)]),
     ('DEVICE TOOLS', [('ADB Toolkit','/adb',Icons.terminal_rounded),('Fastboot Toolkit','/fastboot',Icons.memory_rounded)]),
     ('OBSERVABILITY', [('Logs & Diagnostics','/logs',Icons.receipt_long_rounded),('Operation History','/history',Icons.history_rounded)]),
   ];

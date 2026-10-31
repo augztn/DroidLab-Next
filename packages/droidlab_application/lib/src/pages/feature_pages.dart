@@ -915,9 +915,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
 }
 
 class PayloadExtractorPage extends ConsumerStatefulWidget {
-  const PayloadExtractorPage({super.key, this.firmwareMode = false});
-
-  final bool firmwareMode;
+  const PayloadExtractorPage({super.key});
 
   @override
   ConsumerState<PayloadExtractorPage> createState() => _PayloadExtractorPageState();
@@ -1038,10 +1036,8 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
 
   @override
   Widget build(BuildContext context) => _PageFrame(
-    title: widget.firmwareMode ? 'Firmware Explorer' : 'Payload Extractor',
-    subtitle: widget.firmwareMode
-        ? 'Explore OTA ZIP and payload BIN contents, partition metadata and image artifacts.'
-        : 'Inspect OTA metadata and extract verified images without overwriting existing files.',
+    title: 'Firmware & Payload',
+    subtitle: 'Inspect OTA ZIP and payload BIN contents, review partition metadata, and extract verified image artifacts without overwriting existing files.',
     child: DropTarget(
       onDragDone: _drop,
       child: ListView(children: [
