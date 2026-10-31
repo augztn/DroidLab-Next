@@ -238,7 +238,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     ref.invalidate(deviceListProvider);
     try {
       await ref.read(deviceListProvider.future);
-      if (mounted) setState(() => _output = 'Device scan completed. Select the intended ADB serial below.');
+      if (mounted) setState(() => _output = 'Device scan completed. Select an ADB or Fastboot target below.');
     } catch (error) {
       if (mounted) setState(() => _output = 'Device scan failed: $error');
     }
@@ -570,7 +570,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     subtitle: 'Select an authorized ADB device for shell and diagnostics. Reboot also supports devices already in Fastboot.',
     child: ListView(children: [
       Row(children: [
-        Expanded(child: _TextField(controller: _serial, label: 'ADB serial')),
+        Expanded(child: _TextField(controller: _serial, label: 'Device serial')),
         const SizedBox(width: 8),
         IconButton.filledTonal(
           tooltip: 'Refresh connected devices',
@@ -911,6 +911,22 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       if (mounted) setState(() => _output = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        for (final delay in const [
+          Duration(seconds: 2),
+          Duration(seconds: 5),
+          Duration(seconds: 9),
+        ]) {
+          await Future<void>.delayed(delay);
+          if (!mounted) break;
+          ref.invalidate(deviceListProvider);
+          try {
+            await ref.read(deviceListProvider.future);
+          } catch (_) {
+            // The device may be transitioning between USB transports.
+          }
+        }
+      }
     }
   }
 
@@ -1285,6 +1301,10 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   @override
   void initState() {
     super.initState();
+    final home = Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'] ??
+        Directory.current.path;
+    _output.text = '$home${Platform.pathSeparator}DroidLab';
     _events = ref.read(backendClientProvider).events.listen((event) {
       if (event is BackendOutput && event.stream == 'payload' && mounted) {
         setState(() {
@@ -1321,7 +1341,10 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   Future<void> _refreshMountedLocations() async {
     final roots = <Directory>[];
     if (Platform.isLinux) {
-      final user = Platform.environment['USER'] ?? '';
+      final home = Platform.environment['HOME'] ?? '';
+      final user = Platform.environment['USER'] ??
+          Platform.environment['USERNAME'] ??
+          (home.isEmpty ? '' : Directory(home).uri.pathSegments.where((s) => s.isNotEmpty).last);
       if (user.isNotEmpty) {
         roots.add(Directory('/run/media/$user'));
         roots.add(Directory('/media/$user'));
