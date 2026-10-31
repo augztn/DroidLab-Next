@@ -11,6 +11,12 @@ class BackendResult {
   final Map<String, dynamic> data;
 }
 
+class BackendOperation {
+  const BackendOperation({required this.requestId, required this.result});
+  final String requestId;
+  final Future<BackendResult> result;
+}
+
 /// Owns a single managed backend process and its versioned JSONL connection.
 class BackendClient {
   BackendClient(this.config);
@@ -61,9 +67,7 @@ class BackendClient {
     }
   }
 
-  Future<BackendResult> request(String operation, Map<String, dynamic> args, {
-    Duration timeout = const Duration(minutes: 2),
-  }) async {
+  Future<BackendOperation> startOperation(String operation, Map<String, dynamic> args) async {
     if (_disposed || _closing) throw const BackendException('Backend is not accepting requests.');
     if (_process == null) await start();
     final id = _id();
@@ -81,11 +85,18 @@ class BackendClient {
       _pending.remove(id);
       throw BackendException('Could not write to backend stdin.', cause: error);
     }
+    return BackendOperation(requestId: id, result: completer.future);
+  }
+
+  Future<BackendResult> request(String operation, Map<String, dynamic> args, {
+    Duration timeout = const Duration(minutes: 2),
+  }) async {
+    final operationHandle = await startOperation(operation, args);
     try {
-      return await completer.future.timeout(timeout);
+      return await operationHandle.result.timeout(timeout);
     } on TimeoutException {
-      await cancel(id);
-      _pending.remove(id);
+      await cancel(operationHandle.requestId);
+      _pending.remove(operationHandle.requestId);
       throw BackendException('Backend operation $operation timed out.', code: 'timeout');
     }
   }
