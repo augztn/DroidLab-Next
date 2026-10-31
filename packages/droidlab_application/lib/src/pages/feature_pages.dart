@@ -530,6 +530,30 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     }
   }
 
+  Future<void> _browseLogSavePath() async {
+    final location = await getSaveLocation(
+      suggestedName: 'DroidLab-logcat.txt',
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'Text log', extensions: ['txt', 'log']),
+      ],
+    );
+    if (location != null && mounted) {
+      setState(() => _logSavePath.text = location.path);
+    }
+  }
+
+  Future<void> _browseBugreportOutput() async {
+    final location = await getSaveLocation(
+      suggestedName: 'bugreport.zip',
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'Bugreport ZIP', extensions: ['zip']),
+      ],
+    );
+    if (location != null && mounted) {
+      setState(() => _bugreport.text = location.path);
+    }
+  }
+
   Future<void> _saveLogcat() async {
     final path = _logSavePath.text.trim();
     if (path.isEmpty || _logLines.isEmpty) return;
@@ -666,7 +690,11 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       const SizedBox(height: 14),
       _TextField(controller: _logcatFilters, label: 'Logcat filters (optional)', hint: '*:W or ActivityManager:I'),
       const SizedBox(height: 8),
-      _TextField(controller: _logSavePath, label: 'Logcat save path'),
+      Row(children: [
+        Expanded(child: _TextField(controller: _logSavePath, label: 'Logcat save path')),
+        const SizedBox(width: 8),
+        OutlinedButton(onPressed: _browseLogSavePath, child: const Text('Browse…')),
+      ]),
       const SizedBox(height: 8),
       OutlinedButton(onPressed: _saveLogcat, child: const Text('Save captured logcat')),
       const SizedBox(height: 8),
@@ -686,7 +714,11 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         child: const Text('Sideload OTA'),
       ),
       const SizedBox(height: 12),
-      _TextField(controller: _bugreport, label: 'Bugreport output ZIP path'),
+      Row(children: [
+        Expanded(child: _TextField(controller: _bugreport, label: 'Bugreport output ZIP path')),
+        const SizedBox(width: 8),
+        OutlinedButton(onPressed: _browseBugreportOutput, child: const Text('Browse…')),
+      ]),
       const SizedBox(height: 8),
       OutlinedButton(onPressed: _busy || !canRunAdbCommands ? null : _createBugreport, child: const Text('Generate bugreport')),
       const SizedBox(height: 18),
