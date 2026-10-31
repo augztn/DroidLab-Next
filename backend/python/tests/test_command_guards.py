@@ -38,7 +38,7 @@ class CommandGuardTests(unittest.TestCase):
   with self.assertRaises(PermissionError):server.require_confirmation({"confirmed":True,"confirmation":{**intent,"partition":"boot"}},"Fastboot erase",intent)
 
  def test_require_adb_explains_unauthorized_device_without_dispatch(self):
-  output="List of devices attached\\n1bf3c2b0 unauthorized usb:1-1\\n"
+  output="List of devices attached\n1bf3c2b0 unauthorized usb:1-1\n"
   with patch.object(server,"tool_path",return_value="adb"), patch.object(server,"run_capture",return_value=subprocess.CompletedProcess(["adb","devices","-l"],0,output,"")):
    with self.assertRaisesRegex(RuntimeError,"accept the.*RSA fingerprint prompt"):
     server.require_adb("1bf3c2b0")
