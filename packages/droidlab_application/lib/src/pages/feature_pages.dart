@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter/material.dart';
@@ -74,6 +75,8 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   final _command = TextEditingController(text: 'getprop ro.build.version.release');
   final _package = TextEditingController();
   final _bugreport = TextEditingController();
+  final _logcatFilters = TextEditingController();
+  final _logSavePath = TextEditingController();
   StreamSubscription<BackendEvent>? _eventSubscription;
   String? _logcatRequestId;
   final List<String> _logLines = [];
@@ -95,6 +98,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   void dispose() {
     unawaited(_eventSubscription?.cancel() ?? Future<void>.value());
     _serial.dispose(); _command.dispose(); _package.dispose(); _bugreport.dispose();
+    _logcatFilters.dispose(); _logSavePath.dispose();
     super.dispose();
   }
 
@@ -137,9 +141,12 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   Future<void> _startLogcat() async {
     final serial = _serial.text.trim();
     if (serial.isEmpty) return;
+    final filters = _logcatFilters.text.trim().isEmpty
+        ? <String>[]
+        : _logcatFilters.text.trim().split(RegExp(r'\\s+'));
     try {
       final handle = await ref.read(backendClientProvider).startOperation(
-        'adb.logcat.start', {'serial': serial, 'filters': <String>[]},
+        'adb.logcat.start', {'serial': serial, 'filters': filters},
       );
       setState(() { _logcatRequestId = handle.requestId; _logLines.clear(); });
       unawaited(handle.result.then((result) {
@@ -184,6 +191,38 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       setState(() => _output = result.data.toString());
     } catch (error) { setState(() => _output = error.toString()); }
     finally { if (mounted) setState(() => _busy = false); }
+  }
+
+  Future<void> _loadDeviceInfo() async {
+    final serial = _serial.text.trim();
+    if (serial.isEmpty) return;
+    try {
+      final result = await ref.read(backendClientProvider).request(
+        'adb.device_info', {'serial': serial},
+      );
+      setState(() => _output = (result.data['properties'] as Map).entries
+          .map((entry) => '${entry.key}: ${entry.value}')
+          .join('\\n'));
+    } catch (error) {
+      if (mounted) setState(() => _output = error.toString());
+    }
+  }
+
+  Future<void> _saveLogcat() async {
+    final path = _logSavePath.text.trim();
+    if (path.isEmpty || _logLines.isEmpty) return;
+    try {
+      final file = File(path).absolute;
+      if (await file.exists()) {
+        setState(() => _output = 'Refusing to overwrite existing log file: ${file.path}');
+        return;
+      }
+      await file.parent.create(recursive: true);
+      await file.writeAsString(_logLines.join('\\n'));
+      if (mounted) setState(() => _output = 'Saved ${_logLines.length} logcat lines to ${file.path}');
+    } catch (error) {
+      if (mounted) setState(() => _output = 'Could not save logcat: $error');
+    }
   }
 
   Future<void> _createBugreport() async {
@@ -231,9 +270,16 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         OutlinedButton(onPressed: _busy ? null : () => _reboot('system'), child: const Text('Reboot')),
         OutlinedButton(onPressed: _busy ? null : () => _reboot('bootloader'), child: const Text('Bootloader')),
         OutlinedButton(onPressed: _busy ? null : () => _reboot('recovery'), child: const Text('Recovery')),
+        OutlinedButton(onPressed: _busy ? null : _loadDeviceInfo, child: const Text('Device info')),
         OutlinedButton(onPressed: _logcatRequestId == null ? _startLogcat : _stopLogcat, child: Text(_logcatRequestId == null ? 'Start logcat' : 'Stop logcat')),
       ]),
       const SizedBox(height: 14),
+      _TextField(controller: _logcatFilters, label: 'Logcat filters (optional)', hint: '*:W or ActivityManager:I'),
+      const SizedBox(height: 8),
+      _TextField(controller: _logSavePath, label: 'Logcat save path'),
+      const SizedBox(height: 8),
+      OutlinedButton(onPressed: _saveLogcat, child: const Text('Save captured logcat')),
+      const SizedBox(height: 8),
       _TextField(controller: _package, label: 'Recovery OTA ZIP path'),
       const SizedBox(height: 8),
       OutlinedButton(onPressed: _busy ? null : _sideload, child: const Text('Sideload OTA')),
@@ -297,6 +343,28 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     finally { if (mounted) setState(() => _busy = false); }
   }
 
+  Future<void> _rebootFastboot() async {
+    final serial = _serial.text.trim();
+    if (serial.isEmpty) return;
+    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+      title: const Text('Confirm Fastboot reboot'),
+      content: Text('Reboot Fastboot target $serial to Android?'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Reboot')),
+      ],
+    ));
+    if (confirmed != true) return;
+    try {
+      final result = await ref.read(backendClientProvider).request(
+        'fastboot.reboot', {'serial': serial, 'confirmed': true},
+      );
+      if (mounted) setState(() => _output = result.data.toString());
+    } catch (error) {
+      if (mounted) setState(() => _output = error.toString());
+    }
+  }
+
   @override
   Widget build(BuildContext context) => _PageFrame(
     title: 'Fastboot Toolkit',
@@ -311,6 +379,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       Wrap(spacing: 8, children: [
         FilledButton.icon(onPressed: _busy ? null : () => _mutate('fastboot.flash'), icon: const Icon(Icons.flash_on), label: const Text('Flash image')),
         OutlinedButton.icon(onPressed: _busy ? null : () => _mutate('fastboot.erase'), icon: const Icon(Icons.delete_outline), label: const Text('Erase partition')),
+        OutlinedButton(onPressed: _busy ? null : _rebootFastboot, child: const Text('Reboot')),
       ]),
       const SizedBox(height: 18),
       _OutputPanel(output: _output.isEmpty ? 'Fastboot operation results appear here.' : _output),
