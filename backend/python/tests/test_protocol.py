@@ -217,6 +217,21 @@ class ProtocolTests(unittest.TestCase):
                 server.handle(message, threading.Event())
         self.assertEqual(server._DEVICE_LOCKS, {})
 
+    def test_logcat_duration_limit_completes_as_success(self):
+        args = {
+            "serial": "SERIAL",
+            "filters": [],
+            "timeout_seconds": 3600,
+        }
+        with patch.object(server, "tool_path", return_value="adb"):
+            with patch.object(server, "run_capture", return_value=result("List of devices attached\\nSERIAL device\\n")):
+                with patch.object(server, "run_streaming", side_effect=server.subprocess.TimeoutExpired(["adb"], 3600)) as run:
+                    with patch.object(server, "response"):
+                        value = server.execute("id", "adb.logcat.start", args, threading.Event())
+        self.assertTrue(value["duration_limit_reached"])
+        self.assertEqual(value["duration_seconds"], 3600)
+        self.assertEqual(run.call_args.kwargs["timeout"], 3600)
+
     def test_invalid_partition_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / "boot.img"

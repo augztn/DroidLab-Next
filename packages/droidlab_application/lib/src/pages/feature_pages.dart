@@ -194,6 +194,8 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   final _logSavePath = TextEditingController();
   final _logDisplayFilter = TextEditingController();
   final List<String> _logLines = [];
+  IOSink? _logcatCaptureSink;
+  String? _logcatCapturePath;
   List<String> _pausedLogSnapshot = [];
   bool _logPaused = false;
   StreamSubscription<BackendEvent>? _eventSubscription;
@@ -206,6 +208,11 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     super.initState();
     _eventSubscription = ref.read(backendClientProvider).events.listen((event) {
       if (event is BackendOutput && event.stream == 'logcat' && mounted) {
+        try {
+          _logcatCaptureSink?.writeln(event.line);
+        } catch (_) {
+          // A stop/dispose may close the file sink while the last event is in flight.
+        }
         setState(() {
           _logLines.add(event.line);
           if (_logLines.length > 500) {
@@ -220,8 +227,9 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   void dispose() {
     final logcatRequestId = _logcatRequestId;
     if (logcatRequestId != null) {
-      unawaited(ref.read(backendClientProvider).cancel(logcatRequestId));
+        unawaited(ref.read(backendClientProvider).cancel(logcatRequestId));
     }
+    unawaited(_closeLogcatCapture());
     unawaited(_eventSubscription?.cancel() ?? Future<void>.value());
     _serial.dispose();
     _command.dispose();
@@ -507,19 +515,71 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     }
   }
 
-  Future<void> _startLogcat() async {
+  Future<void> _closeLogcatCapture() async {
+    final sink = _logcatCaptureSink;
+    final path = _logcatCapturePath;
+    _logcatCaptureSink = null;
+    _logcatCapturePath = null;
+    if (sink == null) return;
+    try {
+      await sink.flush();
+      await sink.close();
+    } catch (_) {
+      // Preserve the operation result even if the destination becomes unavailable.
+    }
+    if (mounted && path != null) {
+      setState(() => _output = 'Full logcat stream saved to $path');
+    }
+  }
+
+  Future<void> _captureLogcatToFile() async {
+    if (_logcatRequestId != null || _serial.text.trim().isEmpty || _busy) return;
+    final location = await getSaveLocation(
+      suggestedName: 'droidlab-logcat.txt',
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'Logcat text', extensions: ['txt', 'log']),
+      ],
+    );
+    if (location == null || !mounted) return;
+    try {
+      final file = File(location.path);
+      await file.parent.create(recursive: true);
+      await file.create(exclusive: true);
+      final sink = file.openWrite(mode: FileMode.writeOnlyAppend);
+      sink.writeln('DroidLab logcat capture');
+      sink.writeln('Device: ${_serial.text.trim()}');
+      sink.writeln('Started: ${DateTime.now().toIso8601String()}');
+      sink.writeln('Capture window: 1 hour maximum');
+      sink.writeln();
+      _logcatCaptureSink = sink;
+      _logcatCapturePath = file.path;
+      await _startLogcat(captureToFile: true);
+    } catch (error) {
+      await _closeLogcatCapture();
+      if (mounted) {
+        setState(() => _output = 'Could not start logcat file capture: $error');
+      }
+    }
+  }
+
+  Future<void> _startLogcat({bool captureToFile = false}) async {
     final serial = _serial.text.trim();
     if (serial.isEmpty || _logcatRequestId != null) return;
     final filters = _logcatFilters.text.trim().isEmpty
         ? <String>[]
-        : _logcatFilters.text.trim().split(RegExp(r'\s+'));
+        : _logcatFilters.text.trim().split(RegExp(r'\\s+'));
     try {
       final handle = await ref.read(backendClientProvider).startOperation(
         'adb.logcat.start',
-        {'serial': serial, 'filters': filters},
+        {
+          'serial': serial,
+          'filters': filters,
+          if (captureToFile) 'timeout_seconds': 3600,
+        },
       );
       if (!mounted) {
         await ref.read(backendClientProvider).cancel(handle.requestId);
+        await _closeLogcatCapture();
         return;
       }
       setState(() {
@@ -530,18 +590,24 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       });
       unawaited(trackOperation(
         ref,
-        operation: 'ADB logcat',
+        operation: captureToFile ? 'ADB logcat file capture (1 hour)' : 'ADB logcat',
         target: serial,
         action: () => handle.result,
-        successSummary: (_) => 'Logcat stream stopped.',
-      ).then((result) {
+        successSummary: (result) => result.data['duration_limit_reached'] == true
+            ? 'One-hour logcat capture completed.'
+            : 'Logcat stream stopped.',
+      ).then((result) async {
+        await _closeLogcatCapture();
         if (mounted) {
           setState(() {
             _logcatRequestId = null;
-            _output = result.data.toString();
+            _output = result.data['duration_limit_reached'] == true
+                ? 'One-hour logcat capture completed.'
+                : result.data.toString();
           });
         }
-      }, onError: (Object error) {
+      }, onError: (Object error) async {
+        await _closeLogcatCapture();
         if (mounted) {
           setState(() {
             _logcatRequestId = null;
@@ -550,6 +616,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         }
       }));
     } catch (error) {
+      await _closeLogcatCapture();
       if (mounted) setState(() => _output = error.toString());
     }
   }
@@ -558,6 +625,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     final id = _logcatRequestId;
     if (id == null) return;
     await ref.read(backendClientProvider).cancel(id);
+    await _closeLogcatCapture();
     if (mounted) setState(() => _logcatRequestId = null);
   }
 
@@ -845,7 +913,13 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         OutlinedButton(onPressed: _browseLogSavePath, child: const Text('Browse…')),
       ]),
       const SizedBox(height: 8),
-      OutlinedButton(onPressed: _saveLogcat, child: const Text('Save captured logcat')),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        OutlinedButton(onPressed: _saveLogcat, child: const Text('Save captured buffer')),
+        OutlinedButton(
+          onPressed: _logcatRequestId == null && !_busy ? _captureLogcatToFile : null,
+          child: const Text('Capture full logcat to file (1 hour)'),
+        ),
+      ]),
       const SizedBox(height: 8),
       Row(children: [
         Expanded(child: DropTarget(

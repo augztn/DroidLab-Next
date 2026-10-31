@@ -458,10 +458,20 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if not isinstance(filters, list) or any(not isinstance(item, str) or "\x00" in item for item in filters):
             raise ValueError("filters must be strings.")
         command = [tool_path("adb"), "-s", serial, "logcat", *filters]
-        result = run_streaming(command, timeout=24 * 3600, cancel_event=cancel,
-            on_line=lambda line: response(request_id, "output", stream="logcat", line=line),
-            max_output_chars=1024)
-        return {"exit_code": result.returncode, "cancelled": cancel.is_set()}
+        duration = bounded_timeout(args.get("timeout_seconds"), 24 * 3600, 24 * 3600)
+        try:
+            result = run_streaming(command, timeout=duration, cancel_event=cancel,
+                on_line=lambda line: response(request_id, "output", stream="logcat", line=line),
+                max_output_chars=1024)
+            return {"exit_code": result.returncode, "cancelled": cancel.is_set()}
+        except subprocess.TimeoutExpired:
+            # A configured capture window ending is a successful stop, not an error.
+            return {
+                "exit_code": 0,
+                "cancelled": False,
+                "duration_limit_reached": True,
+                "duration_seconds": int(duration),
+            }
     if operation == "fastboot.command":
         serial, raw_command = args.get("serial"), args.get("command")
         if not isinstance(raw_command, str) or not raw_command.strip() or "\\x00" in raw_command:

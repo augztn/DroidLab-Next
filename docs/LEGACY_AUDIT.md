@@ -36,7 +36,7 @@ The legacy command input accepts three forms: a plain Android shell command, an 
 
 **Flutter mapping:** The ADB Toolkit routes plain text to `adb.shell`, an `adb` prefix to the host-side `adb.command` protocol operation, and a `fastboot` prefix to `fastboot.command`. The Python service parses arguments, validates explicit serial selectors, injects the selected target only when appropriate, performs a fresh device scan and requires exact UI confirmation. Host discovery/help/version commands may run without a selected target. Reboot/sideload remain dedicated operations.
 
-The Flutter UI currently provides live logcat, pause/resume display, client-side text filtering, save of the bounded captured display buffer, bugreport ZIP generation and sideload. It does **not yet match** the legacy one-hour full-stream-to-file logcat capture. That is a real remaining parity item.
+The Flutter UI provides live logcat, pause/resume display, client-side text filtering, save of the bounded display buffer, a separate one-hour full-stream-to-file capture, bugreport ZIP generation and sideload. The display buffer and full capture are intentionally separate so the UI stays bounded without truncating the saved capture.
 
 ## Fastboot workflows
 

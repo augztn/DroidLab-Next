@@ -20,7 +20,7 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - Persistent appearance settings compatible with the legacy `~/DroidLab/config.json` path, including `cyberpunk_glass`, `standard_dark` and `oled_black`.
 - Editable tool executable settings for Python, backend script, ADB, Fastboot and payload-dumper-go; tool paths are read from saved settings by the backend.
 - Explicit environment or saved executable paths take precedence; with blank overrides, the backend searches beside the app/in its bundled tool folders and then falls back to system `PATH`.
-- Live bounded operation console, local operation history, backend stderr diagnostics, About dialog and Help navigation. Logcat capture is currently saved from the bounded in-memory display buffer rather than the legacy one-hour full-stream-to-file workflow.
+- Live bounded operation console, local operation history, backend stderr diagnostics, About dialog and Help navigation. An additional one-hour full-stream-to-file capture is provided separately from the bounded display buffer.
 - Linux AppImage packaging and Linux TAR, Windows and macOS CI artifacts.
 
 ## Remaining parity and release validation
@@ -28,7 +28,7 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - Full legacy appearance palette verification at pixel/detail level; the Flutter themes preserve the three legacy theme identities but are not a pixel-perfect Tk rendering clone.
 - Bundled Python runtime and Android platform-tools for Windows/macOS; these builds still depend on host Python and ADB/Fastboot installation.
 - Native discovery of only removable devices on Windows; the current selector enumerates available drive roots there. Linux and macOS scans use their standard user media mount directories.
-- Persistent diagnostics report export/redaction matching the complete legacy report format and a dedicated log-folder opener.
+- Diagnostic report export and log-folder opening are implemented. Diagnostic reports are not automatically redacted; users are warned to review sensitive device identifiers and command output before sharing.
 - Additional ADB workflows such as every legacy host-command variant and every legacy drag/drop entrypoint.
 - Controlled physical-device validation for different OEMs, recovery implementations, Fastbootd vs bootloader Fastboot and A/B slot behavior. Automated CI uses fake ADB/Fastboot executables and cannot validate USB/RSA authorization on a physical phone.
 - Clean-machine smoke tests covering the AppImage on supported Linux distributions and runtime library combinations.
