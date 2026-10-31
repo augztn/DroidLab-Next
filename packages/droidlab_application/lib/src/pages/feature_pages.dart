@@ -1780,7 +1780,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         fastbootPath: _fastboot.text.trim(),
         payloadDumperPath: _payloadDumper.text.trim(),
       );
-      await ref.read(droidLabSettingsProvider.notifier).update(settings);
+      await ref.read(droidLabSettingsProvider.notifier).saveSettings(settings);
       if (mounted) setState(() => _status =
           'Settings saved. Python/backend changes take effect after restarting DroidLab; device-tool paths are read by the backend on the next command.');
     } catch (error) {
