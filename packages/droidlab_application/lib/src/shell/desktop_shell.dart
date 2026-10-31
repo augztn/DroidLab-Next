@@ -106,6 +106,9 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                       selected: widget.currentLocation == item.$2,
                       leading: Icon(item.$3),
                       title: expanded ? Text(item.$1,maxLines: 1,overflow: TextOverflow.ellipsis) : null,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: expanded ? 16 : 0,
+                      ),
                       dense: true, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
                       onTap: () => context.go(item.$2),
                     )),
@@ -119,6 +122,9 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                 child: ListTile(
                   leading: const Icon(Icons.settings_outlined),
                   title: expanded ? const Text('Settings') : null,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: expanded ? 16 : 0,
+                  ),
                   dense: true,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(9),
