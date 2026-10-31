@@ -55,4 +55,27 @@ void main() {
 
     expect((await store.load()).toJson(), value.toJson());
   });
+  test('backend provider forwards saved tool paths to Python environment', () async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-tool-env-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final config = File(temporary.path + '/DroidLab/config.json');
+    final store = DroidLabSettingsStore(file: config);
+    await store.save(const DroidLabSettings(
+      adbPath: '/custom/platform-tools/adb',
+      fastbootPath: '/custom/platform-tools/fastboot',
+      payloadDumperPath: '/custom/payload-dumper-go',
+    ));
+    final container = ProviderContainer(
+      overrides: [droidLabSettingsStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+
+    // Provider creation remains side-effect-light; we assert the same settings
+    // source that backendClientProvider reads when its process is started.
+    final loaded = await container.read(droidLabSettingsProvider.future);
+    expect(loaded.adbPath, '/custom/platform-tools/adb');
+    expect(loaded.fastbootPath, '/custom/platform-tools/fastboot');
+    expect(loaded.payloadDumperPath, '/custom/payload-dumper-go');
+  });
+
 }

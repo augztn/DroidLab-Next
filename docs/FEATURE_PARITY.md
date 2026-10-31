@@ -18,7 +18,7 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - User-mounted/available storage selection: Linux user media roots, macOS `/Volumes`, and Windows volume roots, with refresh and use-as-output controls.
 - OTA ZIP/BIN inspection and selected/all partition extraction with isolated staging, nonempty artifact checks, no-overwrite publication, rollback and optional SHA-256.
 - Persistent appearance settings compatible with the legacy `~/DroidLab/config.json` path, including `cyberpunk_glass`, `standard_dark` and `oled_black`.
-- Editable tool executable settings for Python, backend script, ADB, Fastboot and payload-dumper-go; tool paths are read from saved settings by the backend.
+- Editable tool executable settings for Python, backend script, ADB, Fastboot and payload-dumper-go; saved ADB/Fastboot/payload paths are passed to the Python process as environment overrides and Python/backend settings configure process startup.
 - Explicit environment or saved executable paths take precedence; with blank overrides, the backend searches beside the app/in its bundled tool folders and then falls back to system `PATH`.
 - Live bounded operation console, local operation history, backend stderr diagnostics, About dialog and Help navigation. An additional one-hour full-stream-to-file capture is provided separately from the bounded display buffer.
 - Linux AppImage packaging and Linux TAR, Windows and macOS CI artifacts.
