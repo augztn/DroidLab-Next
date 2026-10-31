@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('collapses the navigation rail at laptop width', (tester) async {
-    tester.view.physicalSize = const Size(900, 800));
-    tester.view.devicePixelRatio = 1);
+    tester.view.physicalSize = const Size(900, 800);
+    tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
@@ -18,8 +18,8 @@ void main() {
   });
 
   testWidgets('console can be hidden and restored', (tester) async {
-    tester.view.physicalSize = const Size(1440, 1000));
-    tester.view.devicePixelRatio = 1);
+    tester.view.physicalSize = const Size(1440, 1000);
+    tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
