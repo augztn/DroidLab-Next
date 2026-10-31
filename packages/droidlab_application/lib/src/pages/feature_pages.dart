@@ -243,32 +243,45 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     }
   }
 
-  Future<void> _runShell() async {
-    final serial = _serial.text.trim();
-    final command = _command.text.trim();
-    if (serial.isEmpty || command.isEmpty || _busy) return;
-    final potentiallyDestructive = RegExp(
-      r'(^|[;&|]\s*)(rm\s+-.*r|mkfs(\.[\w-]+)?|dd\s|reboot\b|poweroff\b|shutdown\b|setprop\b|pm\s+(uninstall|disable-user)\b|svc\b.*\bdisable\b|wipe\b|format\b)',
-      caseSensitive: false,
-    ).hasMatch(command);
+  Map<String, dynamic>? _selectedDevice() {
+    final data = ref.read(deviceListProvider).valueOrNull;
+    final devices = (data?['devices'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>();
+    for (final device in devices) {
+      if (device['serial'] == _serial.text.trim()) return device;
+    }
+    return null;
+  }
 
+  String? _stripHostExecutable(String command, String executable) {
+    final pattern = RegExp(
+      '^' + RegExp.escape(executable) + r'(?:\\.exe)?(?:\\s+|$)',
+      caseSensitive: false,
+    );
+    final match = pattern.firstMatch(command.trimLeft());
+    if (match == null) return null;
+    return command.trimLeft().substring(match.end).trim();
+  }
+
+  Future<bool> _confirmCommand({
+    required String title,
+    required String target,
+    required String command,
+    required String warning,
+  }) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(potentiallyDestructive
-            ? 'Potentially destructive shell command'
-            : 'Confirm ADB shell command'),
+        title: Text(title),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Target: ' + serial),
+            Text('Target: ' + target),
             const SizedBox(height: 8),
             SelectableText(command, style: const TextStyle(fontFamily: 'monospace')),
             const SizedBox(height: 12),
-            Text(potentiallyDestructive
-                ? 'This command may modify system state or remove data. Review it carefully before execution.'
-                : 'Review the exact device target and command. DroidLab requires confirmation before dispatching shell commands.'),
+            Text(warning),
           ],
         ),
         actions: [
@@ -277,7 +290,135 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    return confirmed == true && mounted;
+  }
+
+  Future<void> _runShell() async {
+    final command = _command.text.trim();
+    if (command.isEmpty || _busy) return;
+
+    final target = _selectedDevice();
+    final serial = target?['serial'] as String?;
+    final transport = target?['transport'] as String?;
+    final state = target?['state'] as String?;
+
+    final fastbootArguments = _stripHostExecutable(command, 'fastboot');
+    if (fastbootArguments != null) {
+      if (transport != 'fastboot' || serial == null || state != 'fastboot') {
+        setState(() => _output =
+            'Select a detected Fastboot device before running a host Fastboot command.');
+        return;
+      }
+      if (fastbootArguments.isEmpty) {
+        setState(() => _output = 'Enter Fastboot arguments, for example: getvar all.');
+        return;
+      }
+      final confirmed = await _confirmCommand(
+        title: 'Confirm advanced Fastboot command',
+        target: serial,
+        command: 'fastboot -s $serial $fastbootArguments',
+        warning:
+            'Advanced Fastboot commands can change boot state, erase data, or make the device unbootable. Verify the exact command and device.',
+      );
+      if (!confirmed) return;
+      setState(() => _busy = true);
+      try {
+        final result = await trackOperation(
+          ref,
+          operation: 'Advanced Fastboot: ' + fastbootArguments,
+          target: serial,
+          action: () => ref.read(backendClientProvider).request('fastboot.command', {
+            'serial': serial,
+            'command': fastbootArguments,
+            'confirmed': true,
+            'confirmation': {
+              'operation': 'fastboot.command',
+              'serial': serial,
+              'command': fastbootArguments,
+            },
+          }, timeout: const Duration(minutes: 30)),
+        );
+        if (mounted) setState(() => _output = result.data['output']?.toString() ??
+            result.data.toString());
+      } catch (error) {
+        if (mounted) setState(() => _output = error.toString());
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+      return;
+    }
+
+    final adbArguments = _stripHostExecutable(command, 'adb');
+    if (adbArguments != null) {
+      final args = adbArguments.isEmpty ? 'devices -l' : adbArguments;
+      final verb = args.split(RegExp(r'\\s+')).first.toLowerCase();
+      if (verb == 'reboot') {
+        final tokens = args.split(RegExp(r'\\s+'));
+        final mode = tokens.length > 1 ? tokens[1].toLowerCase() : 'system';
+        if (mode == 'recovery' || mode == 'bootloader' || mode == 'system') {
+          await _reboot(mode);
+        } else {
+          if (mounted) setState(() => _output =
+              'Use reboot, reboot recovery, or reboot bootloader.');
+        }
+        return;
+      }
+      final selectedAdbSerial = transport == 'adb' ? serial : null;
+      final confirmed = await _confirmCommand(
+        title: 'Confirm advanced host ADB command',
+        target: selectedAdbSerial ?? 'host / discovery command',
+        command: 'adb ' + args,
+        warning:
+            'Host ADB commands are unrestricted. They may install packages, transfer files, modify the selected device, or affect the local ADB server.',
+      );
+      if (!confirmed) return;
+      setState(() => _busy = true);
+      try {
+        final result = await trackOperation(
+          ref,
+          operation: 'Advanced ADB: ' + args,
+          target: selectedAdbSerial ?? 'host',
+          action: () => ref.read(backendClientProvider).request('adb.command', {
+            'serial': selectedAdbSerial,
+            'command_text': args,
+            'confirmed': true,
+            'confirmation': {
+              'operation': 'adb.command',
+              'serial': selectedAdbSerial,
+              'command_text': args,
+            },
+          }, timeout: const Duration(minutes: 30)),
+        );
+        if (mounted) setState(() => _output = result.data['output']?.toString() ??
+            result.data.toString());
+      } catch (error) {
+        if (mounted) setState(() => _output = error.toString());
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+      return;
+    }
+
+    if (transport != 'adb' || state != 'device' || serial == null) {
+      setState(() => _output =
+          'Select an authorized ADB device for Android shell commands. Host commands must start with adb; Fastboot commands must start with fastboot.');
+      return;
+    }
+    final potentiallyDestructive = RegExp(
+      r'(^|[;&|]\\s*)(rm\\s+-.*r|mkfs(\\.[\\w-]+)?|dd\\s|reboot\\b|poweroff\\b|shutdown\\b|setprop\\b|pm\\s+(uninstall|disable-user)\\b|svc\\b.*\\bdisable\\b|wipe\\b|format\\b)',
+      caseSensitive: false,
+    ).hasMatch(command);
+    final confirmed = await _confirmCommand(
+      title: potentiallyDestructive
+          ? 'Potentially destructive device-shell command'
+          : 'Confirm Android shell command',
+      target: serial,
+      command: 'adb -s $serial shell $command',
+      warning: potentiallyDestructive
+          ? 'This command may modify system state or remove data. Review it carefully before execution.'
+          : 'Review the exact device target and command before dispatch.',
+    );
+    if (!confirmed) return;
 
     setState(() => _busy = true);
     try {
@@ -287,12 +428,12 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         target: serial,
         action: () => ref.read(backendClientProvider).request('adb.shell', {
           'serial': serial,
-          'command': [command],
+          'command_text': command,
           'confirmed': true,
           'confirmation': {
             'operation': 'adb.shell',
             'serial': serial,
-            'command': [command],
+            'command_text': command,
           },
         }),
       );
@@ -510,46 +651,29 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
 
   Future<void> _loadDeviceInfo() async {
     final serial = _serial.text.trim();
-    if (serial.isEmpty) return;
+    final target = _selectedDevice();
+    if (serial.isEmpty || target == null || _busy) return;
+    setState(() => _busy = true);
     try {
       final result = await ref.read(backendClientProvider).request(
         'device.info',
         {'serial': serial},
       );
       if (mounted) {
-        final metadata = result.data['metadata'] as Map<String, dynamic>;
+        final metadata = result.data['metadata'] as Map<String, dynamic>? ?? const {};
         setState(() {
           _output = metadata.entries
-              .map((entry) => entry.key + ': ' + (entry.value?.toString().isNotEmpty == true ? entry.value.toString() : '—'))
-              .join('\n');
+              .map((entry) => entry.key + ': ' +
+                  (entry.value?.toString().isNotEmpty == true
+                      ? entry.value.toString()
+                      : '—'))
+              .join('\\n');
         });
       }
     } catch (error) {
       if (mounted) setState(() => _output = error.toString());
-    }
-  }
-
-  Future<void> _browseLogSavePath() async {
-    final location = await getSaveLocation(
-      suggestedName: 'DroidLab-logcat.txt',
-      acceptedTypeGroups: const [
-        XTypeGroup(label: 'Text log', extensions: ['txt', 'log']),
-      ],
-    );
-    if (location != null && mounted) {
-      setState(() => _logSavePath.text = location.path);
-    }
-  }
-
-  Future<void> _browseBugreportOutput() async {
-    final location = await getSaveLocation(
-      suggestedName: 'bugreport.zip',
-      acceptedTypeGroups: const [
-        XTypeGroup(label: 'Bugreport ZIP', extensions: ['zip']),
-      ],
-    );
-    if (location != null && mounted) {
-      setState(() => _bugreport.text = location.path);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -691,7 +815,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
           ),
         ),
       const SizedBox(height: 12),
-      _TextField(controller: _command, label: 'Android shell command'),
+      _TextField(controller: _command, label: 'Command', hint: 'dumpsys battery · adb devices -l · fastboot getvar all'),
       const SizedBox(height: 8),
       Wrap(spacing: 8, runSpacing: 8, children: [
         FilledButton(onPressed: _busy || !canRunAdbCommands ? null : _runShell, child: const Text('Run shell command')),
