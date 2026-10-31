@@ -41,6 +41,19 @@ final backendClientProvider = Provider<BackendClient>((ref) {
     'backend_path',
     '',
   );
+  final adb = _settingPath('DROIDLAB_ADB_PATH', 'adb_path', '');
+  final fastboot = _settingPath('DROIDLAB_FASTBOOT_PATH', 'fastboot_path', '');
+  final payloadDumper = _settingPath(
+    'DROIDLAB_PAYLOAD_DUMPER_GO_PATH',
+    'payload_dumper_path',
+    '',
+  );
+  final environment = <String, String>{
+    if (adb.isNotEmpty) 'DROIDLAB_ADB_PATH': adb,
+    if (fastboot.isNotEmpty) 'DROIDLAB_FASTBOOT_PATH': fastboot,
+    if (payloadDumper.isNotEmpty)
+      'DROIDLAB_PAYLOAD_DUMPER_GO_PATH': payloadDumper,
+  };
   final executableDirectory = File(Platform.resolvedExecutable).parent;
   final candidates = <String>[
     if (configured.isNotEmpty) configured,
@@ -58,6 +71,7 @@ final backendClientProvider = Provider<BackendClient>((ref) {
     executable: python,
     arguments: const ['-u'],
     scriptPath: script,
+    environment: environment,
     startupTimeout: const Duration(seconds: 15),
   ));
   ref.onDispose(() => unawaited(client.dispose()));
