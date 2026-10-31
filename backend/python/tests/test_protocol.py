@@ -61,10 +61,10 @@ class ProtocolTests(unittest.TestCase):
             },
         }
         with patch.object(server, "tool_path", return_value="adb"):
-            with patch.object(server, "run_streaming", return_value=result("SERIAL device\\n")) as run:
+            with patch.object(server, "run_streaming", return_value=result("SERIAL device\n")) as run:
                 with patch.object(server, "response"):
                     value = server.execute("id", "adb.command", args, threading.Event())
-        self.assertEqual(value["output"], "SERIAL device\\n")
+        self.assertEqual(value["output"], "SERIAL device\n")
         self.assertEqual(run.call_args.args[0], ["adb", "devices", "-l"])
 
     def test_advanced_adb_command_injects_selected_serial(self):
@@ -80,8 +80,8 @@ class ProtocolTests(unittest.TestCase):
             },
         }
         with patch.object(server, "tool_path", return_value="adb"):
-            with patch.object(server, "run_capture", return_value=result("List of devices attached\\nSERIAL device\\n")):
-                with patch.object(server, "run_streaming", return_value=result("Success\\n")) as run:
+            with patch.object(server, "run_capture", return_value=result("List of devices attached\nSERIAL device\n")):
+                with patch.object(server, "run_streaming", return_value=result("Success\n")) as run:
                     with patch.object(server, "response"):
                         value = server.execute("id", "adb.command", args, threading.Event())
         self.assertEqual(value["serial"], "SERIAL")
@@ -138,11 +138,11 @@ class ProtocolTests(unittest.TestCase):
             },
         }
         with patch.object(server, "tool_path", return_value="adb"):
-            with patch.object(server, "run_capture", return_value=result("List of devices attached\\nSERIAL device\\n")):
-                with patch.object(server, "run_streaming", return_value=result("15\\n")) as run:
+            with patch.object(server, "run_capture", return_value=result("List of devices attached\nSERIAL device\n")):
+                with patch.object(server, "run_streaming", return_value=result("15\n")) as run:
                     with patch.object(server, "response"):
                         value = server.execute("id", "adb.shell", args, threading.Event())
-        self.assertEqual(value["output"], "15\\n")
+        self.assertEqual(value["output"], "15\n")
         self.assertEqual(run.call_args.args[0], ["adb", "-s", "SERIAL", "shell", "getprop", "ro.build.version.release"])
 
 
@@ -159,7 +159,7 @@ class ProtocolTests(unittest.TestCase):
             },
         }
         with patch.object(server, "tool_path", return_value="fastboot"):
-            with patch.object(server, "run_streaming", return_value=result("FASTBOOT-1 fastboot\\n")) as run:
+            with patch.object(server, "run_streaming", return_value=result("FASTBOOT-1 fastboot\n")) as run:
                 with patch.object(server, "response"):
                     value = server.execute("id", "fastboot.command", args, threading.Event())
         self.assertIsNone(value["serial"])
@@ -178,8 +178,8 @@ class ProtocolTests(unittest.TestCase):
             },
         }
         with patch.object(server, "tool_path", return_value="fastboot"):
-            with patch.object(server, "run_capture", return_value=result("FASTBOOT-1 fastboot\\n")):
-                with patch.object(server, "run_streaming", return_value=result("(bootloader) product: unit\\n")) as run:
+            with patch.object(server, "run_capture", return_value=result("FASTBOOT-1 fastboot\n")):
+                with patch.object(server, "run_streaming", return_value=result("(bootloader) product: unit\n")) as run:
                     with patch.object(server, "response"):
                         value = server.execute("id", "fastboot.command", args, threading.Event())
         self.assertEqual(value["serial"], "FASTBOOT-1")
@@ -257,8 +257,7 @@ class ProtocolTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             server.execute(
                 "id", "fastboot.command",
-                {"serial": "SERIAL", "command": "getvar all", "confirmed": True,
-                 "confirmation": {"operation": "fastboot.command", "serial": "SERIAL", "command": "getvar all"}},
+                {"serial": "SERIAL", "command": "getvar all", "confirmed": True},
                 threading.Event(),
             )
 
