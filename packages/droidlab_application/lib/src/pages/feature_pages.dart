@@ -153,6 +153,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       final handle = await ref.read(backendClientProvider).startOperation(
         'adb.logcat.start', {'serial': serial, 'filters': filters},
       );
+      if (!mounted) { await ref.read(backendClientProvider).cancel(handle.requestId); return; }
       setState(() { _logcatRequestId = handle.requestId; _logLines.clear(); });
       unawaited(trackOperation(
         ref,
@@ -275,7 +276,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Reboot')),
       ],
     ));
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
     try {
       final result = await trackOperation(ref,
         operation: 'ADB reboot ($mode)',
@@ -520,6 +521,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
     try {
       final result = await ref.read(backendClientProvider).request('payload.inspect', {'source_path': _source.text.trim()}, timeout: const Duration(minutes: 3));
       final parts = (result.data['partitions'] as List<dynamic>).cast<Map<String, dynamic>>();
+      if (!mounted) return;
       setState(() { _parts = parts; _selected.clear(); _status = 'Found ${parts.length} partitions.'; });
     } catch (error) { setState(() => _status = error.toString()); }
     finally { if (mounted) setState(() => _busy = false); }
@@ -538,8 +540,8 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
         successSummary: (value) => '${(value.data['files'] as List<dynamic>? ?? const []).length} image file(s) created.',
       );
       final count = (result.data['files'] as List<dynamic>? ?? const []).length;
-      setState(() => _status = 'Created $count image files.');
-    } catch (error) { setState(() => _status = error.toString()); }
+      if (mounted) setState(() => _status = 'Created $count image files.');
+    } catch (error) { if (mounted) setState(() => _status = error.toString()); }
     finally { if (mounted) setState(() => _busy = false); }
   }
 
