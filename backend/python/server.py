@@ -18,7 +18,7 @@ _WRITE_LOCK = threading.Lock()
 _ACTIVE: dict[str, threading.Event] = {}
 _DEVICE_LOCKS: dict[str, threading.Lock] = {}
 _DEVICE_LOCKS_LOCK = threading.Lock()
-_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "fastboot.flash", "fastboot.erase", "fastboot.reboot"}
+_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe"}
 
 def emit(message: dict[str, Any]) -> None:
     envelope = {"version": PROTOCOL_VERSION, "timestamp": time.time(), **message}
@@ -257,15 +257,34 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             raise RuntimeError(f"Fastboot erase failed ({result.returncode}); inspect device state before retrying.")
         return {"exit_code": 0, "message": "Fastboot reported erase completion."}
     if operation == "fastboot.reboot":
-        serial = args.get("serial")
+        serial, mode = args.get("serial"), args.get("mode", "system")
+        if mode not in {"system", "recovery", "bootloader"}:
+            raise ValueError("Unsupported Fastboot reboot mode.")
         require_confirmation(args, "Fastboot reboot", {
-            "operation": "fastboot.reboot", "serial": serial,
+            "operation": "fastboot.reboot", "serial": serial, "mode": mode,
         })
         require_fastboot(serial, cancel_event=cancel)
-        result = run_streaming([tool_path("fastboot"), "-s", serial, "reboot"], timeout=30, cancel_event=cancel)
+        command = [tool_path("fastboot"), "-s", serial]
+        command += (["reboot"] if mode == "system" else
+                    ["reboot", "recovery"] if mode == "recovery" else
+                    ["reboot-bootloader"])
+        result = run_streaming(command, timeout=45, cancel_event=cancel)
         if result.returncode:
             raise RuntimeError(f"Fastboot reboot failed: {result.stdout}")
-        return {"exit_code": 0, "message": "Fastboot accepted reboot request; transition is not verified."}
+        return {"exit_code": 0, "message": f"Fastboot accepted reboot request to {mode}; transition is not verified."}
+    if operation == "fastboot.wipe":
+        serial = args.get("serial")
+        require_confirmation(args, "Fastboot wipe userdata", {
+            "operation": "fastboot.wipe", "serial": serial, "mode": "wipe-userdata",
+        })
+        require_fastboot(serial, cancel_event=cancel)
+        command = [tool_path("fastboot"), "-s", serial, "-w"]
+        response(request_id, "preflight", target=serial, command=command, destructive=True)
+        result = run_streaming(command, timeout=600, cancel_event=cancel,
+            on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
+        if result.returncode:
+            raise RuntimeError(f"Fastboot wipe failed ({result.returncode}); device state may be uncertain.")
+        return {"exit_code": 0, "message": "Fastboot reported userdata/cache wipe completion."}
     if operation == "payload.inspect":
         parts = payload_dumper.inspect_source(args.get("source_path"),
             progress=lambda line: response(request_id, "output", stream="payload", line=line), cancel_event=cancel)
