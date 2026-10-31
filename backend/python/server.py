@@ -61,7 +61,12 @@ def tool_path(name: str) -> str:
         path = Path(configured).expanduser()
         if path.is_file() and (os.name == "nt" or os.access(path, os.X_OK)):
             return str(path.resolve())
-        raise RuntimeError(f"Configured {name} path is not an executable file: {path}")
+        # Permit executable names such as "adb" or "python3" in Settings.
+        if not path.is_absolute() and len(path.parts) == 1:
+            found_configured = shutil.which(configured)
+            if found_configured:
+                return found_configured
+        raise RuntimeError(f"Configured {name} path is not an executable file or command on PATH: {path}")
 
     # Prefer tool binaries distributed next to the app before the host PATH.
     bundle_root = Path(__file__).resolve().parents[2]
