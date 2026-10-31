@@ -1,9 +1,11 @@
+import 'dart:io';
+
+import 'package:droidlab_application/droidlab_application.dart';
 import 'package:droidlab_desktop/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'dart:io';
-import 'package:droidlab_application/droidlab_application.dart';
+
 import 'test_support.dart';
 
 void main() {
@@ -48,17 +50,25 @@ void main() {
     await tester.tap(find.text('Fastboot Toolkit'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Destructive actions require fresh target validation and an explicit confirmation.'), findsOneWidget);
+    expect(
+      find.text(
+        'Destructive actions require fresh target validation and an explicit confirmation.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Detected Fastboot devices'), findsOneWidget);
     expect(find.text('Flash image'), findsOneWidget);
   });
-  testWidgets('Settings exposes persistent themes and executable paths', (tester) async {
+
+  testWidgets('Settings exposes persistent themes and executable paths',
+      (tester) async {
     tester.view.physicalSize = const Size(1440, 1100);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final temp = await Directory.systemTemp.createTemp('droidlab-settings-widget-');
+    final temp =
+        await Directory.systemTemp.createTemp('droidlab-settings-widget-');
     addTearDown(() => temp.delete(recursive: true));
     final settingsStore = DroidLabSettingsStore(
       file: File('${temp.path}/DroidLab/config.json'),
@@ -75,8 +85,6 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Settings').last);
     await tester.pump();
-    // The settings controller reads the per-user JSON file asynchronously.
-    // Wait for the form itself rather than assuming disk I/O settles in 300 ms.
     await tester.runAsync(() async {
       await Future<void>.delayed(const Duration(milliseconds: 50));
     });
@@ -91,5 +99,4 @@ void main() {
     expect(find.text('Payload dumper'), findsOneWidget);
     expect(find.text('Save settings'), findsOneWidget);
   });
-
 }
