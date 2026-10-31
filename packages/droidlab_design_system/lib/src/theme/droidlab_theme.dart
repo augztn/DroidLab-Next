@@ -1,5 +1,23 @@
 import 'package:flutter/material.dart';
 
+abstract final class DroidLabTokens {
+  static const background = Color(0xFF10151C);
+  static const sidebar = Color(0xFF171F29);
+  static const surface = Color(0xFF171F29);
+  static const panelAlt = Color(0xFF202C39);
+  static const input = Color(0xFF0B1118);
+  static const button = Color(0xFF243444);
+  static const console = Color(0xFF080D13);
+  static const border = Color(0xFF304253);
+  static const primary = Color(0xFF59C7FF);
+  static const secondary = Color(0xFF1679B8);
+  static const text = Color(0xFFEDF4FB);
+  static const muted = Color(0xFF9AABBA);
+  static const success = Color(0xFF35C98A);
+  static const warning = Color(0xFFF2B84B);
+  static const error = Color(0xFFF87171);
+}
+
 abstract final class DroidLabTheme {
   static ThemeData dark({String themeName = 'cyberpunk_glass'}) {
     final colors = switch (themeName) {
