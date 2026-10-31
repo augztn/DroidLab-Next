@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DroidLab versioned JSON Lines backend. stdout is protocol-only; diagnostics use stderr."""
 from __future__ import annotations
-import json, logging, math, os, shlex, shutil, signal, subprocess, sys, threading, time
+import json, logging, math, os, re, shlex, shutil, signal, subprocess, sys, threading, time
 from pathlib import Path
 from typing import Any
 from droidlab.core.command_guards import (
