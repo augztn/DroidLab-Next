@@ -1,77 +1,87 @@
 import 'package:flutter/material.dart';
 
-abstract final class DroidLabTokens {
-  static const background = Color(0xFF0B0F14);
-  static const sidebar = Color(0xFF111827);
-  static const surface = Color(0xFF151D2B);
-  static const elevatedSurface = Color(0xFF1B2638);
-  static const border = Color(0xFF2A374A);
-  static const primary = Color(0xFF3B82F6);
-  static const secondary = Color(0xFF8B5CF6);
-  static const text = Color(0xFFF1F5F9);
-  static const muted = Color(0xFF94A3B8);
-  static const success = Color(0xFF22C55E);
-  static const warning = Color(0xFFF59E0B);
-  static const error = Color(0xFFEF4444);
-
-  static const space1 = 4.0;
-  static const space2 = 8.0;
-  static const space3 = 12.0;
-  static const space4 = 16.0;
-  static const space6 = 24.0;
-  static const space8 = 32.0;
-
-  static const radiusSmall = 8.0;
-  static const radiusMedium = 12.0;
-  static const radiusLarge = 16.0;
-}
-
 abstract final class DroidLabTheme {
-  static ThemeData dark() {
+  static ThemeData dark({String themeName = 'cyberpunk_glass'}) {
+    final colors = switch (themeName) {
+      'standard_dark' => (
+        background: const Color(0xFF111113),
+        sidebar: const Color(0xFF19191D),
+        surface: const Color(0xFF222228),
+        elevated: const Color(0xFF2A2A32),
+        border: const Color(0xFF303038),
+        primary: const Color(0xFF4B8DFF),
+        secondary: const Color(0xFF2868D7),
+        text: const Color(0xFFF2F2F5),
+        muted: const Color(0xFF9696A3),
+      ),
+      'oled_black' => (
+        background: const Color(0xFF050506),
+        sidebar: const Color(0xFF0E0E11),
+        surface: const Color(0xFF19191D),
+        elevated: const Color(0xFF202026),
+        border: const Color(0xFF29292F),
+        primary: const Color(0xFF78AAFF),
+        secondary: const Color(0xFF386FDA),
+        text: const Color(0xFFF5F5F7),
+        muted: const Color(0xFF9696A3),
+      ),
+      _ => (
+        background: const Color(0xFF10151C),
+        sidebar: const Color(0xFF171F29),
+        surface: const Color(0xFF202C39),
+        elevated: const Color(0xFF263444),
+        border: const Color(0xFF304253),
+        primary: const Color(0xFF59C7FF),
+        secondary: const Color(0xFF1679B8),
+        text: const Color(0xFFEDF4FB),
+        muted: const Color(0xFF9AABBA),
+      ),
+    };
+
     final scheme = ColorScheme.fromSeed(
-      seedColor: DroidLabTokens.primary,
+      seedColor: colors.primary,
       brightness: Brightness.dark,
-      surface: DroidLabTokens.surface,
+      surface: colors.surface,
     ).copyWith(
-      primary: DroidLabTokens.primary,
-      secondary: DroidLabTokens.secondary,
-      surface: DroidLabTokens.surface,
-      error: DroidLabTokens.error,
-      onSurface: DroidLabTokens.text,
-      onSurfaceVariant: DroidLabTokens.muted,
-      outline: DroidLabTokens.border,
-      outlineVariant: DroidLabTokens.border,
+      primary: colors.primary,
+      secondary: colors.secondary,
+      surface: colors.surface,
+      error: const Color(0xFFF87171),
+      onSurface: colors.text,
+      onSurfaceVariant: colors.muted,
+      outline: colors.border,
+      outlineVariant: colors.border,
     );
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: scheme,
-      scaffoldBackgroundColor: DroidLabTokens.background,
-      dividerColor: DroidLabTokens.border,
+      scaffoldBackgroundColor: colors.background,
+      dividerColor: colors.border,
       cardTheme: CardThemeData(
-        color: DroidLabTokens.surface,
+        color: colors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(DroidLabTokens.radiusMedium),
-          side: const BorderSide(color: DroidLabTokens.border),
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: colors.border),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: DroidLabTokens.elevatedSurface,
+        fillColor: colors.elevated,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(DroidLabTokens.radiusSmall),
-          borderSide: const BorderSide(color: DroidLabTokens.border),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: colors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(DroidLabTokens.radiusSmall),
-          borderSide: const BorderSide(color: DroidLabTokens.border),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: colors.border),
         ),
       ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: DroidLabTokens.sidebar,
-        foregroundColor: DroidLabTokens.text,
+      appBarTheme: AppBarTheme(
+        backgroundColor: colors.sidebar,
+        foregroundColor: colors.text,
         elevation: 0,
       ),
     );
