@@ -13,7 +13,7 @@ permissions:
   contents: read
 jobs:
   flutter:
-    name: Flutter desktop (\${{ matrix.os }})
+    name: Flutter desktop (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -24,7 +24,7 @@ jobs:
             platform: windows
           - os: macos-latest
             platform: macos
-    runs-on: \${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -48,15 +48,15 @@ jobs:
         run: flutter test
       - name: Build desktop release
         working-directory: apps/desktop
-        run: flutter build \${{ matrix.platform }} --release
+        run: flutter build ${{ matrix.platform }} --release
       - name: Package Linux bundle
         if: runner.os == 'Linux'
         run: tar -C apps/desktop/build/linux/x64/release/bundle -czf DroidLab-linux-x64.tar.gz .
       - uses: actions/upload-artifact@v4
         with:
-          name: droidlab-\${{ matrix.platform }}
+          name: droidlab-${{ matrix.platform }}
           path: |
-            apps/desktop/build/\${{ matrix.platform }}/**/*
+            apps/desktop/build/${{ matrix.platform }}/**/*
             DroidLab-linux-x64.tar.gz
           if-no-files-found: warn
 
