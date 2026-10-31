@@ -128,7 +128,7 @@ class DroidLabSettingsController extends AsyncNotifier<DroidLabSettings> {
   @override
   Future<DroidLabSettings> build() => ref.read(droidLabSettingsStoreProvider).load();
 
-  Future<void> update(DroidLabSettings settings) async {
+  Future<void> saveSettings(DroidLabSettings settings) async {
     final previous = state;
     state = const AsyncLoading();
     try {
