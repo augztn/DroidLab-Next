@@ -627,59 +627,111 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         return {"files": files}
     raise ValueError(f"Unknown operation: {operation}")
 
+def _device_command_requires_lock(operation: str, args: dict[str, Any]) -> bool:
+    """Return whether an advanced command may mutate the selected device.
+
+    Read-only allowlists are intentionally narrow. Unknown commands are treated
+    as mutations so new ADB/Fastboot verbs do not bypass per-device serialization.
+    """
+    if operation == "adb.command":
+        raw = args.get("command_text", "")
+        try:
+            tokens = shlex.split(raw, posix=(os.name != "nt"))
+        except (TypeError, ValueError):
+            return True
+        index = 0
+        takes_value = {"-s", "-t", "-H", "-P", "-L"}
+        flags = {"-d", "-e"}
+        while index < len(tokens):
+            token = tokens[index]
+            if token in takes_value:
+                index += 2
+            elif token in flags:
+                index += 1
+            elif token.startswith("-s="):
+                index += 1
+            elif token.startswith("-"):
+                # Do not guess whether an unknown option consumes a value.
+                index += 1
+            else:
+                break
+        verb = tokens[index].lower() if index < len(tokens) else ""
+        host_only = {
+            "devices", "version", "help", "start-server", "kill-server",
+            "connect", "disconnect",
+        }
+        read_only = {
+            "pull", "logcat", "get-state", "get-serialno", "get-devpath",
+            "wait-for-device", "features", "jdwp",
+        }
+        return verb not in host_only and verb not in read_only
+
+    if operation == "fastboot.command":
+        raw = args.get("command", "")
+        try:
+            tokens = shlex.split(raw, posix=(os.name != "nt"))
+        except (TypeError, ValueError):
+            return True
+        index = 0
+        takes_value = {"-i", "-p", "-c", "--slot"}
+        while index < len(tokens):
+            token = tokens[index]
+            if token in takes_value and index + 1 < len(tokens):
+                index += 2
+            elif token.startswith("-"):
+                index += 1
+            else:
+                break
+        verb = tokens[index].lower() if index < len(tokens) else ""
+        if verb in {"devices", "help", "--help", "--version", "version", "getvar"}:
+            return False
+        # Fastboot's flashing get_unlock_ability is a read-only capability query.
+        if tokens[index:index + 2] and [part.lower() for part in tokens[index:index + 2]] == [
+            "flashing", "get_unlock_ability"
+        ]:
+            return False
+        return True
+
+    return operation in _MUTATING
+
+
 def handle(message: dict[str, Any], cancel: threading.Event) -> None:
     request_id, operation, args = message["id"], message["operation"], message["args"]
     lock = None
     lock_acquired = False
     try:
         response(request_id, "accepted", operation=operation)
-        if operation in _MUTATING:
+        if _device_command_requires_lock(operation, args):
             serial = args.get("serial")
-            host_only_command = False
-            if operation == "adb.command":
-                command_text = args.get("command_text", "")
-                try:
-                    command_tokens = shlex.split(command_text, posix=(os.name != "nt"))
-                except (TypeError, ValueError):
-                    command_tokens = []
-                index = 0
-                while index < len(command_tokens) and command_tokens[index].startswith("-"):
-                    option = command_tokens[index]
-                    index += 2 if option in {"-s", "-t", "-H", "-P", "-L"} and index + 1 < len(command_tokens) else 1
-                verb = command_tokens[index].lower() if index < len(command_tokens) else ""
-                host_only_command = verb in {"devices", "version", "help", "start-server", "kill-server", "connect", "disconnect"}
-            elif operation == "fastboot.command":
-                raw_command = args.get("command", "")
-                try:
-                    command_tokens = shlex.split(raw_command, posix=(os.name != "nt"))
-                except (TypeError, ValueError):
-                    command_tokens = []
-                index = 0
-                while index < len(command_tokens) and command_tokens[index].startswith("-"):
-                    option = command_tokens[index]
-                    index += 2 if option in {"-i", "-p", "-c", "--slot"} and index + 1 < len(command_tokens) else 1
-                verb = command_tokens[index].lower() if index < len(command_tokens) else ""
-                host_only_command = verb in {"devices", "help", "--help", "--version", "version"}
-            if (operation in {"adb.command", "fastboot.command"}
-                    and (not serial or host_only_command)):
-                # Discovery/help/version operations do not mutate a selected device.
-                pass
-            else:
-                if not isinstance(serial, str) or not serial:
-                    raise ValueError("An explicit target serial is required.")
-                with _DEVICE_LOCKS_LOCK:
-                    lock = _DEVICE_LOCKS.setdefault(serial, threading.Lock())
-                if not lock.acquire(timeout=0.1):
-                    lock = None
-                    raise RuntimeError(f"Another mutating operation is already active for device {serial}.")
-                lock_acquired = True
+            if not isinstance(serial, str) or not serial:
+                raise ValueError("An explicit target serial is required.")
+            with _DEVICE_LOCKS_LOCK:
+                lock = _DEVICE_LOCKS.setdefault(serial, threading.Lock())
+            if not lock.acquire(timeout=0.1):
+                lock = None
+                raise RuntimeError(
+                    f"Another mutating operation is already active for device {serial}."
+                )
+            lock_acquired = True
+
         result = execute(request_id, operation, args, cancel)
         response(request_id, "completed", result=result, cancelled=cancel.is_set())
     except ProcessCancelledError:
-        response(request_id, "cancelled", message="Host process cancelled. This does not roll back changes already accepted by device firmware.")
+        response(
+            request_id,
+            "cancelled",
+            message=(
+                "Host process cancelled. This does not roll back changes "
+                "already accepted by device firmware."
+            ),
+        )
     except Exception as exc:
         logging.exception("Operation %s failed", operation)
-        response(request_id, "failed", error={"code": type(exc).__name__, "message": str(exc)})
+        response(
+            request_id,
+            "failed",
+            error={"code": type(exc).__name__, "message": str(exc)},
+        )
     finally:
         if lock is not None and lock_acquired:
             lock.release()
