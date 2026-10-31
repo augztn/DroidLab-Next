@@ -24,7 +24,7 @@ Flutter owns one Python subprocess. The service reads UTF-8 JSON Lines from stdi
 | `system.ping` | — | Backend health/version |
 | `system.tools` | — | Resolve ADB, Fastboot and payload-dumper-go |
 | `devices.list` | — | Fresh ADB and Fastboot discovery |
-| `adb.shell` | `serial`, `command[]` | Fresh target scan; destructive shell heuristic requires confirmation |
+| `adb.shell` | `serial`, `command[]`, `confirmed`, `confirmation` | Every shell command requires exact target-and-command confirmation; destructive heuristic is additional preflight metadata |
 | `adb.device_info` | `serial` | Selected Android getprop metadata |
 | `adb.reboot` | `serial`, `mode`, `confirmed` | Guarded system/bootloader/recovery reboot |
 | `adb.logcat.start` | `serial`, optional `filters[]` | Long-running streamed logcat; cancel by request ID |
@@ -41,7 +41,7 @@ Flutter owns one Python subprocess. The service reads UTF-8 JSON Lines from stdi
 - Every device operation names a serial; no implicit first-device selection.
 - Mutations repeat the ADB/Fastboot scan immediately before dispatch.
 - Mutating operations serialize per serial.
-- Flash, erase, reboot and sideload require explicit UI confirmation and backend confirmation.
+- Every ADB shell command, reboot, sideload, Fastboot flash/erase/reboot requires UI confirmation bound to the exact serial and operation arguments; the backend rejects stale or mismatched confirmation intents.
 - Partition names use a strict ASCII allowlist.
 - Commands are executable-plus-argument arrays; no shell interpolation of UI input.
 - Child output is bounded and streamed; timeouts and process-tree termination are bounded.
