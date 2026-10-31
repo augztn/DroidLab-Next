@@ -109,9 +109,12 @@ def string_list(value: Any, name: str, maximum: int = 128) -> list[str]:
         raise ValueError(f"{name} contains an invalid string.")
     return value
 
-def require_confirmation(args: dict[str, Any], operation: str) -> None:
+def require_confirmation(args: dict[str, Any], operation: str,
+                         intent: dict[str, Any] | None = None) -> None:
     if args.get("confirmed") is not True:
         raise PermissionError(f"{operation} requires explicit confirmation in the desktop UI.")
+    if intent is not None and args.get("confirmation") != intent:
+        raise PermissionError(f"{operation} confirmation is missing, stale, or does not match the dispatched target and arguments.")
 
 def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threading.Event) -> dict[str, Any]:
     if operation == "system.ping":
@@ -138,7 +141,9 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         require_adb(serial)
         guard_tokens = ["shell", *shlex.split(" ".join(command))]
         if is_destructive_adb(guard_tokens):
-            require_confirmation(args, "Potentially destructive ADB shell command")
+            require_confirmation(args, "Potentially destructive ADB shell command", {
+                "operation": "adb.shell", "serial": serial, "command": command,
+            })
         cmd = [tool_path("adb"), "-s", serial, "shell", *command]
         response(request_id, "preflight", target=serial, command=cmd, destructive=is_destructive_adb(guard_tokens))
         result = run_streaming(cmd, timeout=bounded_timeout(args.get("timeout_seconds"), 60, 900),
@@ -150,7 +155,9 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         serial, mode = args.get("serial"), args.get("mode", "system")
         if mode not in {"system", "bootloader", "recovery"}:
             raise ValueError("Unsupported reboot mode.")
-        require_confirmation(args, "ADB reboot")
+        require_confirmation(args, "ADB reboot", {
+            "operation": "adb.reboot", "serial": serial, "mode": mode,
+        })
         require_adb(serial)
         command = [tool_path("adb"), "-s", serial, "reboot"] + ([] if mode == "system" else [mode])
         result = run_streaming(command, timeout=20, cancel_event=cancel)
@@ -159,7 +166,9 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         return {"exit_code": 0, "message": f"ADB accepted reboot request to {mode}; transition is not verified."}
     if operation == "adb.sideload":
         serial, package = args.get("serial"), args.get("package_path")
-        require_confirmation(args, "ADB recovery sideload")
+        require_confirmation(args, "ADB recovery sideload", {
+            "operation": "adb.sideload", "serial": serial, "package_path": package,
+        })
         if not isinstance(package, str) or Path(package).suffix.lower() != ".zip" or not Path(package).expanduser().is_file():
             raise ValueError("Choose an existing OTA .zip package.")
         require_adb(serial, ("sideload", "recovery", "device"))
@@ -216,7 +225,10 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             raise ValueError("Invalid partition name.")
         if not isinstance(image, str) or not Path(image).expanduser().is_file():
             raise ValueError("Image file does not exist.")
-        require_confirmation(args, "Fastboot flash")
+        require_confirmation(args, "Fastboot flash", {
+            "operation": "fastboot.flash", "serial": serial,
+            "partition": partition, "image_path": image,
+        })
         require_fastboot(serial)
         command = [tool_path("fastboot"), "-s", serial, "flash", partition, str(Path(image).expanduser().resolve())]
         response(request_id, "preflight", target=serial, command=command, destructive=True)
@@ -229,7 +241,9 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         serial, partition = args.get("serial"), args.get("partition")
         if not is_valid_partition_name(partition):
             raise ValueError("Invalid partition name.")
-        require_confirmation(args, "Fastboot erase")
+        require_confirmation(args, "Fastboot erase", {
+            "operation": "fastboot.erase", "serial": serial, "partition": partition,
+        })
         require_fastboot(serial)
         command = [tool_path("fastboot"), "-s", serial, "erase", partition]
         response(request_id, "preflight", target=serial, command=command, destructive=True)
@@ -240,7 +254,9 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         return {"exit_code": 0, "message": "Fastboot reported erase completion."}
     if operation == "fastboot.reboot":
         serial = args.get("serial")
-        require_confirmation(args, "Fastboot reboot")
+        require_confirmation(args, "Fastboot reboot", {
+            "operation": "fastboot.reboot", "serial": serial,
+        })
         require_fastboot(serial)
         result = run_streaming([tool_path("fastboot"), "-s", serial, "reboot"], timeout=30, cancel_event=cancel)
         if result.returncode:
