@@ -32,7 +32,7 @@ class ProtocolIntegrationTests(unittest.TestCase):
   self.assertEqual(events[-1]["type"],"failed")
   self.assertIn("request_id",events[-1]["error"]["message"])
  def test_whitespace_only_request_id_is_rejected_by_protocol_loop(self):
-  self.p.stdin.write(json.dumps({"version":1,"id":"   ","operation":"system.ping","args":{}})+"\n")
+  self.p.stdin.write(json.dumps({"version":1,"id":"   ","operation":"system.ping","args":{}})+"\\n")
   self.p.stdin.flush()
   # The rejected frame has no response; a subsequent request proves the
   # backend remains alive and can continue processing valid protocol frames.
