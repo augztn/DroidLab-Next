@@ -774,6 +774,11 @@ def _device_command_requires_lock(operation: str, args: dict[str, Any]) -> bool:
                 index += 1
             else:
                 break
+        # Fastboot's -w global option requests a userdata/cache wipe. Never
+        # classify a command carrying it as read-only, even if its verb looks
+        # like discovery; keep it serialized and require a selected device.
+        if any(token.lower() == "-w" for token in tokens[:index]):
+            return True
         verb = tokens[index].lower() if index < len(tokens) else ""
         if verb in {"devices", "help", "--help", "--version", "version", "getvar"}:
             return False
