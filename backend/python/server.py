@@ -15,6 +15,7 @@ from droidlab.core.device_metadata import (
 )
 from droidlab.core import payload_dumper
 from droidlab.core.tool_resolver import resolve_tool_path
+from droidlab.core.windows_volumes import list_removable_drives
 
 PROTOCOL_VERSION = 1
 MAX_LINE_BYTES = 1024 * 1024
@@ -575,6 +576,8 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if result.returncode:
             raise RuntimeError(f"Fastboot wipe failed ({result.returncode}); device state may be uncertain.")
         return {"exit_code": 0, "message": "Fastboot reported userdata/cache wipe completion."}
+    if operation == "storage.removable_drives":
+        return {"drives": list_removable_drives()}
     if operation == "payload.inspect":
         parts = payload_dumper.inspect_source(args.get("source_path"),
             progress=lambda line: response(request_id, "output", stream="payload", line=line), cancel_event=cancel)
