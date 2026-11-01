@@ -102,6 +102,12 @@ class BackendClient {
   Future<BackendOperation> startOperation(String operation, Map<String, dynamic> args) async {
     if (_disposed || _closing) throw const BackendException('Backend is not accepting requests.');
     if (_process == null) await start();
+    // Disposal or an unexpected process exit can race with asynchronous start.
+    // Capture and validate the process before registering/writing a request.
+    final process = _process;
+    if (_disposed || _closing || process == null) {
+      throw const BackendException('Backend stopped before the request could be sent.');
+    }
     final id = _id();
     final completer = Completer<BackendResult>();
     _pending[id] = completer;
@@ -111,8 +117,8 @@ class BackendClient {
       throw const BackendException('Request exceeds the protocol message limit.');
     }
     try {
-      _process!.stdin.writeln(payload);
-      await _process!.stdin.flush();
+      process.stdin.writeln(payload);
+      await process.stdin.flush();
     } on Object catch (error) {
       _pending.remove(id);
       throw BackendException('Could not write to backend stdin.', cause: error);
