@@ -1,21 +1,63 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
-/// Keeps command arguments and user-provided suffixes out of persisted labels.
+/// Maps dynamic UI labels to a small allowlist before they reach local history.
 String historyOperationLabel(String operation) {
-  final label = operation.split(':').first.trim();
-  if (label.isEmpty) return 'Operation';
-  return label.length <= 80 ? label : label.substring(0, 80);
+  final value = operation.trim().toLowerCase();
+  if (value.startsWith('advanced adb')) return 'Advanced ADB';
+  if (value.startsWith('adb shell')) return 'ADB shell';
+  if (value.startsWith('adb reboot')) return 'ADB reboot';
+  if (value.startsWith('adb recovery sideload')) return 'ADB recovery sideload';
+  if (value.startsWith('adb bugreport')) return 'ADB bugreport';
+  if (value.startsWith('adb logcat')) return 'ADB logcat';
+  if (value.startsWith('advanced fastboot')) return 'Advanced Fastboot';
+  if (value.startsWith('fastboot flash')) return 'Fastboot flash';
+  if (value.startsWith('fastboot erase')) return 'Fastboot erase';
+  if (value.startsWith('fastboot reboot')) return 'Fastboot reboot';
+  if (value.startsWith('fastboot wipe')) return 'Fastboot wipe';
+  if (value.startsWith('fastboot set active') ||
+      value.startsWith('fastboot switch')) return 'Fastboot slot change';
+  if (value.startsWith('discover fastboot')) return 'Discover Fastboot partitions';
+  if (value.startsWith('payload extraction')) return 'Payload extraction';
+  if (value.startsWith('device')) return 'Device operation';
+  if (value.startsWith('system')) return 'System operation';
+  if (value.startsWith('operation')) return 'Operation';
+  return 'Operation';
 }
 
+/// Persisted history intentionally contains no device serials, file paths,
+/// command arguments, backend output, or caller-provided success messages.
+String _safeTarget(String _) => 'Local target';
+
+String _safeSummary(String status) {
+  switch (status) {
+    case 'completed':
+      return 'Operation completed.';
+    case 'cancelled':
+      return 'Operation cancelled.';
+    case 'failed':
+      return 'Operation failed. Detailed error text was omitted from local history.';
+    default:
+      return 'Operation status unavailable.';
+  }
+}
+
+OperationRecord _sanitizeRecord(OperationRecord record) => OperationRecord(
+  id: record.id,
+  timestamp: record.timestamp,
+  operation: historyOperationLabel(record.operation),
+  target: _safeTarget(record.target),
+  status: const {'completed', 'cancelled', 'failed'}.contains(record.status)
+      ? record.status
+      : 'failed',
+  summary: _safeSummary(record.status),
+);
+
 /// Returns a deliberately non-diagnostic failure summary for local history.
-///
-/// Backend exception messages can contain command output, filesystem paths,
-/// device identifiers or user-supplied arguments. Keep those details out of
-/// persistent history.
 String operationFailureSummary(Object error) {
   if (error is BackendException && error.code == 'cancelled') {
     return 'Operation cancelled.';
@@ -32,6 +74,7 @@ class OperationRecord {
     required this.status,
     required this.summary,
   });
+
   final String id;
   final DateTime timestamp;
   final String operation;
@@ -39,23 +82,27 @@ class OperationRecord {
   final String status;
   final String summary;
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'timestamp': timestamp.toIso8601String(),
-    'operation': operation,
-    'target': target,
-    'status': status,
-    'summary': summary,
-  };
+  Map<String, dynamic> toJson() {
+    final safe = _sanitizeRecord(this);
+    return {
+      'id': safe.id,
+      'timestamp': safe.timestamp.toIso8601String(),
+      'operation': safe.operation,
+      'target': safe.target,
+      'status': safe.status,
+      'summary': safe.summary,
+    };
+  }
 
-  factory OperationRecord.fromJson(Map<String, dynamic> json) => OperationRecord(
-    id: json['id'] as String,
-    timestamp: DateTime.parse(json['timestamp'] as String),
-    operation: json['operation'] as String,
-    target: json['target'] as String? ?? '',
-    status: json['status'] as String,
-    summary: json['summary'] as String? ?? '',
-  );
+  factory OperationRecord.fromJson(Map<String, dynamic> json) =>
+      _sanitizeRecord(OperationRecord(
+        id: json['id'] as String,
+        timestamp: DateTime.parse(json['timestamp'] as String),
+        operation: json['operation'] as String,
+        target: json['target'] as String? ?? '',
+        status: json['status'] as String,
+        summary: json['summary'] as String? ?? '',
+      ));
 }
 
 class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRecord>>> {
@@ -82,8 +129,6 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
         return;
       }
       final decoded = jsonDecode(await file.readAsString());
-      // Version 0 was a bare JSON array. Continue reading it so existing
-      // installations retain their history after upgrading.
       final List<dynamic> serializedRecords;
       if (decoded is List<dynamic>) {
         serializedRecords = decoded;
@@ -100,33 +145,48 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
       } else {
         throw const FormatException('Operation history file must contain a JSON array or versioned object.');
       }
-      final records = serializedRecords.map((value) {
+      final original = serializedRecords.map((value) {
         if (value is! Map<String, dynamic>) {
           throw const FormatException('Invalid operation history record.');
         }
-        return OperationRecord.fromJson(value);
+        return OperationRecord(
+          id: value['id'] as String,
+          timestamp: DateTime.parse(value['timestamp'] as String),
+          operation: value['operation'] as String,
+          target: value['target'] as String? ?? '',
+          status: value['status'] as String,
+          summary: value['summary'] as String? ?? '',
+        );
       }).toList(growable: false);
-      records.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      state = AsyncData(records.take(_maximumRecords).toList(growable: false));
+      original.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      final records = original.take(_maximumRecords)
+          .map(_sanitizeRecord).toList(growable: false);
+      state = AsyncData(records);
+
+      // Rewrite old, potentially sensitive records immediately after migration.
+      final requiresMigration = serializedRecords.length != records.length ||
+          original.asMap().entries.any((entry) =>
+              entry.value.toJson().toString() != records[entry.key].toJson().toString());
+      if (requiresMigration) await _persist(records);
     } on Object catch (error, stack) {
-      persistenceError = error.toString();
+      persistenceError = 'Unable to load local operation history.';
       state = AsyncError(error, stack);
     }
   }
 
   Future<void> record(OperationRecord record) async {
     await _loaded;
+    final safeRecord = _sanitizeRecord(record);
     final current = state.valueOrNull ?? const <OperationRecord>[];
-    final records = <OperationRecord>[record, ...current]
-        .take(_maximumRecords)
-        .toList(growable: false);
+    final records = <OperationRecord>[safeRecord, ...current]
+        .take(_maximumRecords).toList(growable: false);
     state = AsyncData(records);
     _writeTail = _writeTail.catchError((_) {}).then((_) => _persist(records));
     try {
       await _writeTail;
       persistenceError = null;
-    } on Object catch (error) {
-      persistenceError = error.toString();
+    } on Object {
+      persistenceError = 'Unable to save local operation history.';
     }
   }
 
@@ -140,8 +200,8 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
     try {
       await _writeTail;
       persistenceError = null;
-    } on Object catch (error) {
-      persistenceError = error.toString();
+    } on Object {
+      persistenceError = 'Unable to clear local operation history.';
     }
   }
 
@@ -186,7 +246,7 @@ Future<T> trackOperation<T>(
       operation: historyOperationLabel(operation),
       target: target,
       status: 'completed',
-      summary: successSummary?.call(result) ?? 'Operation completed.',
+      summary: 'Operation completed.',
     ));
     return result;
   } on Object catch (error) {
