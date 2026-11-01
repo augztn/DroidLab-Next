@@ -6,7 +6,7 @@ DroidLab is a Flutter desktop application with a separately executable Python ba
 
 - `apps/desktop`: Flutter composition root and generated native runner projects.
 - `packages/droidlab_domain`: reserved package boundary; currently only a placeholder, with no production domain models or repository contracts yet.
-- `packages/droidlab_application`: Riverpod providers, navigation, feature pages and operation history.
+- `packages/droidlab_application`: Riverpod providers, navigation, feature pages and operation history. Feature-page source is split into dashboard, devices, ADB, Fastboot, payload, logs, about, settings and shared-widget part files within the feature-pages library; this preserves existing private widget contracts while reducing the monolithic source file.
 - `packages/droidlab_backend_bridge`: Dart process lifecycle and JSONL protocol client.
 - `packages/droidlab_design_system`: Material 3 theme tokens.
 - `backend/python`: headless Python process and device operations.
@@ -17,15 +17,15 @@ DroidLab is a Flutter desktop application with a separately executable Python ba
 
 Dart starts the backend with `Process.start` and consumes stdout/stderr as streams. Stdout is UTF-8 JSON Lines only. Each request includes protocol version, unique ID, named operation and typed arguments. Backend events are correlated by request ID and include accepted, output, preflight and terminal result events.
 
-The Python process never accepts a UI-supplied executable or raw host shell command. The UI requests named operations; Python validates arguments, resolves tool paths and constructs executable-plus-argument arrays. Child processes have timeouts, bounded output retention, cancellation and process-tree cleanup.
+The Python process never accepts a UI-supplied executable or raw host shell command. The UI requests named operations; Python validates arguments, resolves tool paths and constructs executable-plus-argument arrays. Child processes have timeouts, bounded output retention, cancellation and process-tree cleanup. The JSONL server admits at most eight active requests, rejects duplicate active request IDs and returns a busy error under load. Device discovery propagates cancellation instead of reporting it as a transport warning.
 
 ## State and UI
 
-Riverpod owns backend readiness, device discovery and local operation history. GoRouter owns feature routes. Material 3 theme tokens are centralized. The shell has a responsive/collapsible sidebar, live device/backend status and a bounded operation console. Feature pages do not launch external processes directly.
+Riverpod owns backend readiness, device discovery and local operation history. Backend startup waits for asynchronous settings loading; changing Python or backend paths invalidates and recreates the backend client. ADB/Fastboot/payload tool paths remain dynamically resolved from the shared settings file by Python. GoRouter owns feature routes. Material 3 theme tokens are centralized. The shell has a responsive/collapsible sidebar, live device/backend status and a bounded operation console. Feature pages do not launch external processes directly.
 
 ## Device safety
 
-Every device operation names a serial. ADB/Fastboot state is rescanned immediately before dispatch. Destructive operations require an explicit confirmation envelope matching the exact serial and relevant operation arguments. Mutating work is serialized per device. Cancellation terminates host work where possible but cannot roll back changes accepted by device firmware.
+Operation history is deliberately privacy-minimized: operation labels are allowlisted, targets are generalized, and success/failure summaries are fixed strings. Legacy records are sanitized and rewritten on load. Every device operation names a serial. ADB/Fastboot state is rescanned immediately before dispatch. Destructive operations require an explicit confirmation envelope matching the exact serial and relevant operation arguments. Mutating work is serialized per device. Cancellation terminates host work where possible but cannot roll back changes accepted by device firmware.
 
 ## Packaging
 
