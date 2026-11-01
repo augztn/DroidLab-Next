@@ -9,7 +9,7 @@ DroidLab is a Flutter desktop application with a separately executable Python ba
 - `packages/droidlab_application`: Riverpod providers, navigation, feature pages and operation history. Feature-page source is split into dashboard, devices, ADB, Fastboot, payload, logs, about, settings and shared-widget part files within the feature-pages library; this preserves existing private widget contracts while reducing the monolithic source file.
 - `packages/droidlab_backend_bridge`: Dart process lifecycle and JSONL protocol client.
 - `packages/droidlab_design_system`: Material 3 theme tokens.
-- `backend/python`: headless Python process and device operations.
+- `backend/python`: headless Python process and device operations. Executable discovery is isolated in `droidlab.core.tool_resolver`; subprocess management and pure command guards remain separate core services.
 - `docs`: architecture, protocol, safety, parity and release records.
 - `scripts`: Flutter bootstrap, backend staging and AppImage packaging.
 
@@ -25,7 +25,7 @@ Riverpod owns backend readiness, device discovery and local operation history. A
 
 ## Device safety
 
-Operation history is deliberately privacy-minimized: operation labels are allowlisted, targets are generalized, and success/failure summaries are fixed strings. Legacy records are sanitized and rewritten on load. Every device operation names a serial. ADB/Fastboot state is rescanned immediately before dispatch. Destructive operations require an explicit confirmation envelope matching the exact serial and relevant operation arguments. Mutating work is serialized per device. Cancellation terminates host work where possible but cannot roll back changes accepted by device firmware.
+Operation history is deliberately privacy-minimized: operation labels are allowlisted, targets are generalized, and success/failure summaries are fixed strings. Legacy records are sanitized and rewritten on load. Settings parsing preserves malformed or unsupported-schema files under a timestamped `.corrupt.*` recovery name and exposes a warning instead of silently overwriting the only copy. Diagnostic exports apply centralized credential, device-identifier and host-path redaction, while still requiring user review. Every device operation names a serial. ADB/Fastboot state is rescanned immediately before dispatch. Destructive operations require an explicit confirmation envelope matching the exact serial and relevant operation arguments. Mutating work is serialized per device. Cancellation terminates host work where possible but cannot roll back changes accepted by device firmware.
 
 ## Packaging
 
