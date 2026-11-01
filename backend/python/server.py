@@ -759,7 +759,7 @@ def _device_command_requires_lock(operation: str, args: dict[str, Any]) -> bool:
     if operation == "fastboot.command":
         raw = args.get("command", "")
         try:
-            tokens = strip_fastboot_executable(shlex.split(raw, posix=(os.name != "nt")))
+            tokens = strip_fastboot_executable(split_command_text(raw))
         except (TypeError, ValueError):
             return True
         index = 0
