@@ -981,6 +981,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('system'), child: const Text('Reboot')),
         OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('bootloader'), child: const Text('Bootloader')),
         OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('recovery'), child: const Text('Recovery')),
+        FilledButton.tonal(onPressed: _busy || !canReboot ? null : () => _reboot('fastboot'), child: const Text('Fastbootd')),
         OutlinedButton(onPressed: _busy || !(canRunAdbCommands || selectedFastboot) ? null : _loadDeviceInfo, child: const Text('Device info')),
         OutlinedButton(
           onPressed: _logcatRequestId != null ? _stopLogcat : (canRunAdbCommands ? _startLogcat : null),
