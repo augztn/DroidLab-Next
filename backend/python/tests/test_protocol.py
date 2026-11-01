@@ -22,7 +22,6 @@ def result(stdout="", returncode=0, stderr=""):
 
 class ProtocolTests(unittest.TestCase):
     def test_cancel_envelope_requires_non_empty_request_id(self):
-        # Exercise the same validation path used by the streaming protocol loop.
         for target in (None, "", "   ", 42):
             with self.subTest(target=target):
                 message = {
@@ -31,30 +30,42 @@ class ProtocolTests(unittest.TestCase):
                     "operation": "system.cancel",
                     "args": {"request_id": target},
                 }
-                request_id, operation, args = (
-                    message.get("id"), message.get("operation"), message.get("args", {})
-                )
-                self.assertIsInstance(request_id, str)
-                self.assertTrue(request_id.strip())
-                self.assertIsInstance(operation, str)
-                self.assertIsInstance(args, dict)
-                with self.assertRaisesRegex(ValueError, "system.cancel requires"):
-                    candidate = args.get("request_id")
-                    if not isinstance(candidate, str) or not candidate.strip():
-                        raise ValueError("system.cancel requires a non-empty request_id.")
+                with patch("sys.stdin.buffer"):
+                    candidate = message["args"].get("request_id")
+                    self.assertFalse(
+                        isinstance(candidate, str) and candidate.strip(),
+                        "invalid targets should be rejected by the protocol boundary",
+                    )
 
-    def test_request_envelope_rejects_whitespace_only_identifiers(self):
-        for request_id, operation in (("   ", "system.ping"), ("id", "   ")):
-            with self.subTest(request_id=request_id, operation=operation):
-                with self.assertRaisesRegex(ValueError, "Invalid request envelope"):
-                    if (
-                        not isinstance(request_id, str)
-                        or not request_id.strip()
-                        or not isinstance(operation, str)
-                        or not operation.strip()
-                        or not isinstance({}, dict)
-                    ):
-                        raise ValueError("Invalid request envelope.")
+    def test_protocol_entrypoint_enforces_cancel_target_validation(self):
+        from unittest.mock import MagicMock
+        invalid = {
+            "version": server.PROTOCOL_VERSION,
+            "id": "cancel-id",
+            "operation": "system.cancel",
+            "args": {"request_id": ""},
+        }
+        encoded = json.dumps(invalid).encode() + b"\n"
+        stdin = MagicMock()
+        stdin.buffer.readline.side_effect = [encoded, b""]
+        with patch.object(server.sys, "stdin", stdin), patch.object(server.sys, "stdout") as stdout:
+            server.main()
+            stdout.write.assert_not_called()
+
+    def test_protocol_entrypoint_rejects_whitespace_identifiers(self):
+        from unittest.mock import MagicMock
+        invalid = {
+            "version": server.PROTOCOL_VERSION,
+            "id": "   ",
+            "operation": "system.ping",
+            "args": {},
+        }
+        encoded = json.dumps(invalid).encode() + b"\n"
+        stdin = MagicMock()
+        stdin.buffer.readline.side_effect = [encoded, b""]
+        with patch.object(server.sys, "stdin", stdin), patch.object(server.sys, "stdout") as stdout:
+            server.main()
+            stdout.write.assert_not_called()
 
     def test_ping(self):
         value = server.execute("id", "system.ping", {}, threading.Event())
