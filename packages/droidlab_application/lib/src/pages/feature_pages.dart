@@ -2063,7 +2063,6 @@ String _redactDiagnosticText(String value) {
     RegExp(r'(token|password|passwd|api[_-]?key)(\s*[:=]\s*)([^\s,;]+)', caseSensitive: false),
     (match) => '${match.group(1)}${match.group(2)}<REDACTED>',
   );
-  );
   return redacted;
 }
 
