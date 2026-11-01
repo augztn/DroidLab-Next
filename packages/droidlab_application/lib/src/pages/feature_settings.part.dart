@@ -31,6 +31,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       setState(() {
         _theme = settings.theme;
         _loaded = true;
+        _status = ref.read(droidLabSettingsStoreProvider).recoveryNotice ?? '';
       });
     }).catchError((Object error) {
       if (mounted) setState(() {
