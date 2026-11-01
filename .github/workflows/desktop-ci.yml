@@ -40,6 +40,14 @@ jobs:
       - name: Resolve dependencies
         working-directory: apps/desktop
         run: flutter pub get
+      - name: Upload resolved dependency lockfile
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: droidlab-pubspec-lock
+          path: apps/desktop/pubspec.lock
+          if-no-files-found: error
+          retention-days: 7
       - name: Analyze
         working-directory: apps/desktop
         run: flutter analyze --fatal-infos
