@@ -18,7 +18,7 @@ String redactDiagnosticText(String value, {String? homeDirectory}) {
     (m) => '\${m[1]}<REDACTED>',
   );
   text = text.replaceAllMapped(
-    RegExp(r'((?:token|password|passwd|secret|api[_-]?key|client[_-]?secret)(?:\s*[:=]\s*|\s+))(?:"[^"]*"|\'[^\']*\'|[^\s,;]+)', caseSensitive: false),
+    RegExp(r'((?:token|password|passwd|secret|api[_-]?key|client[_-]?secret)(?:\s*[:=]\s*|\s+))(?:"[^"]*"|[^\s,;]+)', caseSensitive: false),
     (m) => '\${m[1]}<REDACTED>',
   );
   text = text.replaceAllMapped(
@@ -39,11 +39,11 @@ String redactDiagnosticText(String value, {String? homeDirectory}) {
   );
   text = text.replaceAll(RegExp(r'\b\d{15}\b'), '<DEVICE_NUMBER>');
   text = text.replaceAllMapped(
-    RegExp(r'((?:path|file|image|output|directory|executable|cwd)(?:_path)?\s*[:=]\s*)("[^"]+"|\'[^\']*\'|[^\s,;]+)', caseSensitive: false),
+    RegExp(r'((?:path|file|image|output|directory|executable|cwd)(?:_path)?\s*[:=]\s*)("[^"]*"|[^\s,;]+)', caseSensitive: false),
     (m) => '\${m[1]}<PATH>',
   );
   text = text.replaceAll(
-    RegExp(r'(?<![A-Za-z0-9])(?:[A-Za-z]:\\|/)(?:[^\s"\'<>|]+[\\/])*[^\s"\'<>|]+'),
+    RegExp(r'(?<![A-Za-z0-9])(?:[A-Za-z]:\\|/)(?:[^\s"<>|]+[\\/])*[^\s"<>|]+'),
     '<PATH>',
   );
   return text;
