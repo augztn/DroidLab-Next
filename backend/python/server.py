@@ -90,12 +90,38 @@ def fastboot_scan(cancel_event: threading.Event | None = None) -> list[dict[str,
     for line in result.stdout.splitlines():
         fields = line.split()
         if len(fields) >= 2 and fields[1].lower() == "fastboot":
+            serial = fields[0]
             details = {}
             for item in fields[2:]:
                 if ":" in item:
                     key, value = item.split(":", 1)
                     details[key] = value
-            devices.append({"serial": fields[0], "transport": "fastboot", "state": "fastboot", "details": details})
+            # The devices command reports both bootloader Fastboot and Fastbootd
+            # as the same transport. Query the standard userspace flag so the UI
+            # can distinguish the two without relying on a user-triggered info read.
+            mode = "unknown"
+            try:
+                mode_result = run_capture(
+                    [tool_path("fastboot"), "-s", serial, "getvar", "is-userspace"],
+                    5,
+                    cancel_event,
+                )
+                mode_output = (mode_result.stdout or "") + "\\n" + (mode_result.stderr or "")
+                userspace = parse_fastboot_getvar(mode_output, "is-userspace").lower()
+                mode = {"yes": "fastbootd", "no": "bootloader"}.get(userspace, "unknown")
+            except ProcessCancelledError:
+                raise
+            except Exception:
+                # Older or vendor-specific Fastboot implementations may not
+                # expose is-userspace. Keep the device usable, but mark unknown.
+                mode = "unknown"
+            devices.append({
+                "serial": serial,
+                "transport": "fastboot",
+                "state": "fastboot",
+                "mode": mode,
+                "details": details,
+            })
     return devices
 
 def require_adb(serial: Any, states: tuple[str, ...] = ("device",), cancel_event: threading.Event | None = None) -> None:
