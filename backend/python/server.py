@@ -16,6 +16,9 @@ from droidlab.core.device_metadata import (
 from droidlab.core import payload_dumper
 from droidlab.core.tool_resolver import resolve_tool_path
 from droidlab.core.windows_volumes import list_removable_drives
+from droidlab.core.platform_tools_installer import (
+    PLATFORM_TOOLS_VERSION, install_platform_tools, platform_tools_status,
+)
 from droidlab.core.file_transfer import (
     ensure_pull_target_is_new, publish_file_no_replace, validate_android_path,
     validate_pull_directory, validate_push_source,
@@ -173,6 +176,14 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             except Exception as exc:
                 tools[name] = {"available": False, "error": str(exc)}
         return {"tools": tools}
+    if operation == "system.platform_tools.install":
+        intent = {
+            "operation": "system.platform_tools.install",
+            "version": PLATFORM_TOOLS_VERSION,
+            "license_accepted": True,
+        }
+        require_confirmation(args, "Android Platform-Tools installation", intent)
+        return install_platform_tools(license_accepted=True)
     if operation == "devices.list":
         devices, warnings = [], []
         for scanner, label in ((lambda: adb_scan(cancel), "adb"), (lambda: fastboot_scan(cancel), "fastboot")):
