@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
 
 
 def parse_getprop_output(output: str) -> dict[str, str]:
