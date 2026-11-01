@@ -5,7 +5,7 @@ DroidLab is a Flutter desktop application with a separately executable Python ba
 ## Workspace
 
 - `apps/desktop`: Flutter composition root and generated native runner projects.
-- `packages/droidlab_domain`: reserved package boundary; currently only a placeholder, with no production domain models or repository contracts yet.
+- `packages/droidlab_domain`: platform-independent immutable device and partition models plus repository contracts. `packages/droidlab_application/src/data` adapts backend protocol responses into domain entities; feature screens are migrating incrementally from raw JSON maps.
 - `packages/droidlab_application`: Riverpod providers, navigation, feature pages and operation history. Feature-page source is split into dashboard, devices, ADB, Fastboot, payload, logs, about, settings and shared-widget part files within the feature-pages library; this preserves existing private widget contracts while reducing the monolithic source file.
 - `packages/droidlab_backend_bridge`: Dart process lifecycle and JSONL protocol client.
 - `packages/droidlab_design_system`: Material 3 theme tokens.
@@ -21,7 +21,7 @@ The Python process never accepts a UI-supplied executable or raw host shell comm
 
 ## State and UI
 
-Riverpod owns backend readiness, device discovery and local operation history. Backend startup waits for asynchronous settings loading; changing Python or backend paths invalidates and recreates the backend client. ADB/Fastboot/payload tool paths remain dynamically resolved from the shared settings file by Python. GoRouter owns feature routes. Material 3 theme tokens are centralized. The shell has a responsive/collapsible sidebar, live device/backend status and a bounded operation console. Feature pages do not launch external processes directly.
+Riverpod owns backend readiness, device discovery and local operation history. A typed `DeviceRepository` boundary and `DeviceDescriptor`/`PartitionDescriptor` models now isolate feature code from backend JSON field names; the legacy map provider remains temporarily for unmigrated screens. Backend startup waits for asynchronous settings loading; changing Python or backend paths invalidates and recreates the backend client. ADB/Fastboot/payload tool paths remain dynamically resolved from the shared settings file by Python. GoRouter owns feature routes. Material 3 theme tokens are centralized. The shell has a responsive/collapsible sidebar, live device/backend status and a bounded operation console. Feature pages do not launch external processes directly.
 
 ## Device safety
 
