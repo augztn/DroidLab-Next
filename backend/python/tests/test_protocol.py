@@ -227,10 +227,10 @@ class ProtocolTests(unittest.TestCase):
             with patch.object(server, "run_capture", return_value=result("SERIAL fastboot\n")):
                 with patch.object(server, "run_streaming", return_value=result(output)):
                     value = server.execute("id", "fastboot.partitions", args, threading.Event())
-        self.assertEqual(value["partitions"][0]["name"], "boot_a")
-        self.assertEqual(value["partitions"][0]["size"], "0x04000000")
-        self.assertEqual(value["partitions"][0]["type"], "raw")
-        self.assertEqual(value["partitions"][1]["has_slot"], "yes")
+        by_name = {item["name"]: item for item in value["partitions"]}
+        self.assertEqual(by_name["boot_a"]["size"], "0x04000000")
+        self.assertEqual(by_name["boot_a"]["type"], "raw")
+        self.assertEqual(by_name["boot"]["has_slot"], "yes")
 
     def test_fastboot_partition_discovery_requires_connected_device(self):
         with patch.object(server, "tool_path", return_value="fastboot"):
