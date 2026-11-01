@@ -152,7 +152,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
 
     final fastbootArguments = _stripHostExecutable(command, 'fastboot');
     if (fastbootArguments != null) {
-      final verb = fastbootArguments.split(RegExp(r'\\s+')).first.toLowerCase();
+      final verb = fastbootArguments.split(RegExp(r'\s+')).first.toLowerCase();
       const discovery = {'devices', 'help', '--help', '--version', 'version'};
       final isDiscovery = discovery.contains(verb);
       if (!isDiscovery && (transport != 'fastboot' || serial == null || state != 'fastboot')) {
@@ -337,12 +337,19 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     } finally {
       if (mounted) setState(() => _busy = false);
       if (mounted && (mode == 'bootloader' || mode == 'fastboot')) {
+        final expectedFastbootMode = mode == 'fastboot' ? 'fastbootd' : 'bootloader';
         final transitioned = await _waitForDeviceTransport(
           ref: ref,
           serial: serial,
           transport: 'fastboot',
+          fastbootMode: expectedFastbootMode,
         );
-        if (mounted && transitioned) context.go('/fastboot');
+        if (mounted && transitioned) {
+          context.go('/fastboot');
+        } else if (mounted) {
+          setState(() => _output =
+              'Reboot was accepted, but $serial was not detected in $expectedFastbootMode. Refresh devices and check the USB connection.');
+        }
       } else if (mounted) {
         // Recovery and normal Android boot remain on the ADB workspace.
         await _waitForDeviceTransport(
