@@ -46,3 +46,11 @@ Run one transition at a time. Refresh DroidLab's device list after each transiti
 ## Evidence
 
 Attach the completed matrix, `fastboot getvar all` output after removing serials, and DroidLab diagnostic report after reviewing redactions. Do not publish IMEI, serial, account identifiers, tokens, or private firmware.
+
+## Host storage and ADB transfer validation
+
+- On Windows, verify that USB flash drives reported by Windows as `DRIVE_REMOVABLE` appear in the mounted-storage selector.
+- Verify that fixed internal disks, USB-attached disks reported as `DRIVE_FIXED`, optical drives and unavailable drive letters do not appear.
+- Drag a regular file onto the ADB Toolkit push source field, select an authorized device, confirm the exact source and destination, and verify the file contents on-device.
+- Pull a known file into a clean local directory and verify its contents. Repeat with an existing same-name local file and confirm DroidLab refuses to overwrite it.
+- Disconnect the device during a transfer and verify the operation reports an uncertain/failed outcome without automatically retrying.
