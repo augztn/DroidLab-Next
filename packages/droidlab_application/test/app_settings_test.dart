@@ -38,6 +38,37 @@ void main() {
     expect(loaded.toJson(), settings.toJson());
   });
 
+  test('preserves malformed config and exposes a recovery notice', () async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-corrupt-settings-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final file = File(temporary.path + '/config.json');
+    await file.writeAsString('{ invalid json');
+    final store = DroidLabSettingsStore(file: file);
+
+    final settings = await store.load();
+
+    expect(settings.theme, 'cyberpunk_glass');
+    expect(store.recoveryNotice, contains('preserved'));
+    expect(await file.exists(), isFalse);
+    final recovered = temporary.listSync().whereType<File>().single;
+    expect(recovered.path, contains('.corrupt.'));
+    expect(await recovered.readAsString(), '{ invalid json');
+  });
+
+  test('preserves unsupported future schema without overwriting it', () async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-future-settings-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final file = File(temporary.path + '/config.json');
+    await file.writeAsString('{"schema_version":99,"theme":"oled_black"}');
+    final store = DroidLabSettingsStore(file: file);
+
+    await store.load();
+
+    expect(store.recoveryNotice, contains('preserved'));
+    expect(await file.exists(), isFalse);
+    expect(temporary.listSync().whereType<File>(), hasLength(1));
+  });
+
   test('provider writes settings through the replaceable store', () async {
     final temporary = await Directory.systemTemp.createTemp('droidlab-provider-');
     addTearDown(() => temporary.delete(recursive: true));
