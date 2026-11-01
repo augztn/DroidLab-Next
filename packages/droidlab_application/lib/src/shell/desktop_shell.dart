@@ -140,9 +140,10 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
 
   @override
   Widget build(BuildContext context) {
-    final client = ref.watch(backendClientProvider);
-    unawaited(_subscribeToBackendEvents(client));
     final backend = ref.watch(backendReadyProvider);
+    if (backend.hasValue) {
+      unawaited(_subscribeToBackendEvents(ref.read(backendClientProvider)));
+    }
     final devices = ref.watch(deviceListProvider);
     return LayoutBuilder(builder: (context, constraints) {
       final compact = constraints.maxWidth < 1000;
