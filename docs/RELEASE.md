@@ -2,7 +2,7 @@
 
 ## Desktop bundles
 
-The CI pipeline generates the Flutter native runner projects, resolves packages, analyzes and tests the app, builds Linux/Windows/macOS release bundles, then stages `backend/python` beside each native executable. Linux bundles also include the pinned `payload-dumper-go` executable beside the native app, so payload inspection and extraction work in both the AppImage and extracted tarball. The backend requires Python 3.10+ on the host and the Android platform-tools installation for ADB/Fastboot.
+The CI pipeline uses Flutter 3.47.9 and GitHub Actions pinned to reviewed commit SHAs, generates the Flutter native runner projects, resolves packages, analyzes and tests the app, builds Linux/Windows/macOS release bundles, then stages `backend/python` beside each native executable. Linux bundles also include the pinned `payload-dumper-go` executable beside the native app, so payload inspection and extraction work in both the AppImage and extracted tarball. The backend requires Python 3.10+ on the host and the Android platform-tools installation for ADB/Fastboot. Windows release signing covers all packaged `.exe` and `.dll` binaries when a certificate is configured. macOS release notarization and stapling run when both Developer ID signing and App Store Connect API credentials are configured; otherwise the workflow explicitly produces an unsigned or signed-but-not-notarized build.
 
 ## Linux AppImage
 
@@ -18,3 +18,11 @@ chmod +x DroidLab-0.1.0-x86_64.AppImage
 ```
 
 No package installation is required. The current backend still uses the host Python 3.10+ runtime and host ADB/Fastboot tools; the launcher checks Python and prints a direct diagnostic if it is missing or too old. The AppImage relies on the target system's compatible glibc and desktop/GTK runtime libraries, as is normal for Linux AppImages. Physical-device workflows require Android platform-tools on the host.
+
+## Signing and notarization secrets
+
+- Windows: `WINDOWS_SIGNING_CERTIFICATE_BASE64` and `WINDOWS_SIGNING_CERTIFICATE_PASSWORD`.
+- macOS Developer ID signing: `MACOS_SIGNING_CERTIFICATE_BASE64`, `MACOS_SIGNING_CERTIFICATE_PASSWORD`, and `MACOS_SIGNING_IDENTITY`.
+- Apple notarization: `APPLE_NOTARIZATION_KEY_BASE64`, `APPLE_NOTARIZATION_KEY_ID`, and `APPLE_NOTARIZATION_ISSUER_ID`.
+
+A successful build without these secrets is not equivalent to a signed/notarized production release. Verify the published assets on a clean machine and complete physical-device acceptance tests before distributing a release.
