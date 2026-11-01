@@ -92,6 +92,21 @@ class PlatformToolsInstallerTests(unittest.TestCase):
             self.assertTrue((destination / "adb").is_file())
             self.assertTrue((destination / "fastboot").is_file())
 
+    def test_windows_archive_installs_executable_names(self):
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "platform-tools" / PLATFORM_TOOLS_VERSION
+            with patch("droidlab.core.platform_tools_installer.platform.machine", return_value="AMD64"):
+                result = install_platform_tools(
+                    license_accepted=True,
+                    platform_name="win32",
+                    install_dir=destination,
+                    opener=lambda *_args, **_kwargs: FakeResponse(archive_bytes("win32")),
+                    version_probe=lambda *_args: f"fastboot version {PLATFORM_TOOLS_VERSION}",
+                )
+            self.assertTrue(result["installed"])
+            self.assertTrue((destination / "adb.exe").is_file())
+            self.assertTrue((destination / "fastboot.exe").is_file())
+
     def test_invalid_version_does_not_publish_install(self):
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "platform-tools" / PLATFORM_TOOLS_VERSION
