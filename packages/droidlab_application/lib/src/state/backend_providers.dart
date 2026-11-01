@@ -9,15 +9,21 @@ import '../data/backend_device_repository.dart';
 import 'app_settings.dart';
 
 final backendClientProvider = Provider<BackendClient>((ref) {
-  final settingsState = ref.watch(droidLabSettingsProvider);
-  final settings = settingsState.requireValue;
-  final python = settings.pythonPath.trim().isNotEmpty
-      ? settings.pythonPath.trim()
+  // Only process-launch settings invalidate this provider. Theme and device
+  // tool-path edits must not tear down an otherwise healthy backend process.
+  final pythonOverride = ref.watch(droidLabSettingsProvider.select(
+    (state) => state.valueOrNull?.pythonPath ?? '',
+  ));
+  final backendOverride = ref.watch(droidLabSettingsProvider.select(
+    (state) => state.valueOrNull?.backendPath ?? '',
+  ));
+  final python = pythonOverride.trim().isNotEmpty
+      ? pythonOverride.trim()
       : (Platform.environment['DROIDLAB_PYTHON']?.trim().isNotEmpty == true
           ? Platform.environment['DROIDLAB_PYTHON']!.trim()
           : (Platform.isWindows ? 'python' : 'python3'));
-  final configured = settings.backendPath.trim().isNotEmpty
-      ? settings.backendPath.trim()
+  final configured = backendOverride.trim().isNotEmpty
+      ? backendOverride.trim()
       : (Platform.environment['DROIDLAB_BACKEND_SCRIPT']?.trim() ?? '');
 
   // ADB/Fastboot/payload tool overrides remain in config.json and are resolved
