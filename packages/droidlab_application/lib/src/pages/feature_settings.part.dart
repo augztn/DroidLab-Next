@@ -228,7 +228,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget build(BuildContext context) {
     return _PageFrame(
       title: 'Settings',
-      subtitle: 'Appearance and executable paths. Blank tool paths use bundled tools first, then system PATH.',
+      subtitle: 'Appearance and executable paths. Blank tool paths use app-managed tools first, then system PATH.',
       child: !_loaded
           ? const Center(child: CircularProgressIndicator())
           : ListView(children: [
