@@ -206,18 +206,49 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     }
   }
 
+  String _fastbootCommandArguments(String command) {
+    final trimmed = command.trim();
+    if (trimmed.isEmpty) return '';
+    // Accept argument-only input or a copied full command, including a quoted
+    // executable path such as "C:\Android SDK\platform-tools\fastboot.exe".
+    final executable = RegExp(
+      r'^\s*(?:"[^"]*fastboot(?:\.exe)?"|[^\s]*fastboot(?:\.exe)?)\s+',
+      caseSensitive: false,
+    ).firstMatch(trimmed);
+    return executable == null ? trimmed : trimmed.substring(executable.end).trim();
+  }
+
   bool _isFastbootDiscoveryCommand(String command) {
-    final verb = command.trim().split(RegExp(r'\s+')).first.toLowerCase();
-    return const {'devices', 'help', '--help', '--version', 'version'}.contains(verb);
+    final arguments = _fastbootCommandArguments(command);
+    if (arguments.isEmpty) return false;
+    final tokens = arguments.split(RegExp(r'\s+'));
+    var index = 0;
+    const takesValue = {'-s', '-i', '-p', '-c', '--slot'};
+    while (index < tokens.length && tokens[index].startsWith('-')) {
+      final token = tokens[index];
+      if (takesValue.contains(token) && index + 1 < tokens.length) {
+        index += 2;
+      } else {
+        index += 1;
+      }
+    }
+    if (index >= tokens.length) return false;
+    return const {'devices', 'help', '--help', '--version', 'version'}
+        .contains(tokens[index].toLowerCase());
   }
 
   String _fastbootCommandPreview(String command) {
-    final trimmed = command.trim();
-    if (trimmed.isEmpty) return '';
-    if (_isFastbootDiscoveryCommand(trimmed) || _serial.text.trim().isEmpty) {
-      return 'fastboot ' + trimmed;
+    final arguments = _fastbootCommandArguments(command);
+    if (arguments.isEmpty) return '';
+    final tokens = arguments.split(RegExp(r'\s+'));
+    final hasExplicitSerial = tokens.contains('-s') ||
+        tokens.any((token) => token.startsWith('-s='));
+    if (_isFastbootDiscoveryCommand(command) ||
+        _serial.text.trim().isEmpty ||
+        hasExplicitSerial) {
+      return 'fastboot ' + arguments;
     }
-    return 'fastboot -s ' + _serial.text.trim() + ' ' + trimmed;
+    return 'fastboot -s ' + _serial.text.trim() + ' ' + arguments;
   }
 
   Future<void> _runAdvancedCommand() async {
@@ -454,7 +485,13 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         .where((device) => device['transport'] == 'fastboot')
         .toList();
     final serials = devices.map((device) => device['serial'] as String).toList();
-    final selectedSerial = serials.contains(_selectedSerial) ? _selectedSerial : null;
+    // A single connected Fastboot device is unambiguous, so select it
+    // automatically. Multiple devices still require an explicit user choice.
+    final selectedSerial = serials.contains(_selectedSerial)
+        ? _selectedSerial
+        : serials.length == 1
+            ? serials.single
+            : null;
     if (selectedSerial != null && selectedSerial != _serial.text && !_busy) {
       _serial.text = selectedSerial;
     }
