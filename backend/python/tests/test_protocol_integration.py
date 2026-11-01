@@ -32,7 +32,7 @@ class ProtocolIntegrationTests(unittest.TestCase):
   self.assertEqual(events[-1]["type"],"failed")
   self.assertIn("request_id",events[-1]["error"]["message"])
  def test_whitespace_only_request_id_is_ignored_without_killing_backend(self):
-  self.p.stdin.write(json.dumps({"version":1,"id":"   ","operation":"system.ping","args":{}})+"\n")
+  self.p.stdin.write(json.dumps({"version":1,"id":"   ","operation":"system.ping","args":{}})+"\\n")
   self.p.stdin.flush()
   events=self.request("after-invalid","system.ping",{})
   self.assertEqual(events[-1]["type"],"completed")
