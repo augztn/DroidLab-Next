@@ -65,6 +65,7 @@ class DroidLabSettings {
 class DroidLabSettingsStore {
   DroidLabSettingsStore({File? file}) : _file = file ?? _defaultFile();
   final File _file;
+  String? recoveryNotice;
 
   static File _defaultFile() {
     final home = Platform.environment['USERPROFILE'] ??
@@ -73,14 +74,18 @@ class DroidLabSettingsStore {
   }
 
   Future<DroidLabSettings> load() async {
+    recoveryNotice = null;
     try {
       final value = jsonDecode(await _file.readAsString());
       if (value is Map<String, dynamic>) return DroidLabSettings.fromJson(value);
       if (value is Map) return DroidLabSettings.fromJson(value.cast<String, dynamic>());
+      await _preserveCorruptConfig('The settings file did not contain a JSON object.');
     } on FileSystemException {
       // First launch or unavailable legacy config: use environment defaults.
-    } on FormatException {
-      // A malformed or unsupported config must not prevent app startup.
+    } on FormatException catch (error) {
+      // Preserve malformed and unsupported future schemas instead of silently
+      // replacing the only copy when the user next saves settings.
+      await _preserveCorruptConfig(error.message);
     }
     return DroidLabSettings(
       pythonPath: Platform.environment['DROIDLAB_PYTHON'] ?? '',
@@ -89,6 +94,19 @@ class DroidLabSettingsStore {
       fastbootPath: Platform.environment['DROIDLAB_FASTBOOT_PATH'] ?? '',
       payloadDumperPath: Platform.environment['DROIDLAB_PAYLOAD_DUMPER_GO_PATH'] ?? '',
     );
+  }
+
+  Future<void> _preserveCorruptConfig(String reason) async {
+    try {
+      if (!await _file.exists()) return;
+      final preserved = File(
+        '${_file.path}.corrupt.${DateTime.now().toUtc().microsecondsSinceEpoch}',
+      );
+      await _file.rename(preserved.path);
+      recoveryNotice = 'The settings file could not be read and was preserved at ${preserved.path}. Defaults are active; review the recovered file before saving new settings.';
+    } on FileSystemException catch (error) {
+      recoveryNotice = 'The settings file could not be read or preserved. No replacement has been written. Details: ${error.message}';
+    }
   }
 
   Future<void> save(DroidLabSettings settings) async {
