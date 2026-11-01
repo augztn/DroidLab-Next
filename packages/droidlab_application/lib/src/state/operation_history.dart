@@ -4,6 +4,19 @@ import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+/// Returns a deliberately non-diagnostic failure summary for local history.
+///
+/// Backend exception messages can contain command output, filesystem paths,
+/// device identifiers or user-supplied arguments. Keep those details out of
+/// the persistent history; users can inspect the live operation console when
+/// they need the full diagnostic context.
+String operationFailureSummary(Object error) {
+  if (error is BackendException && error.code == 'cancelled') {
+    return 'Operation cancelled.';
+  }
+  return 'Operation failed. Detailed error text was omitted from local history.';
+}
+
 class OperationRecord {
   const OperationRecord({
     required this.id,
@@ -178,7 +191,7 @@ Future<T> trackOperation<T>(
       operation: operation,
       target: target,
       status: cancelled ? 'cancelled' : 'failed',
-      summary: error.toString(),
+      summary: operationFailureSummary(error),
     ));
     rethrow;
   }
