@@ -13,7 +13,7 @@ from droidlab.core.process_runner import run_streaming, ProcessCancelledError
 from droidlab.core.device_metadata import (
     first_property, parse_battery_level, parse_fastboot_getvar, parse_getprop_output,
 )
-from droidlab.core.fastboot_command import strip_fastboot_executable
+from droidlab.core.fastboot_command import strip_adb_executable, strip_fastboot_executable
 from droidlab.core import payload_dumper
 from droidlab.core.tool_resolver import resolve_tool_path
 from droidlab.core.windows_volumes import list_removable_drives
@@ -250,7 +250,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         command_text = args.get("command_text")
         if not isinstance(command_text, str) or not command_text.strip() or "\x00" in command_text:
             raise ValueError("A non-empty host ADB command is required.")
-        command_args = split_command_text(command_text)
+        command_args = strip_adb_executable(split_command_text(command_text))
         if not command_args:
             raise ValueError("A non-empty host ADB command is required.")
         command_args = string_list(command_args, "arguments")
