@@ -133,6 +133,21 @@ def require_fastboot(serial: Any, cancel_event: threading.Event | None = None) -
     if not is_fastboot_target_connected(serial, result.stdout, result.returncode):
         raise RuntimeError(f"Fastboot target {serial!r} is not present in a fresh scan. No command was dispatched.")
 
+def split_command_text(value: str) -> list[str]:
+    """Parse a command field into argv, preserving Windows path separators."""
+    tokens = shlex.split(value, posix=(os.name != "nt"))
+    if os.name == "nt":
+        # shlex's non-POSIX mode preserves the quote delimiters. Remove only
+        # matching outer delimiters after tokenization; backslashes remain intact.
+        tokens = [
+            token[1:-1]
+            if len(token) >= 2 and token[0] == token[-1] and token[0] in {"'", '"'}
+            else token
+            for token in tokens
+        ]
+    return tokens
+
+
 def string_list(value: Any, name: str, maximum: int = 128) -> list[str]:
     if not isinstance(value, list) or not value or len(value) > maximum:
         raise ValueError(f"{name} must be an array containing 1 to {maximum} strings.")
@@ -174,7 +189,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if command_text is not None:
             if not isinstance(command_text, str) or not command_text.strip() or "\x00" in command_text:
                 raise ValueError("A non-empty Android shell command is required.")
-            command = shlex.split(command_text, posix=(os.name != "nt"))
+            command = split_command_text(command_text)
             confirmation = {"operation": "adb.shell", "serial": serial, "command_text": command_text}
         else:
             command = string_list(args.get("command"), "command")
@@ -504,7 +519,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         serial, raw_command = args.get("serial"), args.get("command")
         if not isinstance(raw_command, str) or not raw_command.strip() or "\\x00" in raw_command:
             raise ValueError("A non-empty Fastboot command is required.")
-        tokens = shlex.split(raw_command, posix=(os.name != "nt"))
+        tokens = split_command_text(raw_command)
         if not tokens:
             raise ValueError("A non-empty Fastboot command is required.")
         explicit_serial = explicit_device_selector(tokens, "fastboot")
@@ -673,7 +688,7 @@ def _device_command_requires_lock(operation: str, args: dict[str, Any]) -> bool:
     if operation == "adb.command":
         raw = args.get("command_text", "")
         try:
-            tokens = shlex.split(raw, posix=(os.name != "nt"))
+            tokens = split_command_text(raw)
         except (TypeError, ValueError):
             return True
         index = 0
