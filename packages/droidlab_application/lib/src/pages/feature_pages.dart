@@ -2073,7 +2073,17 @@ class LogsPage extends ConsumerWidget {
         ..writeln('Frozen build: true')
         ..writeln('Log directory: ${logDirectory.path}')
         ..writeln()
-        ..writeln('--- Application log (latest file) ---');
+        ..writeln('--- Operation console (latest file) ---');
+      final operationLog = File(
+        '${logDirectory.path}${Platform.pathSeparator}operations.log',
+      );
+      if (await operationLog.exists()) {
+        report.write(await operationLog.readAsString());
+      } else {
+        report.writeln('No persisted operation-console log found.');
+      }
+      report.writeln();
+      report.writeln('--- Backend application log (latest file) ---');
       if (await logFile.exists()) {
         report.write(await logFile.readAsString());
       } else {
