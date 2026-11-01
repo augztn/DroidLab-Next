@@ -77,7 +77,7 @@ jobs:
         shell: pwsh
         run: |
           $python = Resolve-Path 'apps/desktop/build/windows/x64/runner/Release/python/python.exe'
-          $env:PYTHONPATH = (Resolve-Path 'backend/python').Path
+          $env:PYTHONPATH = (Resolve-Path 'apps/desktop/build/windows/x64/runner/Release/backend/python').Path
           & $python -c "import json, ssl, subprocess; import server; import droidlab.core.tool_resolver"
           if ($LASTEXITCODE -ne 0) { throw 'Bundled Windows Python/backend smoke test failed.' }
           if (-not (Test-Path 'apps/desktop/build/windows/x64/runner/Release/backend/python/server.py')) { throw 'Windows backend payload is missing.' }
@@ -89,7 +89,7 @@ jobs:
           app="$(find apps/desktop/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)"
           python="$app/Contents/Resources/python/bin/python3"
           test -x "$python"
-          PYTHONPATH="$GITHUB_WORKSPACE/backend/python" "$python" -c 'import json, ssl, subprocess; import server; import droidlab.core.tool_resolver'
+          PYTHONPATH="$app/Contents/Resources/backend/python" "$python" -c 'import json, ssl, subprocess; import server; import droidlab.core.tool_resolver'
           test -f "$app/Contents/Resources/backend/python/server.py"
       - name: Install AppImage tooling
         if: runner.os == 'Linux'
