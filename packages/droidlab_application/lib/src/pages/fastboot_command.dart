@@ -68,7 +68,11 @@ class FastbootCommand {
       break;
     }
 
-    // A command must remain after global options. This also rejects a selector\n    // whose only apparent value was actually the final token.\n    if (index >= arguments.length) return null;\n\n    final verb = arguments[index].toLowerCase();
+    // A command must remain after global options. This also rejects a selector
+    // whose only apparent value was actually the final token.
+    if (index >= arguments.length) return null;
+
+    final verb = arguments[index].toLowerCase();
     return FastbootCommand(
       arguments: List.unmodifiable(arguments),
       hasExplicitSerial: hasExplicitSerial,
