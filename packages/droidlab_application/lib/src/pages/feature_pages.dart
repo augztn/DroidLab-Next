@@ -1675,8 +1675,6 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
         });
       }
     });
-      }
-    });
     unawaited(_refreshMountedLocations());
   }
 
