@@ -30,8 +30,9 @@ final class DeviceDescriptor {
   final DeviceConnectionState state;
   final Map<String, String> details;
 
-  bool get isReady => state == DeviceConnectionState.device ||
-      state == DeviceConnectionState.fastboot;
+  bool get isReady =>
+      (transport == DeviceTransport.adb && state == DeviceConnectionState.device) ||
+      (transport == DeviceTransport.fastboot && state == DeviceConnectionState.fastboot);
 
   factory DeviceDescriptor.fromJson(Map<String, Object?> json) {
     final serial = json['serial'];
