@@ -81,12 +81,34 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
     } else if (Platform.isMacOS) {
       roots.add(Directory('/Volumes'));
     } else if (Platform.isWindows) {
-      for (var code = 67; code <= 90; code++) {
-        roots.add(Directory('${String.fromCharCode(code)}:\\'));
-      }
+      // Windows removable volumes are queried through GetLogicalDriveStringsW
+      // and filtered by GetDriveTypeW == DRIVE_REMOVABLE in the backend.
     }
     final found = <({String label, String path})>[];
     final seen = <String>{};
+    if (Platform.isWindows) {
+      try {
+        final result = await ref.read(backendClientProvider).request(
+          'storage.removable_drives',
+          const {},
+        );
+        final drives = (result.data['drives'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>();
+        for (final drive in drives) {
+          final path = drive['path'];
+          final label = drive['label'];
+          if (path is String && path.isNotEmpty && label is String) {
+            found.add((label: label, path: path));
+            seen.add(path.toUpperCase());
+          }
+        }
+      } catch (error) {
+        if (mounted) {
+          setState(() => _status = 'Windows removable-drive scan failed: $error');
+        }
+        return;
+      }
+    }
     for (final root in roots) {
       try {
         if (!await root.exists()) continue;
