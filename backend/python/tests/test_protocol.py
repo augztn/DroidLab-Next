@@ -178,8 +178,8 @@ class ProtocolTests(unittest.TestCase):
     def test_fastboot_scan_identifies_fastbootd_from_userspace_flag(self):
         with patch.object(server, "tool_path", return_value="fastboot"):
             with patch.object(server, "run_capture", side_effect=[
-                result("FASTBOOT-1 fastboot product:unit\\n"),
-                result("", 0, "(bootloader) is-userspace: yes\\n"),
+                result("FASTBOOT-1 fastboot product:unit\n"),
+                result("", 0, "(bootloader) is-userspace: yes\n"),
             ]) as run:
                 devices = server.fastboot_scan(threading.Event())
         self.assertEqual(devices[0]["mode"], "fastbootd")
@@ -191,8 +191,8 @@ class ProtocolTests(unittest.TestCase):
     def test_fastboot_scan_identifies_bootloader_mode(self):
         with patch.object(server, "tool_path", return_value="fastboot"):
             with patch.object(server, "run_capture", side_effect=[
-                result("FASTBOOT-1 fastboot\\n"),
-                result("", 0, "is-userspace: no\\n"),
+                result("FASTBOOT-1 fastboot\n"),
+                result("", 0, "is-userspace: no\n"),
             ]):
                 devices = server.fastboot_scan(threading.Event())
         self.assertEqual(devices[0]["mode"], "bootloader")
@@ -200,8 +200,8 @@ class ProtocolTests(unittest.TestCase):
     def test_fastboot_scan_keeps_device_when_userspace_flag_is_unavailable(self):
         with patch.object(server, "tool_path", return_value="fastboot"):
             with patch.object(server, "run_capture", side_effect=[
-                result("FASTBOOT-1 fastboot\\n"),
-                result("", 1, "FAILED (remote: unknown variable)\\n"),
+                result("FASTBOOT-1 fastboot\n"),
+                result("", 1, "FAILED (remote: unknown variable)\n"),
             ]):
                 devices = server.fastboot_scan(threading.Event())
         self.assertEqual(len(devices), 1)
