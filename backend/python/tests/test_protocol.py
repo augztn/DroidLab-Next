@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from droidlab.core import tool_resolver
 import server
 
 
@@ -44,7 +45,7 @@ class ProtocolTests(unittest.TestCase):
             config.write_text(json.dumps({"adb_path": str(executable)}), encoding="utf-8")
             environment = {"HOME": directory, "DROIDLAB_ADB_PATH": ""}
             with patch.dict(os.environ, environment, clear=False):
-                with patch.object(server.shutil, "which", return_value=None):
+                with patch.object(tool_resolver.shutil, "which", return_value=None):
                     self.assertEqual(server.tool_path("adb"), str(executable))
 
 
