@@ -27,8 +27,17 @@ def resolve_tool_path(name: str, *, bundle_root: Path | None = None) -> str:
         "fastboot": ("fastboot_path", "fastboot"),
         "payload-dumper-go": ("payload_dumper_path", "payload_dumper_go"),
     }
-    env_key = "DROIDLAB_" + normalized.upper().replace("-", "_") + "_PATH"
-    configured = os.environ.get(env_key, "").strip()
+    env_keys = {
+        "python": ("DROIDLAB_PYTHON", "DROIDLAB_PYTHON_PATH"),
+        "python3": ("DROIDLAB_PYTHON", "DROIDLAB_PYTHON_PATH"),
+    }.get(
+        normalized,
+        ("DROIDLAB_" + normalized.upper().replace("-", "_") + "_PATH",),
+    )
+    configured = next(
+        (os.environ.get(key, "").strip() for key in env_keys if os.environ.get(key, "").strip()),
+        "",
+    )
     if not configured:
         settings = user_settings()
         configured = next(

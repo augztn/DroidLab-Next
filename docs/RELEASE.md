@@ -2,7 +2,7 @@
 
 ## Desktop bundles
 
-The CI pipeline uses Flutter 3.47.9 and GitHub Actions pinned to reviewed commit SHAs, generates the Flutter native runner projects, resolves packages, analyzes and tests the app, builds Linux/Windows/macOS release bundles, then stages `backend/python` beside each native executable. Linux bundles also include the pinned `payload-dumper-go` executable beside the native app, so payload inspection and extraction work in both the AppImage and extracted tarball. The backend requires Python 3.10+ on the host and the Android platform-tools installation for ADB/Fastboot. Windows release signing covers all packaged `.exe` and `.dll` binaries when a certificate is configured. macOS release notarization and stapling run when both Developer ID signing and App Store Connect API credentials are configured; otherwise the workflow explicitly produces an unsigned or signed-but-not-notarized build.
+The CI pipeline uses Flutter 3.47.9 and GitHub Actions pinned to reviewed commit SHAs, generates the Flutter native runner projects, resolves packages, analyzes and tests the app, builds Linux/Windows/macOS release bundles, then stages `backend/python` beside each native executable. Linux bundles also include the pinned `payload-dumper-go` executable beside the native app, so payload inspection and extraction work in both the AppImage and extracted tarball. The backend requires Python 3.10+ on the host and the Android platform-tools installation for ADB/Fastboot. Tagged production releases require Windows Authenticode signing and macOS Developer ID signing plus Apple notarization; the release workflow fails closed when required secrets are missing. Use Desktop CI artifacts for unsigned development builds. Dependency resolution uses the committed lockfile with `--enforce-lockfile`.
 
 ## Linux AppImage
 
@@ -25,4 +25,4 @@ No package installation is required. The current backend still uses the host Pyt
 - macOS Developer ID signing: `MACOS_SIGNING_CERTIFICATE_BASE64`, `MACOS_SIGNING_CERTIFICATE_PASSWORD`, and `MACOS_SIGNING_IDENTITY`.
 - Apple notarization: `APPLE_NOTARIZATION_KEY_BASE64`, `APPLE_NOTARIZATION_KEY_ID`, and `APPLE_NOTARIZATION_ISSUER_ID`.
 
-A successful build without these secrets is not equivalent to a signed/notarized production release. Verify the published assets on a clean machine and complete physical-device acceptance tests before distributing a release.
+Add these values as protected GitHub Actions secrets; never commit certificates, passwords, or API keys. A tagged production release fails until the platform-specific secrets are configured. Verify all assets on clean machines and complete physical-device acceptance tests before distribution.
