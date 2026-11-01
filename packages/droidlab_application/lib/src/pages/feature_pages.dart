@@ -1089,6 +1089,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
   String _advancedPreview = '';
   String _output = '';
   bool _busy = false;
+  List<Map<String, dynamic>> _discoveredPartitions = [];
 
   @override
   void dispose() {
@@ -1347,6 +1348,44 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     }
   }
 
+  Future<void> _discoverPartitions() async {
+    final serial = _serial.text.trim();
+    if (serial.isEmpty || _busy) return;
+    setState(() => _busy = true);
+    try {
+      final result = await trackOperation(
+        ref,
+        operation: 'Discover Fastboot partitions',
+        target: serial,
+        action: () => ref.read(backendClientProvider).request(
+          'fastboot.partitions',
+          {'serial': serial},
+        ),
+      );
+      final partitions = (result.data['partitions'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+      if (mounted) {
+        setState(() {
+          _discoveredPartitions = partitions;
+          _output = partitions.map((item) {
+            final details = [
+              if (item['size'] != null) 'size: ${item['size']}',
+              if (item['type'] != null) 'type: ${item['type']}',
+              if (item['has_slot'] != null) 'slot: ${item['has_slot']}',
+              if (item['is_logical'] != null) 'logical: ${item['is_logical']}',
+            ].join(', ');
+            return '${item['name']}${details.isEmpty ? '' : ' — $details'}';
+          }).join('\\n');
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _output = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _readFastbootInfo(String serial) async {
     if (_busy) return;
     setState(() => _busy = true);
@@ -1517,6 +1556,27 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           child: Text('No Fastboot device detected. Switch the phone to bootloader mode, then refresh.'),
         ),
       const SizedBox(height: 12),
+      if (_discoveredPartitions.isNotEmpty)
+        DropdownButtonFormField<String>(
+          initialValue: _discoveredPartitions.any((item) => item['name'] == _partition.text)
+              ? _partition.text
+              : null,
+          decoration: const InputDecoration(
+            labelText: 'Discovered partitions',
+            border: OutlineInputBorder(),
+          ),
+          items: _discoveredPartitions.map((item) {
+            final name = item['name'] as String;
+            final size = item['size']?.toString();
+            return DropdownMenuItem<String>(
+              value: name,
+              child: Text(size == null ? name : '$name · $size'),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) setState(() => _partition.text = value);
+          },
+        ),
       _TextField(controller: _partition, label: 'Partition name', hint: 'boot_a'),
       const SizedBox(height: 12),
       Row(children: [
@@ -1529,6 +1589,11 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       ]),
       const SizedBox(height: 12),
       Wrap(spacing: 8, runSpacing: 8, children: [
+        OutlinedButton.icon(
+          onPressed: _busy || selectedSerial == null ? null : _discoverPartitions,
+          icon: const Icon(Icons.list_alt),
+          label: const Text('Discover partitions'),
+        ),
         OutlinedButton.icon(
           onPressed: _busy || selectedSerial == null ? null : () => _readFastbootInfo(selectedSerial),
           icon: const Icon(Icons.info_outline),
