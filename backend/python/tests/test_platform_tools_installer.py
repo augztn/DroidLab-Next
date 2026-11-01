@@ -54,6 +54,18 @@ class PlatformToolsInstallerTests(unittest.TestCase):
         self._checksums.start()
         self.addCleanup(self._checksums.stop)
 
+    def test_release_archives_are_version_pinned_and_sha256_pinned(self):
+        self.assertEqual(
+            installer.DOWNLOAD_URLS["win32"],
+            "https://dl.google.com/android/repository/platform-tools_r37.0.1-win.zip",
+        )
+        self.assertEqual(
+            installer.DOWNLOAD_URLS["darwin"],
+            "https://dl.google.com/android/repository/platform-tools_r37.0.1-darwin.zip",
+        )
+        for digest in installer.PLATFORM_TOOLS_SHA256.values():
+            self.assertRegex(digest, r"^[0-9a-f]{64}$")
+
     def test_managed_paths_are_user_scoped_and_versioned(self):
         home = Path("/Users/example")
         self.assertEqual(
