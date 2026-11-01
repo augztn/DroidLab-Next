@@ -1,13 +1,16 @@
+import 'dart:convert';
+
 import 'package:droidlab_application/droidlab_application.dart';
 import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('history labels omit user supplied command arguments', () {
-    expect(
-      historyOperationLabel('Advanced ADB: shell cat /private/token.txt'),
-      'Advanced ADB',
-    );
+  test('history labels use an allowlist and omit dynamic arguments', () {
+    expect(historyOperationLabel('Advanced ADB: shell cat /private/token.txt'), 'Advanced ADB');
+    expect(historyOperationLabel('Fastboot flash boot'), 'Fastboot flash');
+    expect(historyOperationLabel('Fastboot set active slot B'), 'Fastboot slot change');
+    expect(historyOperationLabel('Payload extraction'), 'Payload extraction');
+    expect(historyOperationLabel('arbitrary command token=secret'), 'Operation');
     expect(historyOperationLabel('   '), 'Operation');
   });
 
@@ -16,9 +19,7 @@ void main() {
       'token=super-secret and /home/user/private/device.log',
       code: 'backend_error',
     );
-
     final summary = operationFailureSummary(error);
-
     expect(summary, contains('omitted'));
     expect(summary, isNot(contains('super-secret')));
     expect(summary, isNot(contains('/home/user/private')));
@@ -34,21 +35,54 @@ void main() {
     );
   });
 
-  test('operation records round-trip through JSON', () {
-    final original = OperationRecord(
+  test('JSON serialization redacts target, operation suffix and summary', () {
+    const record = OperationRecord(
       id: 'op-1',
       timestamp: DateTime.utc(2026, 10, 31, 12),
-      operation: 'Fastboot flash boot',
-      target: 'DEVICE-1',
+      operation: 'Fastboot flash boot /private/boot.img',
+      target: 'SERIAL-PRIVATE-123',
       status: 'completed',
-      summary: 'Operation completed.',
+      summary: 'Saved report to /home/user/private/report.zip',
     );
-    final restored = OperationRecord.fromJson(original.toJson());
-    expect(restored.id, original.id);
-    expect(restored.timestamp, original.timestamp);
-    expect(restored.operation, original.operation);
-    expect(restored.target, original.target);
-    expect(restored.status, original.status);
-    expect(restored.summary, original.summary);
+
+    final serialized = jsonEncode(record.toJson());
+
+    expect(serialized, contains('Fastboot flash'));
+    expect(serialized, contains('Local target'));
+    expect(serialized, contains('Operation completed.'));
+    expect(serialized, isNot(contains('SERIAL-PRIVATE-123')));
+    expect(serialized, isNot(contains('/private/boot.img')));
+    expect(serialized, isNot(contains('/home/user/private')));
+  });
+
+  test('legacy history records are sanitized when read', () {
+    final restored = OperationRecord.fromJson({
+      'id': 'op-legacy',
+      'timestamp': '2026-10-31T12:00:00.000Z',
+      'operation': 'Advanced ADB: shell cat /private/token.txt',
+      'target': 'DEVICE-SECRET',
+      'status': 'completed',
+      'summary': 'Wrote /private/secret.log',
+    });
+
+    expect(restored.operation, 'Advanced ADB');
+    expect(restored.target, 'Local target');
+    expect(restored.summary, 'Operation completed.');
+  });
+
+  test('unknown statuses are normalized to failed', () {
+    final restored = OperationRecord.fromJson({
+      'id': 'op-legacy',
+      'timestamp': '2026-10-31T12:00:00.000Z',
+      'operation': 'unknown command',
+      'target': 'private target',
+      'status': 'unexpected',
+      'summary': 'secret output',
+    });
+
+    expect(restored.operation, 'Operation');
+    expect(restored.target, 'Local target');
+    expect(restored.status, 'failed');
+    expect(restored.summary, contains('omitted'));
   });
 }
