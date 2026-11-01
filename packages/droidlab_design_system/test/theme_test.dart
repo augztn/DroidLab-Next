@@ -3,6 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('light theme adapts shared surfaces and preserves the selected accent', () {
+    final theme = DroidLabTheme.light();
+    expect(theme.brightness, Brightness.light);
+    expect(theme.colorScheme.primary, const Color(0xFF1679B8));
+    expect(theme.scaffoldBackgroundColor, const Color(0xFFF4F7FA));
+    expect(theme.cardTheme.color, Colors.white);
+  });
+
   test('default dark theme uses the legacy cyberpunk glass palette', () {
     final theme = DroidLabTheme.dark();
     expect(theme.useMaterial3, isTrue);
