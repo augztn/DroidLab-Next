@@ -46,6 +46,7 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
 
   late final Future<void> _loaded;
   static const _maximumRecords = 500;
+  static const _schemaVersion = 1;
   Future<void> _writeTail = Future<void>.value();
   String? persistenceError;
 
@@ -62,10 +63,25 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
         return;
       }
       final decoded = jsonDecode(await file.readAsString());
-      if (decoded is! List<dynamic>) {
-        throw const FormatException('Operation history file must contain a JSON array.');
+      // Version 0 was a bare JSON array. Continue reading it so existing
+      // installations retain their history after upgrading.
+      final List<dynamic> serializedRecords;
+      if (decoded is List<dynamic>) {
+        serializedRecords = decoded;
+      } else if (decoded is Map<String, dynamic>) {
+        final version = decoded['schema_version'];
+        if (version != _schemaVersion) {
+          throw FormatException('Unsupported operation history schema version: $version');
+        }
+        final recordsValue = decoded['records'];
+        if (recordsValue is! List<dynamic>) {
+          throw const FormatException('Operation history records must be a JSON array.');
+        }
+        serializedRecords = recordsValue;
+      } else {
+        throw const FormatException('Operation history file must contain a JSON array or versioned object.');
       }
-      final records = decoded.map((value) {
+      final records = serializedRecords.map((value) {
         if (value is! Map<String, dynamic>) {
           throw const FormatException('Invalid operation history record.');
         }
@@ -115,7 +131,10 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
     await file.parent.create(recursive: true);
     final temporary = File('${file.path}.tmp');
     await temporary.writeAsString(
-      jsonEncode(records.map((record) => record.toJson()).toList()),
+      jsonEncode({
+        'schema_version': _schemaVersion,
+        'records': records.map((record) => record.toJson()).toList(),
+      }),
       flush: true,
     );
     try {
