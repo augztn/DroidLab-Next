@@ -1988,7 +1988,7 @@ class LogsPage extends ConsumerWidget {
 
   Future<void> _saveLogs(BuildContext context, WidgetRef ref) async {
     final location = await getSaveLocation(
-      suggestedName: 'droidlab-backend.log',
+      suggestedName: 'droidlab-logs.txt',
       acceptedTypeGroups: const [
         XTypeGroup(label: 'DroidLab log files', extensions: ['log', 'txt']),
       ],
@@ -1996,15 +1996,29 @@ class LogsPage extends ConsumerWidget {
     if (location == null) return;
     try {
       final diagnostics = ref.read(backendClientProvider).diagnostics;
+      final home = Platform.environment['USERPROFILE'] ??
+          Platform.environment['HOME'] ?? Directory.current.path;
+      final operationLog = File(
+        '$home${Platform.pathSeparator}DroidLab${Platform.pathSeparator}logs${Platform.pathSeparator}operations.log',
+      );
       final contents = StringBuffer()
-        ..writeln('DroidLab backend log')
+        ..writeln('DroidLab application logs')
         ..writeln('Exported: ${DateTime.now().toIso8601String()}')
         ..writeln('Platform: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}')
-        ..writeln();
+        ..writeln()
+        ..writeln('===== OPERATION CONSOLE =====');
+      if (await operationLog.exists()) {
+        contents.write(await operationLog.readAsString());
+      } else {
+        contents.writeln('No persisted operation-console log is available yet.');
+      }
+      contents
+        ..writeln()
+        ..writeln('===== BACKEND DIAGNOSTICS =====');
       if (diagnostics.isEmpty) {
         contents.writeln('No backend stderr diagnostics have been captured.');
       } else {
-        contents.write(diagnostics.join('\n'));
+        contents.write(diagnostics.join('\\n'));
         contents.writeln();
       }
       final file = File(location.path);
