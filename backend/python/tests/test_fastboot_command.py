@@ -1,6 +1,6 @@
 import unittest
 
-from droidlab.core.fastboot_command import strip_fastboot_executable
+from droidlab.core.fastboot_command import strip_adb_executable, strip_fastboot_executable
 
 
 class FastbootCommandTests(unittest.TestCase):
@@ -29,6 +29,23 @@ class FastbootCommandTests(unittest.TestCase):
             strip_fastboot_executable(["adb", "devices"]),
             ["adb", "devices"],
         )
+
+    def test_adb_full_command_is_normalized(self):
+        self.assertEqual(
+            strip_adb_executable(["adb", "-s", "ABC", "shell", "getprop"]),
+            ["-s", "ABC", "shell", "getprop"],
+        )
+
+    def test_adb_windows_executable_path_with_spaces_is_normalized(self):
+        self.assertEqual(
+            strip_adb_executable(
+                [r"C:\Android SDK\platform-tools\adb.exe", "-s", "ABC", "devices"]
+            ),
+            ["-s", "ABC", "devices"],
+        )
+
+    def test_adb_unrelated_executable_is_preserved(self):
+        self.assertEqual(strip_adb_executable(["fastboot", "devices"]), ["fastboot", "devices"])
 
     def test_empty_input_is_safe(self):
         self.assertEqual(strip_fastboot_executable([]), [])
