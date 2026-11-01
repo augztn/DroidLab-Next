@@ -195,7 +195,7 @@ Future<T> trackOperation<T>(
     await ref.read(operationHistoryProvider.notifier).record(OperationRecord(
       id: started.microsecondsSinceEpoch.toString(),
       timestamp: DateTime.now(),
-      operation: operation,
+      operation: historyOperationLabel(operation),
       target: target,
       status: cancelled ? 'cancelled' : 'failed',
       summary: operationFailureSummary(error),
