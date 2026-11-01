@@ -27,6 +27,17 @@ class ProtocolIntegrationTests(unittest.TestCase):
    if event.get("id")!=rid:continue
    events.append(event)
    if event["type"] in {"completed","failed","cancelled"}:return events
+ def test_invalid_cancel_request_is_rejected_without_acknowledgement(self):
+  events=self.request("bad-cancel","system.cancel",{"request_id":""})
+  self.assertEqual(events[-1]["type"],"failed")
+  self.assertIn("request_id",events[-1]["error"]["message"])
+ def test_whitespace_only_request_id_is_rejected_by_protocol_loop(self):
+  self.p.stdin.write(json.dumps({"version":1,"id":"   ","operation":"system.ping","args":{}})+"\n")
+  self.p.stdin.flush()
+  # The rejected frame has no response; a subsequent request proves the
+  # backend remains alive and can continue processing valid protocol frames.
+  events=self.request("after-invalid","system.ping",{})
+  self.assertEqual(events[-1]["type"],"completed")
  def test_ping_discovery_and_shell(self):
   self.assertEqual(self.request("ping","system.ping",{})[-1]["result"]["protocol_version"],1)
   devices=self.request("devices","devices.list",{})[-1]["result"]["devices"]
