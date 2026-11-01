@@ -36,7 +36,7 @@ void main() {
   });
 
   test('JSON serialization redacts target, operation suffix and summary', () {
-    const record = OperationRecord(
+    final record = OperationRecord(
       id: 'op-1',
       timestamp: DateTime.utc(2026, 10, 31, 12),
       operation: 'Fastboot flash boot /private/boot.img',
