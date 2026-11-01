@@ -747,7 +747,15 @@ def main() -> None:
             if operation == "system.cancel":
                 target = args.get("request_id")
                 if not isinstance(target, str) or not target.strip():
-                    raise ValueError("system.cancel requires a non-empty request_id.")
+                    emit({
+                        "id": request_id,
+                        "type": "failed",
+                        "error": {
+                            "code": "InvalidRequest",
+                            "message": "system.cancel requires a non-empty request_id.",
+                        },
+                    })
+                    continue
                 with _ACTIVE_LOCK:
                     event = _ACTIVE.get(target)
                 if event is not None:
