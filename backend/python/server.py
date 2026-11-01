@@ -17,7 +17,7 @@ from droidlab.core import payload_dumper
 from droidlab.core.tool_resolver import resolve_tool_path
 from droidlab.core.windows_volumes import list_removable_drives
 from droidlab.core.file_transfer import (
-    ensure_pull_target_is_new, validate_android_path,
+    ensure_pull_target_is_new, publish_file_no_replace, validate_android_path,
     validate_pull_directory, validate_push_source,
 )
 
@@ -352,7 +352,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
                     raise RuntimeError("ADB pull did not produce the expected regular file.")
                 published = destination / staged_file.name
                 try:
-                    os.link(staged_file, published)
+                    publish_file_no_replace(staged_file, published)
                 except FileExistsError:
                     raise FileExistsError(f"Refusing to overwrite existing pull destination: {published}")
                 return {
