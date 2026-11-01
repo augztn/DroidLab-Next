@@ -165,7 +165,7 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
 
       // Rewrite old, potentially sensitive records immediately after migration.
       final requiresMigration = serializedRecords.length != records.length ||
-          original.asMap().entries.any((entry) =>
+          original.take(records.length).toList().asMap().entries.any((entry) =>
               entry.value.toJson().toString() != records[entry.key].toJson().toString());
       if (requiresMigration) await _persist(records);
     } on Object catch (error, stack) {
