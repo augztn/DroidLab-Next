@@ -2056,8 +2056,13 @@ String _redactDiagnosticText(String value) {
     (match) => '${match.group(1)}${match.group(2)}<DEVICE_ID>',
   );
   redacted = redacted.replaceAllMapped(
-    RegExp(r'(authorization\s*[:=]\s*bearer\s+|token|password|passwd|api[_-]?key)(\s*[:=]\s*)([^\s,;]+)', caseSensitive: false),
+    RegExp(r'(authorization\s*[:=]\s*bearer\s+)([^\s,;]+)', caseSensitive: false),
+    (match) => '${match.group(1)}<REDACTED>',
+  );
+  redacted = redacted.replaceAllMapped(
+    RegExp(r'(token|password|passwd|api[_-]?key)(\s*[:=]\s*)([^\s,;]+)', caseSensitive: false),
     (match) => '${match.group(1)}${match.group(2)}<REDACTED>',
+  );
   );
   return redacted;
 }
