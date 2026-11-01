@@ -5,7 +5,7 @@ DroidLab is a cross-platform desktop engineering workstation for Android device 
 ## Architecture
 
 - Flutter desktop UI: Material 3, Riverpod state and GoRouter navigation.
-- Domain package: platform-independent contracts and models.
+- Domain package: reserved for platform-independent contracts and models; currently a placeholder while the migration establishes application and backend boundaries.
 - Dart backend bridge: managed `Process.start` lifecycle and versioned JSON Lines protocol.
 - Python backend: headless process execution, fresh device preflight, payload extraction and guarded device operations.
 - Design system: centralized dark theme tokens.
