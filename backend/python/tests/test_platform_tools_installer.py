@@ -1,5 +1,5 @@
+import hashlib
 import io
-import os
 import sys
 import tempfile
 import unittest
@@ -9,11 +9,11 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import droidlab.core.platform_tools_installer as installer
 from droidlab.core.platform_tools_installer import (
     PLATFORM_TOOLS_VERSION,
     install_platform_tools,
     managed_platform_tools_dir,
-    platform_tools_status,
 )
 
 
@@ -42,10 +42,18 @@ class FakeResponse:
         return self._stream.read(size)
 
     def geturl(self):
-        return "https://dl.google.com/android/repository/platform-tools-latest-darwin.zip"
+        return "https://dl.google.com/android/repository/platform-tools_r37.0.1-darwin.zip"
 
 
 class PlatformToolsInstallerTests(unittest.TestCase):
+    def setUp(self):
+        self._checksums = patch.dict(installer.PLATFORM_TOOLS_SHA256, {
+            "darwin": hashlib.sha256(archive_bytes("darwin")).hexdigest(),
+            "win32": hashlib.sha256(archive_bytes("win32")).hexdigest(),
+        })
+        self._checksums.start()
+        self.addCleanup(self._checksums.stop)
+
     def test_managed_paths_are_user_scoped_and_versioned(self):
         home = Path("/Users/example")
         self.assertEqual(
@@ -125,19 +133,39 @@ class PlatformToolsInstallerTests(unittest.TestCase):
         with zipfile.ZipFile(output, "w") as bundle:
             bundle.writestr("platform-tools/adb", b"stub")
             bundle.writestr("platform-tools/../../outside", b"bad")
+        payload = output.getvalue()
+
         class Response(FakeResponse):
             def geturl(self):
-                return "https://dl.google.com/android/repository/platform-tools-latest-darwin.zip"
+                return "https://dl.google.com/android/repository/platform-tools_r37.0.1-darwin.zip"
+
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "tools" / PLATFORM_TOOLS_VERSION
-            with self.assertRaisesRegex(RuntimeError, "path traversal"):
-                install_platform_tools(
-                    license_accepted=True,
-                    platform_name="darwin",
-                    install_dir=destination,
-                    opener=lambda *_args, **_kwargs: Response(output.getvalue()),
-                    version_probe=lambda *_args: PLATFORM_TOOLS_VERSION,
-                )
+            with patch.dict(installer.PLATFORM_TOOLS_SHA256, {
+                "darwin": hashlib.sha256(payload).hexdigest(),
+            }):
+                with self.assertRaisesRegex(RuntimeError, "path traversal"):
+                    install_platform_tools(
+                        license_accepted=True,
+                        platform_name="darwin",
+                        install_dir=destination,
+                        opener=lambda *_args, **_kwargs: Response(payload),
+                        version_probe=lambda *_args: PLATFORM_TOOLS_VERSION,
+                    )
+            self.assertFalse(destination.exists())
+
+    def test_checksum_mismatch_rejects_archive_before_extraction(self):
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "tools" / PLATFORM_TOOLS_VERSION
+            with patch.dict(installer.PLATFORM_TOOLS_SHA256, {"darwin": "0" * 64}):
+                with self.assertRaisesRegex(RuntimeError, "SHA-256 mismatch"):
+                    install_platform_tools(
+                        license_accepted=True,
+                        platform_name="darwin",
+                        install_dir=destination,
+                        opener=lambda *_args, **_kwargs: FakeResponse(archive_bytes()),
+                        version_probe=lambda *_args: PLATFORM_TOOLS_VERSION,
+                    )
             self.assertFalse(destination.exists())
 
     def test_installed_version_is_not_downloaded_again(self):
