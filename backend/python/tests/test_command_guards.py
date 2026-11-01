@@ -1,6 +1,7 @@
 import sys
 import unittest
 import subprocess
+import threading
 from unittest.mock import patch
 from pathlib import Path
 
@@ -39,6 +40,50 @@ class CommandGuardTests(unittest.TestCase):
         self.assertFalse(server._device_command_requires_lock(
             "fastboot.command", {"command": "devices"}
         ))
+
+    def test_fastboot_wipe_flag_requires_target_and_fresh_transport(self):
+        args = {
+            "serial": "DEVICE-1",
+            "command": "-w devices",
+            "confirmed": True,
+            "confirmation": {
+                "operation": "fastboot.command",
+                "serial": "DEVICE-1",
+                "command": "-w devices",
+            },
+        }
+        completed = subprocess.CompletedProcess(["fastboot"], 0, "ok", "")
+        with (
+            patch.object(server, "tool_path", return_value="fastboot"),
+            patch.object(server, "require_fastboot") as require_fastboot,
+            patch.object(server, "run_streaming", return_value=completed) as run_streaming,
+            patch.object(server, "response") as emit_response,
+        ):
+            result = server.execute("wipe-discovery", "fastboot.command", args, threading.Event())
+
+        require_fastboot.assert_called_once_with("DEVICE-1", cancel_event=unittest.mock.ANY)
+        command = run_streaming.call_args.args[0]
+        self.assertEqual(command, ["fastboot", "-s", "DEVICE-1", "-w", "devices"])
+        preflight = next(
+            call for call in emit_response.call_args_list
+            if call.args[1] == "preflight"
+        )
+        self.assertTrue(preflight.kwargs["destructive"])
+        self.assertEqual(result["serial"], "DEVICE-1")
+
+    def test_fastboot_wipe_flag_without_target_is_rejected(self):
+        args = {
+            "serial": None,
+            "command": "-w devices",
+            "confirmed": True,
+            "confirmation": {
+                "operation": "fastboot.command",
+                "serial": None,
+                "command": "-w devices",
+            },
+        }
+        with self.assertRaisesRegex(ValueError, "Select a Fastboot device"):
+            server.execute("wipe-no-target", "fastboot.command", args, threading.Event())
 
     def test_adb_destructive_detection_covers_shell_wrappers_and_substitutions(self):
         destructive = (
