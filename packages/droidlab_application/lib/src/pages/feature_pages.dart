@@ -2051,11 +2051,11 @@ String _redactDiagnosticText(String value) {
   final home = Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
   var redacted = value;
   if (home != null && home.isNotEmpty) redacted = redacted.replaceAll(home, '<HOME>');
-  redacted = redacted.replaceAll(
+  redacted = redacted.replaceAllMapped(
     RegExp(r'(serial|device|target)(\s*[:=]\s*)([A-Za-z0-9._:-]{6,})', caseSensitive: false),
     (match) => '${match.group(1)}${match.group(2)}<DEVICE_ID>',
   );
-  redacted = redacted.replaceAll(
+  redacted = redacted.replaceAllMapped(
     RegExp(r'(authorization\s*[:=]\s*bearer\s+|token|password|passwd|api[_-]?key)(\s*[:=]\s*)([^\s,;]+)', caseSensitive: false),
     (match) => '${match.group(1)}${match.group(2)}<REDACTED>',
   );
