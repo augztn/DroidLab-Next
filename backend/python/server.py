@@ -721,7 +721,11 @@ def _device_command_requires_lock(operation: str, args: dict[str, Any]) -> bool:
     return operation in _MUTATING
 
 
-def handle(message: dict[str, Any], cancel: threading.Event) -> None:
+def handle(
+    message: dict[str, Any],
+    cancel: threading.Event,
+    release_worker_slot: bool = False,
+) -> None:
     request_id, operation, args = message["id"], message["operation"], message["args"]
     lock = None
     lock_acquired = False
@@ -763,7 +767,8 @@ def handle(message: dict[str, Any], cancel: threading.Event) -> None:
             lock.release()
         with _ACTIVE_LOCK:
             _ACTIVE.pop(request_id, None)
-        _WORKER_SLOTS.release()
+        if release_worker_slot:
+            _WORKER_SLOTS.release()
 
 def main() -> None:
     logging.basicConfig(stream=sys.stderr, level=os.environ.get("DROIDLAB_LOG_LEVEL", "INFO"),
@@ -826,7 +831,7 @@ def main() -> None:
                     })
                     continue
                 _ACTIVE[request_id] = cancel
-            worker = threading.Thread(target=handle, args=(message, cancel), daemon=False)
+            worker = threading.Thread(target=handle, args=(message, cancel, True), daemon=False)
             try:
                 worker.start()
             except BaseException:
