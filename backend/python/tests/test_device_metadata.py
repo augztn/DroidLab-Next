@@ -44,6 +44,24 @@ class DeviceMetadataTests(unittest.TestCase):
             "b",
         )
 
+    def test_fastboot_getvar_parses_plain_userspace_output(self):
+        self.assertEqual(
+            parse_fastboot_getvar("is-userspace: yes\n", "is-userspace"),
+            "yes",
+        )
+
+    def test_fastboot_getvar_parses_info_prefix(self):
+        self.assertEqual(
+            parse_fastboot_getvar("INFO: is-userspace: yes\n", "is-userspace"),
+            "yes",
+        )
+
+    def test_fastboot_getvar_parses_timestamp_prefix(self):
+        self.assertEqual(
+            parse_fastboot_getvar("[  0.001s] is-userspace: yes\n", "is-userspace"),
+            "yes",
+        )
+
     def test_fastboot_getvar_escapes_requested_key(self):
         self.assertEqual(
             parse_fastboot_getvar("(bootloader) product.name: unit\n", "product.name"),
