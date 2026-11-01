@@ -44,7 +44,7 @@ class ToolResolverTests(unittest.TestCase):
     def test_documented_python_environment_override_is_used(self):
         with tempfile.TemporaryDirectory() as directory:
             executable = Path(directory) / "python"
-            executable.write_text("#!/bin/sh\\nexit 0\\n", encoding="utf-8")
+            executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
             executable.chmod(0o755)
             with patch.dict(os.environ, {
                 "DROIDLAB_PYTHON": str(executable),
@@ -58,7 +58,7 @@ class ToolResolverTests(unittest.TestCase):
     def test_legacy_python_path_environment_override_remains_supported(self):
         with tempfile.TemporaryDirectory() as directory:
             executable = Path(directory) / "python"
-            executable.write_text("#!/bin/sh\\nexit 0\\n", encoding="utf-8")
+            executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
             executable.chmod(0o755)
             with patch.dict(os.environ, {
                 "DROIDLAB_PYTHON": "",
@@ -82,7 +82,7 @@ class ToolResolverTests(unittest.TestCase):
             backend_root = appdir / "usr" / "lib"
             executable = appdir / "usr" / "bin" / "adb"
             executable.parent.mkdir(parents=True)
-            executable.write_text("#!/bin/sh\\nexit 0\\n", encoding="utf-8")
+            executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
             executable.chmod(0o755)
             with patch.dict(os.environ, {"DROIDLAB_ADB_PATH": "", "PATH": ""}):
                 self.assertEqual(
