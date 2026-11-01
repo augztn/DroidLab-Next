@@ -54,6 +54,11 @@ jobs:
         shell: bash
         run: |
           if [ "${{ runner.os }}" = "Windows" ]; then python scripts/stage_backend.py; else python3 scripts/stage_backend.py; fi
+      - name: Stage bundled CPython runtime (Windows and macOS)
+        shell: bash
+        if: runner.os != 'Linux'
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then python scripts/stage_python_runtime.py; else python3 scripts/stage_python_runtime.py; fi
       - name: Sign Windows executable (when certificate is configured)
         if: runner.os == 'Windows'
         shell: pwsh
