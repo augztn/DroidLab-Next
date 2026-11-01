@@ -90,6 +90,23 @@ class ToolResolverTests(unittest.TestCase):
                     str(executable.resolve()),
                 )
 
+    def test_explicit_bundle_root_is_searched_before_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            executable = root / "platform-tools" / "adb"
+            executable.parent.mkdir()
+            executable.write_text("stub", encoding="utf-8")
+            executable.chmod(0o755)
+            with patch.dict(os.environ, {
+                "DROIDLAB_BUNDLE_ROOT": str(root),
+                "DROIDLAB_ADB_PATH": "",
+                "PATH": "",
+            }):
+                self.assertEqual(
+                    resolve_tool_path("adb"),
+                    str(executable.resolve()),
+                )
+
     def test_bundle_candidates_precede_path_lookup(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
