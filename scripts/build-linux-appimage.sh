@@ -52,6 +52,7 @@ cat > "$APPDIR/AppRun" <<'RUN'
 set -euo pipefail
 HERE="$(cd -- "$(dirname -- "$0")" && pwd)"
 export DROIDLAB_BACKEND_SCRIPT="$HERE/usr/lib/droidlab/backend/server.py"
+export DROIDLAB_BUNDLE_ROOT="$HERE/usr"
 PYTHON_BIN="${DROIDLAB_PYTHON:-python3}"
 if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   echo "DroidLab requires Python 3.10 or newer on the host. Install Python or set DROIDLAB_PYTHON to its executable." >&2
