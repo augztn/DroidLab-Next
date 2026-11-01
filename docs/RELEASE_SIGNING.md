@@ -1,6 +1,6 @@
 # Desktop release signing
 
-The desktop release workflow builds Linux, Windows, and macOS artifacts for `v*` tags (or a manually selected existing tag). It runs Flutter analysis and tests before packaging.
+The desktop release workflow builds Linux, Windows, and macOS artifacts for `v*` tags (or a manually selected existing tag). It runs Flutter analysis and tests before packaging. Tagged releases fail closed unless Windows Authenticode signing, macOS Developer ID signing, and Apple notarization credentials are present.
 
 ## Configure signing credentials
 
@@ -18,11 +18,11 @@ Windows signing uses Authenticode SHA-256 with an RFC 3161 timestamp. macOS sign
 
 ## Notarization
 
-macOS notarization additionally requires an App Store Connect API key (`.p8`), key ID, issuer ID, and Apple Developer team ID. These credentials must be added as protected secrets and wired into the release workflow before claiming notarized distribution. A signed app is not automatically notarized.
+macOS notarization additionally requires an App Store Connect API key (`.p8`), key ID, issuer ID, These credentials must be added as protected GitHub Actions secrets before starting a tagged release. A signed app is not automatically notarized.
 
-## Unsigned builds
+## Unsigned development builds
 
-If signing secrets are absent, the build may be packaged unsigned for internal testing. Do not describe those artifacts as signed or distribute them as trusted public installers. Windows users will see an untrusted publisher warning; macOS Gatekeeper may block the app.
+Use the Desktop CI workflow artifacts for unsigned development builds. The tagged Desktop Release workflow intentionally fails when signing or notarization secrets are absent. Do not bypass those checks for public distribution.
 
 ## Release checklist
 
