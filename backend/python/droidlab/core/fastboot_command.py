@@ -20,3 +20,14 @@ def strip_fastboot_executable(tokens: list[str]) -> list[str]:
     if basename in {"fastboot", "fastboot.exe"}:
         return tokens[1:]
     return tokens
+
+
+def strip_adb_executable(tokens: list[str]) -> list[str]:
+    """Accept ADB arguments or a complete adb executable command line."""
+    if not tokens:
+        return []
+    executable = tokens[0].strip()
+    basename = ntpath.basename(posixpath.basename(executable)).casefold()
+    if basename in {"adb", "adb.exe"}:
+        return tokens[1:]
+    return tokens
