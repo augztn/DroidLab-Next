@@ -114,7 +114,9 @@ jobs:
           echo "$APPLE_API_KEY_BASE64" | base64 --decode > "$API_KEY"
           APP=$(find apps/desktop/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)
           test -d "$APP"
-          xcrun notarytool submit "$APP" --key "$API_KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID" --wait
+          NOTARIZATION_ARCHIVE="$RUNNER_TEMP/DroidLab-notarization.zip"
+          ditto -c -k --keepParent "$APP" "$NOTARIZATION_ARCHIVE"
+          xcrun notarytool submit "$NOTARIZATION_ARCHIVE" --key "$API_KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID" --wait
           xcrun stapler staple "$APP"
           xcrun stapler validate "$APP"
           spctl --assess --type execute --verbose "$APP"
