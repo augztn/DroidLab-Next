@@ -66,6 +66,7 @@ class DroidLabSettingsStore {
   DroidLabSettingsStore({File? file}) : _file = file ?? _defaultFile();
   final File _file;
   String? recoveryNotice;
+  bool _unreadableConfigPreserved = false;
 
   static File _defaultFile() {
     final home = Platform.environment['USERPROFILE'] ??
@@ -75,6 +76,7 @@ class DroidLabSettingsStore {
 
   Future<DroidLabSettings> load() async {
     recoveryNotice = null;
+    _unreadableConfigPreserved = false;
     try {
       final value = jsonDecode(await _file.readAsString());
       if (value is Map<String, dynamic>) return DroidLabSettings.fromJson(value);
@@ -107,13 +109,23 @@ class DroidLabSettingsStore {
         '${_file.path}.corrupt.${DateTime.now().toUtc().microsecondsSinceEpoch}',
       );
       await _file.rename(preserved.path);
+      _unreadableConfigPreserved = true;
       recoveryNotice = '${reason} The original file was preserved at ${preserved.path}. Defaults are active; review the recovered file before saving new settings.';
     } on FileSystemException catch (error) {
+      _unreadableConfigPreserved = false;
       recoveryNotice = 'The settings file could not be read or preserved. No replacement has been written. Details: ${error.message}';
     }
   }
 
   Future<void> save(DroidLabSettings settings) async {
+    if (recoveryNotice != null &&
+        !_unreadableConfigPreserved &&
+        await _file.exists()) {
+      throw FileSystemException(
+        'Refusing to overwrite an unreadable settings file that could not be preserved.',
+        _file.path,
+      );
+    }
     await _file.parent.create(recursive: true);
     final temporary = File('${_file.path}.tmp');
     final backup = File('${_file.path}.bak');
