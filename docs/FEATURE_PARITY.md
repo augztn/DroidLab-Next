@@ -14,24 +14,24 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - Device details available from Device Manager and both device-tool views.
 - Fastboot flash, erase, cache/userdata erase, factory wipe, reboot system/recovery/bootloader, advanced command preview and exact destructive confirmation.
 - Fastboot active-slot A/B switching using the primary `--set-active` syntax and legacy `set_active` fallback, with fresh target validation. Advanced Fastboot accepts device-targeted commands and no-target discovery/help/version commands; unlock/lock remain available through explicit command entry and confirmation rather than dedicated buttons.
-- Native file pickers for OTA/payload input, output directory, Fastboot image, logcat output path, bugreport output path and recovery ZIP, plus drag-and-drop.
-- User-mounted/available storage selection: Linux user media roots, macOS `/Volumes`, and Windows volume roots, with refresh and use-as-output controls.
+- Native file pickers for OTA/payload input, output directory, Fastboot image, logcat output path, bugreport output path and recovery ZIP, plus drag-and-drop. ADB Toolkit also provides confirmed single-file push and pull workflows; pull stages to a private directory and atomically publishes without overwriting an existing destination.
+- User-mounted/available storage selection: Linux user media roots and macOS `/Volumes`; Windows uses `GetLogicalDriveStringsW` plus `GetDriveTypeW` and lists only `DRIVE_REMOVABLE` volumes (fixed disks and optical drives are excluded).
 - OTA ZIP/BIN inspection and selected/all partition extraction with isolated staging, nonempty artifact checks, no-overwrite publication, rollback and optional SHA-256.
-- Persistent appearance settings compatible with the legacy `~/DroidLab/config.json` path, including `cyberpunk_glass`, `standard_dark` and `oled_black`.
+- Persistent appearance settings compatible with the legacy `~/DroidLab/config.json` path, including `cyberpunk_glass`, `standard_dark` and `oled_black`. Light and dark presentations follow the operating-system appearance while retaining the selected accent palette.
 - Editable tool executable settings for Python, backend script, ADB, Fastboot and payload-dumper-go; Python/backend settings configure process startup, while saved ADB/Fastboot/payload paths remain in the shared config and are resolved by the Python backend for each tool lookup.
 - Explicit environment or saved executable paths take precedence; with blank overrides, the backend searches beside the app/in its bundled tool folders and then falls back to system `PATH`.
 - Live bounded operation console, local operation history, backend stderr diagnostics, About dialog and Help navigation. An additional one-hour full-stream-to-file capture is provided separately from the bounded display buffer.
-- Linux AppImage packaging and Linux TAR, Windows and macOS CI artifacts.
+- Linux AppImage packaging and Linux TAR, Windows and macOS CI artifacts. CI smoke-tests bundled CPython/backend imports on fresh Windows and macOS runners and extracts/verifies the Linux AppImage.
 - Windows and macOS bundles stage checksum-verified CPython 3.11.18; backend startup prefers the bundled interpreter unless an explicit Python override is configured.
 
 ## Remaining parity and release validation
 
 - Full legacy appearance palette verification at pixel/detail level; the Flutter themes preserve the three legacy theme identities but are not a pixel-perfect Tk rendering clone.
 - Bundled Android platform-tools for Windows/macOS; ADB/Fastboot still depend on host installation.
-- Native discovery of only removable devices on Windows; the current selector enumerates available drive roots there. Linux and macOS scans use their standard user media mount directories.
+ Linux and macOS scans use their standard user media mount directories.
 - Diagnostic report export and log-folder opening are implemented. Exports apply centralized best-effort redaction for credentials, device identifiers, MAC/IMEI-like values and host paths; users must still review reports before sharing. Existing pre-upgrade operations.log files may contain unredacted historical output.
-- Additional ADB workflows such as every legacy host-command variant and every legacy drag/drop entrypoint.
+- Additional ADB workflows beyond guarded single-file push/pull, including remaining legacy host-command variants and legacy drag/drop entrypoints.
 - Controlled physical-device validation for different OEMs, recovery implementations, Fastbootd vs bootloader Fastboot and A/B slot behavior. Automated CI uses fake ADB/Fastboot executables and cannot validate USB/RSA authorization on a physical phone.
-- Clean-machine smoke tests covering the AppImage on supported Linux distributions and runtime library combinations.
+- Manual clean-machine installation and launch testing across supported Linux distributions/runtime-library combinations and Windows/macOS installer environments; CI runner smoke tests are not a substitute.
 
 CI uses fake executables only. Passing tests/builds do not prove device mutation safety on every OEM or release readiness.
