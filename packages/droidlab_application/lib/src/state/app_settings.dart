@@ -32,7 +32,14 @@ class DroidLabSettings {
         payloadDumperPath: payloadDumperPath ?? this.payloadDumperPath,
       );
 
-  factory DroidLabSettings.fromJson(Map<String, dynamic> json) => DroidLabSettings(
+  factory DroidLabSettings.fromJson(Map<String, dynamic> json) {
+    // Configurations written before schema versioning are version 0.
+    // Keep reading them indefinitely so upgrades never discard user paths.
+    final version = json['schema_version'] ?? 0;
+    if (version != 0 && version != 1) {
+      throw FormatException('Unsupported settings schema version: $version');
+    }
+    return DroidLabSettings(
         theme: _validTheme(json['theme']),
         pythonPath: _string(json['python_path'] ?? json['python']),
         backendPath: _string(json['backend_path'] ?? json['backend_script']),
@@ -40,8 +47,10 @@ class DroidLabSettings {
         fastbootPath: _string(json['fastboot_path'] ?? json['fastboot']),
         payloadDumperPath: _string(json['payload_dumper_path'] ?? json['payload_dumper_go']),
       );
+  }
 
   Map<String, dynamic> toJson() => {
+        'schema_version': 1,
         'theme': theme, 'python_path': pythonPath, 'backend_path': backendPath,
         'adb_path': adbPath, 'fastboot_path': fastbootPath,
         'payload_dumper_path': payloadDumperPath,
@@ -71,7 +80,7 @@ class DroidLabSettingsStore {
     } on FileSystemException {
       // First launch or unavailable legacy config: use environment defaults.
     } on FormatException {
-      // A malformed legacy config must not prevent app startup.
+      // A malformed or unsupported config must not prevent app startup.
     }
     return DroidLabSettings(
       pythonPath: Platform.environment['DROIDLAB_PYTHON'] ?? '',
