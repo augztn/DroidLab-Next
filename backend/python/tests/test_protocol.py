@@ -555,6 +555,21 @@ class ProtocolTests(unittest.TestCase):
     def test_fastboot_set_active_is_serialized(self):
         self.assertIn("fastboot.set_active", server._MUTATING)
 
+    def test_backend_has_a_bounded_active_request_limit(self):
+        self.assertEqual(server.MAX_ACTIVE_REQUESTS, 8)
+        self.assertIsInstance(server._WORKER_SLOTS, threading.BoundedSemaphore)
+
+    def test_device_discovery_does_not_swallow_cancellation(self):
+        with patch.object(server, "adb_scan", side_effect=server.ProcessCancelledError("cancelled")):
+            with self.assertRaises(server.ProcessCancelledError):
+                server.execute("id", "devices.list", {}, threading.Event())
+
+    def test_direct_handle_does_not_release_unacquired_worker_slot(self):
+        message = {"id": "direct-handle", "operation": "system.ping", "args": {}}
+        with patch.object(server, "response"):
+            server.handle(message, threading.Event())
+        self.assertEqual(server._WORKER_SLOTS._value, server.MAX_ACTIVE_REQUESTS)
+
 
 if __name__ == "__main__":
     unittest.main()
