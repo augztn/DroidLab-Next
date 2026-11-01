@@ -22,11 +22,12 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - Explicit environment or saved executable paths take precedence; with blank overrides, the backend searches beside the app/in its bundled tool folders and then falls back to system `PATH`.
 - Live bounded operation console, local operation history, backend stderr diagnostics, About dialog and Help navigation. An additional one-hour full-stream-to-file capture is provided separately from the bounded display buffer.
 - Linux AppImage packaging and Linux TAR, Windows and macOS CI artifacts.
+- Windows and macOS bundles stage checksum-verified CPython 3.11.18; backend startup prefers the bundled interpreter unless an explicit Python override is configured.
 
 ## Remaining parity and release validation
 
 - Full legacy appearance palette verification at pixel/detail level; the Flutter themes preserve the three legacy theme identities but are not a pixel-perfect Tk rendering clone.
-- Bundled Python runtime and Android platform-tools for Windows/macOS; these builds still depend on host Python and ADB/Fastboot installation.
+- Bundled Android platform-tools for Windows/macOS; ADB/Fastboot still depend on host installation.
 - Native discovery of only removable devices on Windows; the current selector enumerates available drive roots there. Linux and macOS scans use their standard user media mount directories.
 - Diagnostic report export and log-folder opening are implemented. Exports apply centralized best-effort redaction for credentials, device identifiers, MAC/IMEI-like values and host paths; users must still review reports before sharing. Existing pre-upgrade operations.log files may contain unredacted historical output.
 - Additional ADB workflows such as every legacy host-command variant and every legacy drag/drop entrypoint.
