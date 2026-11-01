@@ -69,6 +69,18 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     super.dispose();
   }
 
+  void _dropCommandPath(DropDoneDetails detail) {
+    if (detail.files.isEmpty) return;
+    final path = detail.files.first.path;
+    final quoted = '"${path.replaceAll('"', r'\\"')}"';
+    final current = _command.text.trim();
+    setState(() {
+      _command.text = current.isEmpty ? quoted : '$current $quoted';
+      _command.selection = TextSelection.collapsed(offset: _command.text.length);
+      _output = 'Inserted dropped file path into the command field: $path';
+    });
+  }
+
   Future<void> _refreshDevices() async {
     ref.invalidate(deviceListProvider);
     try {
@@ -852,7 +864,14 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
           ),
         ),
       const SizedBox(height: 12),
-      _TextField(controller: _command, label: 'Command', hint: 'dumpsys battery · adb devices -l · fastboot getvar all'),
+      DropTarget(
+        onDragDone: _dropCommandPath,
+        child: _TextField(
+          controller: _command,
+          label: 'Command (drop a file to insert its path)',
+          hint: 'dumpsys battery · adb devices -l · fastboot getvar all',
+        ),
+      ),
       const SizedBox(height: 8),
       Wrap(spacing: 8, runSpacing: 8, children: [
         FilledButton(onPressed: _busy || !canRunAdbCommands ? null : _runShell, child: const Text('Run shell command')),
