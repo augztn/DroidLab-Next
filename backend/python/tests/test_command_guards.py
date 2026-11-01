@@ -2,7 +2,7 @@ import sys
 import unittest
 import subprocess
 import threading
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,7 +61,7 @@ class CommandGuardTests(unittest.TestCase):
         ):
             result = server.execute("wipe-discovery", "fastboot.command", args, threading.Event())
 
-        require_fastboot.assert_called_once_with("DEVICE-1", cancel_event=unittest.mock.ANY)
+        require_fastboot.assert_called_once_with("DEVICE-1", cancel_event=ANY)
         command = run_streaming.call_args.args[0]
         self.assertEqual(command, ["fastboot", "-s", "DEVICE-1", "-w", "devices"])
         preflight = next(
