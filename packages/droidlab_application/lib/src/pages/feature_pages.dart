@@ -1651,6 +1651,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   String _status = 'Drop an OTA ZIP or payload BIN file here, or enter its path.';
   bool _busy = false;
   bool _sha = false;
+  double? _progress;
 
   @override
   void initState() {
@@ -1661,12 +1662,19 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
     _output.text = '$home${Platform.pathSeparator}DroidLab';
     _events = ref.read(backendClientProvider).events.listen((event) {
       if (event is BackendOutput && event.stream == 'payload' && mounted) {
+        final match = RegExp(r'(\\d{1,3})%').firstMatch(event.line);
+        final percent = match == null ? null : int.tryParse(match.group(1)!);
         setState(() {
           _activityLines.add(event.line);
+          if (percent != null && percent >= 0 && percent <= 100) {
+            _progress = percent / 100;
+          }
           if (_activityLines.length > 300) {
             _activityLines.removeRange(0, _activityLines.length - 300);
           }
         });
+      }
+    });
       }
     });
     unawaited(_refreshMountedLocations());
@@ -1812,7 +1820,10 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
 
   Future<void> _extract() async {
     if (_source.text.trim().isEmpty || _output.text.trim().isEmpty || _busy) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _progress = null;
+    });
     try {
       final result = await trackOperation(
         ref,
@@ -1832,7 +1843,10 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
     } catch (error) {
       if (mounted) setState(() => _status = error.toString());
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() {
+        _busy = false;
+        _progress = null;
+      });
     }
   }
 
@@ -1949,7 +1963,11 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
         Text('ACTIVITY LOG', style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 6),
         _OutputPanel(output: _activityLines.isEmpty ? _status : _activityLines.join('\n')),
-        if (_busy) const LinearProgressIndicator(),
+        if (_busy) ...[
+          LinearProgressIndicator(value: _progress),
+          if (_progress != null)
+            Text('Extraction progress: ${(_progress! * 100).round()}%'),
+        ],
       ]),
     ),
   );
