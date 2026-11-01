@@ -1,6 +1,6 @@
 # Architecture
 
-DroidLab is a Flutter desktop application with a separately executable Python backend. The Flutter layer owns presentation, navigation, user confirmation and application state. The Python service owns external process execution, target preflight, command construction, payload staging, guarded ADB push/pull transfers and structured outcomes. ADB transfers use argument arrays, require exact target/path confirmation, reject symlinked or non-file local sources, stage pulls in a private sibling directory and publish files atomically without overwriting.
+DroidLab is a Flutter desktop application with a separately executable Python backend. The Flutter layer owns presentation, navigation, user confirmation and application state. The Python service owns external process execution, target preflight, command construction, payload staging, guarded ADB push/pull transfers and structured outcomes. ADB transfers use argument arrays, require exact target/path confirmation, reject symlinked or non-file local sources, stage pulls in a private sibling directory and publish without overwriting (atomic hard-link publication where supported, exclusive-create streaming copy otherwise).
 
 ## Workspace
 
