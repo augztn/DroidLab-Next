@@ -16,7 +16,7 @@ command -v sha256sum >/dev/null || { echo "sha256sum is required." >&2; exit 1; 
 command -v xz >/dev/null || { echo "xz is required." >&2; exit 1; }
 command -v appimagetool >/dev/null || { echo "Install appimagetool before building the AppImage." >&2; exit 1; }
 cd apps/desktop
-flutter pub get
+flutter pub get --enforce-lockfile
 flutter build linux --release
 cd "$ROOT"
 python3 scripts/stage_backend.py
