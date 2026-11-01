@@ -33,6 +33,32 @@ class CommandGuardTests(unittest.TestCase):
         self.assertTrue(is_destructive_fastboot(["flashing", "unlock"]))
         self.assertFalse(is_destructive_fastboot(["getvar", "product"]))
 
+    def test_fastboot_reboot_bootloader_uses_supported_subcommand(self):
+        args = {
+            "serial": "DEVICE-1",
+            "mode": "bootloader",
+            "confirmed": True,
+            "confirmation": {
+                "operation": "fastboot.reboot",
+                "serial": "DEVICE-1",
+                "mode": "bootloader",
+            },
+        }
+        completed = subprocess.CompletedProcess(["fastboot"], 0, "", "")
+        with (
+            patch.object(server, "tool_path", return_value="fastboot"),
+            patch.object(server, "require_fastboot") as require_fastboot,
+            patch.object(server, "run_streaming", return_value=completed) as run_streaming,
+        ):
+            result = server.execute("reboot-bootloader", "fastboot.reboot", args, threading.Event())
+
+        require_fastboot.assert_called_once_with("DEVICE-1", cancel_event=ANY)
+        self.assertEqual(
+            run_streaming.call_args.args[0],
+            ["fastboot", "-s", "DEVICE-1", "reboot", "bootloader"],
+        )
+        self.assertEqual(result["exit_code"], 0)
+
     def test_fastboot_wipe_flag_never_uses_read_only_lock_classification(self):
         self.assertTrue(server._device_command_requires_lock(
             "fastboot.command", {"command": "-w devices"}
