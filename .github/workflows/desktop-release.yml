@@ -122,14 +122,14 @@ jobs:
           spctl --assess --type execute --verbose "$APP"
       - name: Package Linux
         if: runner.os == 'Linux'
-        run: tar -C apps/desktop/build/linux/x64/release/bundle -czf "DroidLab-linux-x64-${GITHUB_REF_NAME}.tar.gz" .
+        run: tar -C apps/desktop/build/linux/x64/release/bundle -czf "DroidLab-linux-x64-${{ github.event.inputs.tag || github.ref_name }}.tar.gz" .
       - name: Package Windows
         if: runner.os == 'Windows'
         shell: pwsh
         run: Compress-Archive -Path 'apps/desktop/build/windows/x64/runner/Release/*' -DestinationPath "DroidLab-windows-x64-${{ github.event.inputs.tag || github.ref_name }}.zip" -Force
       - name: Package macOS
         if: runner.os == 'macOS'
-        run: APP=$(find apps/desktop/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit) && ditto -c -k --sequesterRsrc --keepParent "$APP" "DroidLab-macos-${GITHUB_REF_NAME}.zip"
+        run: APP=$(find apps/desktop/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit) && ditto -c -k --sequesterRsrc --keepParent "$APP" "DroidLab-macos-${{ github.event.inputs.tag || github.ref_name }}.zip"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: droidlab-${{ matrix.platform }}
