@@ -26,6 +26,34 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(value["status"], "ok")
         self.assertEqual(value["protocol_version"], 1)
 
+    def test_platform_tools_install_requires_exact_license_confirmation(self):
+        with patch.object(server, "install_platform_tools") as install:
+            with self.assertRaises(PermissionError):
+                server.execute(
+                    "id",
+                    "system.platform_tools.install",
+                    {"confirmed": True, "license_accepted": True},
+                    threading.Event(),
+                )
+            install.assert_not_called()
+
+    def test_platform_tools_install_runs_after_explicit_license_confirmation(self):
+        intent = {
+            "operation": "system.platform_tools.install",
+            "version": server.PLATFORM_TOOLS_VERSION,
+            "license_accepted": True,
+        }
+        expected = {"installed": True, "version": server.PLATFORM_TOOLS_VERSION}
+        with patch.object(server, "install_platform_tools", return_value=expected) as install:
+            result = server.execute(
+                "id",
+                "system.platform_tools.install",
+                {**intent, "confirmed": True, "confirmation": intent},
+                threading.Event(),
+            )
+        self.assertEqual(result, expected)
+        install.assert_called_once_with(license_accepted=True)
+
     def test_configured_tool_path(self):
         with tempfile.TemporaryDirectory() as directory:
             executable = Path(directory) / "adb"
