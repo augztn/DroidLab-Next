@@ -28,7 +28,7 @@ The legacy Python/Tkinter implementation in `DroidLab-Next` is the behavior refe
 - Full legacy appearance palette verification at pixel/detail level; the Flutter themes preserve the three legacy theme identities but are not a pixel-perfect Tk rendering clone.
 - Bundled Python runtime and Android platform-tools for Windows/macOS; these builds still depend on host Python and ADB/Fastboot installation.
 - Native discovery of only removable devices on Windows; the current selector enumerates available drive roots there. Linux and macOS scans use their standard user media mount directories.
-- Diagnostic report export and log-folder opening are implemented. Diagnostic reports are not automatically redacted; users are warned to review sensitive device identifiers and command output before sharing.
+- Diagnostic report export and log-folder opening are implemented. Exports apply centralized best-effort redaction for credentials, device identifiers, MAC/IMEI-like values and host paths; users must still review reports before sharing. Existing pre-upgrade operations.log files may contain unredacted historical output.
 - Additional ADB workflows such as every legacy host-command variant and every legacy drag/drop entrypoint.
 - Controlled physical-device validation for different OEMs, recovery implementations, Fastbootd vs bootloader Fastboot and A/B slot behavior. Automated CI uses fake ADB/Fastboot executables and cannot validate USB/RSA authorization on a physical phone.
 - Clean-machine smoke tests covering the AppImage on supported Linux distributions and runtime library combinations.
