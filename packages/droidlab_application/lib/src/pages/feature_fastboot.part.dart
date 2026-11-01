@@ -233,6 +233,11 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       }
     }
     if (index >= tokens.length) return false;
+    // An explicit -s selector makes even a normally host-side verb a
+    // device-targeted command and must use the selected-device confirmation.
+    if (tokens.contains('-s') || tokens.any((token) => token.startsWith('-s='))) {
+      return false;
+    }
     return const {'devices', 'help', '--help', '--version', 'version'}
         .contains(tokens[index].toLowerCase());
   }
