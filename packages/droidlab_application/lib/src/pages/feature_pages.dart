@@ -402,11 +402,11 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       if (verb == 'reboot') {
         final tokens = args.split(RegExp(r'\s+'));
         final mode = tokens.length > 1 ? tokens[1].toLowerCase() : 'system';
-        if (mode == 'recovery' || mode == 'bootloader' || mode == 'system') {
+        if (mode == 'recovery' || mode == 'bootloader' || mode == 'system' || mode == 'fastboot') {
           await _reboot(mode);
         } else {
           if (mounted) setState(() => _output =
-              'Use reboot, reboot recovery, or reboot bootloader.');
+              'Use reboot, reboot recovery, reboot bootloader, or reboot fastboot.');
         }
         return;
       }
@@ -527,7 +527,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       if (mounted) setState(() => _output = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
-      if (mounted && mode == 'bootloader') {
+      if (mounted && (mode == 'bootloader' || mode == 'fastboot')) {
         final transitioned = await _waitForDeviceTransport(
           ref: ref,
           serial: serial,
@@ -1215,7 +1215,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
   Future<void> _rebootFastboot(String mode) async {
     final serial = _serial.text.trim();
     if (serial.isEmpty || _busy) return;
-    final label = mode == 'system' ? 'Android' : mode;
+    final label = mode == 'system' ? 'Android' : mode == 'fastbootd' ? 'Fastbootd (userspace Fastboot)' : mode;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1374,14 +1374,16 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
 
   Future<void> _setActiveSlot(String slot) async {
     final serial = _serial.text.trim();
-    if (serial.isEmpty || _busy || !const {'a', 'b'}.contains(slot)) return;
+    if (serial.isEmpty || _busy || !const {'a', 'b', 'other'}.contains(slot)) return;
     final command = 'fastboot -s $serial --set-active=$slot';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Set active slot ${slot.toUpperCase()}?'),
+        title: Text(slot == 'other' ? 'Switch to the other active slot?' : 'Set active slot ${slot.toUpperCase()}?'),
         content: Text(
-          'Change the active boot slot on $serial. This affects the next boot and can make the device fail to start if the selected slot is incomplete.\n\n$command',
+          slot == 'other'
+              ? 'Ask the bootloader to select the slot opposite the currently active slot on $serial. The bootloader resolves "other"; verify the resulting current-slot before rebooting. This can make the device fail to start if that slot is incomplete.\n\nfastboot -s $serial set_active other'
+              : 'Change the active boot slot on $serial. This affects the next boot and can make the device fail to start if the selected slot is incomplete.\n\n$command',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
@@ -1398,7 +1400,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     try {
       final result = await trackOperation(
         ref,
-        operation: 'Fastboot set active slot ${slot.toUpperCase()}',
+        operation: slot == 'other' ? 'Fastboot switch to other active slot' : 'Fastboot set active slot ${slot.toUpperCase()}',
         target: serial,
         action: () => ref.read(backendClientProvider).request('fastboot.set_active', {
           'serial': serial,
@@ -1553,6 +1555,10 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           onPressed: _busy ? null : () => _rebootFastboot('bootloader'),
           child: const Text('Reboot bootloader'),
         ),
+        FilledButton.tonal(
+          onPressed: _busy ? null : () => _rebootFastboot('fastbootd'),
+          child: const Text('Reboot to Fastbootd'),
+        ),
       ]),
       const SizedBox(height: 16),
       Text('ERASE & FORMAT', style: Theme.of(context).textTheme.titleSmall),
@@ -1588,6 +1594,10 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         OutlinedButton(
           onPressed: _busy ? null : () => _setActiveSlot('b'),
           child: const Text('Set active slot B'),
+        ),
+        FilledButton.tonal(
+          onPressed: _busy || selectedSerial == null ? null : () => _setActiveSlot('other'),
+          child: const Text('Switch to other slot'),
         ),
       ]),
       const SizedBox(height: 16),
