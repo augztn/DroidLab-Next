@@ -75,7 +75,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       try {
         final file = File(_operationLogPath);
         await file.parent.create(recursive: true);
-        final encoded = utf8.encode('$line\\n');
+        final encoded = utf8.encode('$line\n');
         if (_operationLogSink == null) {
           _operationLogBytes = await file.exists() ? await file.length() : 0;
           if (_operationLogBytes >= _maxOperationLogBytes) {
