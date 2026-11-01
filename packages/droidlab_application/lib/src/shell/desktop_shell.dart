@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter/material.dart';
 import 'package:droidlab_design_system/droidlab_design_system.dart';
@@ -18,6 +20,11 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   bool _consoleVisible = true;
   final List<String> _consoleLines = [];
   StreamSubscription<BackendEvent>? _events;
+  Timer? _deviceRefreshTimer;
+  Future<void> _logWriteQueue = Future<void>.value();
+  IOSink? _operationLogSink;
+  int _operationLogBytes = 0;
+  static const _maxOperationLogBytes = 5 * 1024 * 1024;
   static const _groups = <(String, List<(String, String, IconData)>)>[
     ('WORKSPACE', [('Dashboard','/dashboard',Icons.grid_view_rounded),('Device Manager','/devices',Icons.devices_rounded)]),
     ('FIRMWARE', [('Firmware & Payload','/firmware',Icons.folder_open_rounded)]),
@@ -28,6 +35,11 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   @override
   void initState() {
     super.initState();
+    _deviceRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted && ref.read(backendReadyProvider).hasValue) {
+        ref.invalidate(deviceListProvider);
+      }
+    });
     _events = ref.read(backendClientProvider).events.listen((event) {
       if (!mounted) return;
       late final String line;
@@ -40,8 +52,10 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       } else {
         return;
       }
+      final timestamped = '${DateTime.now().toIso8601String()} $line';
+      unawaited(_appendOperationLog(timestamped));
       setState(() {
-        _consoleLines.add(line);
+        _consoleLines.add(timestamped);
         if (_consoleLines.length > 300) {
           _consoleLines.removeRange(0, _consoleLines.length - 300);
         }
@@ -50,9 +64,69 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   }
 
   @override
+  String get _operationLogPath {
+    final home = Platform.environment['USERPROFILE'] ??
+        Platform.environment['HOME'] ?? Directory.current.path;
+    return '$home${Platform.pathSeparator}DroidLab${Platform.pathSeparator}logs${Platform.pathSeparator}operations.log';
+  }
+
+  Future<void> _appendOperationLog(String line) {
+    _logWriteQueue = _logWriteQueue.then((_) async {
+      try {
+        final file = File(_operationLogPath);
+        await file.parent.create(recursive: true);
+        final encoded = utf8.encode('$line\\n');
+        if (_operationLogSink == null) {
+          _operationLogBytes = await file.exists() ? await file.length() : 0;
+          if (_operationLogBytes >= _maxOperationLogBytes) {
+            for (var index = 3; index >= 1; index--) {
+              final source = File('${file.path}.$index');
+              final destination = File('${file.path}.${index + 1}');
+              if (await destination.exists()) await destination.delete();
+              if (await source.exists()) await source.rename(destination.path);
+            }
+            if (await file.exists()) await file.rename('${file.path}.1');
+            _operationLogBytes = 0;
+          }
+          _operationLogSink = file.openWrite(mode: FileMode.writeOnlyAppend);
+        }
+        if (_operationLogBytes + encoded.length > _maxOperationLogBytes) {
+          await _operationLogSink!.flush();
+          await _operationLogSink!.close();
+          _operationLogSink = null;
+          final rotated = File('${file.path}.1');
+          if (await rotated.exists()) await rotated.delete();
+          if (await file.exists()) await file.rename(rotated.path);
+          _operationLogBytes = 0;
+          _operationLogSink = file.openWrite(mode: FileMode.writeOnlyAppend);
+        }
+        _operationLogSink!.add(encoded);
+        _operationLogBytes += encoded.length;
+      } catch (_) {
+        // Logging must never interrupt device operations or UI event handling.
+      }
+    });
+    return _logWriteQueue;
+  }
+
+  @override
   void dispose() {
+    _deviceRefreshTimer?.cancel();
     unawaited(_events?.cancel() ?? Future<void>.value());
+    unawaited(_closeOperationLog());
     super.dispose();
+  }
+
+  Future<void> _closeOperationLog() async {
+    try {
+      await _logWriteQueue;
+      await _operationLogSink?.flush();
+      await _operationLogSink?.close();
+    } catch (_) {
+      // Shutdown should not be blocked by a log-file failure.
+    } finally {
+      _operationLogSink = null;
+    }
   }
 
   @override
