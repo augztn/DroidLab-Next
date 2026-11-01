@@ -7,6 +7,7 @@ directly to their own per-user application-data directory.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import platform
 import shutil
@@ -25,8 +26,14 @@ PLATFORM_TOOLS_VERSION = "37.0.1"
 SDK_LICENSE_URL = "https://developer.android.com/studio/terms"
 PLATFORM_TOOLS_PAGE = "https://developer.android.com/tools/releases/platform-tools"
 DOWNLOAD_URLS = {
-    "win32": "https://dl.google.com/android/repository/platform-tools-latest-windows.zip",
-    "darwin": "https://dl.google.com/android/repository/platform-tools-latest-darwin.zip",
+    "win32": "https://dl.google.com/android/repository/platform-tools_r37.0.1-win.zip",
+    "darwin": "https://dl.google.com/android/repository/platform-tools_r37.0.1-darwin.zip",
+}
+# Pinned checksums: Microsoft winget manifest (Windows) and Homebrew Cask
+# manifest (macOS), both pointing to Google's versioned HTTPS archives.
+PLATFORM_TOOLS_SHA256 = {
+    "win32": "45f4d63113e895ebde0c90f194099a4676b6ac653bd28d54314a9e022bbc1a99",
+    "darwin": "ee39ad5967e95c2a07f04dbcbde96b1a0c916ba376096db5d2f498b7727a5d1d",
 }
 MAX_ARCHIVE_BYTES = 64 * 1024 * 1024
 MAX_UNCOMPRESSED_BYTES = 256 * 1024 * 1024
@@ -92,12 +99,13 @@ def _assert_supported_architecture(platform_name: str) -> None:
         )
 
 
-def _download_archive(url: str, destination: Path, *, opener: Callable = urllib.request.urlopen) -> int:
+def _download_archive(url: str, destination: Path, *, expected_sha256: str, opener: Callable = urllib.request.urlopen) -> int:
     request = urllib.request.Request(
         url,
         headers={"User-Agent": "DroidLab-PlatformTools-Installer/1.0"},
     )
     total = 0
+    digest = hashlib.sha256()
     with opener(request, timeout=45) as response, destination.open("wb") as output:
         final_url = response.geturl()
         parsed = urlparse(final_url)
@@ -120,10 +128,16 @@ def _download_archive(url: str, destination: Path, *, opener: Callable = urllib.
             if total > MAX_ARCHIVE_BYTES:
                 raise RuntimeError("Platform-Tools archive exceeds the configured download size limit.")
             output.write(chunk)
+            digest.update(chunk)
         output.flush()
         os.fsync(output.fileno())
     if total == 0:
         raise RuntimeError("Google returned an empty Platform-Tools archive.")
+    actual_sha256 = digest.hexdigest()
+    if actual_sha256 != expected_sha256.lower():
+        raise RuntimeError(
+            f"Platform-Tools SHA-256 mismatch: expected {expected_sha256}, received {actual_sha256}."
+        )
     return total
 
 
@@ -241,6 +255,7 @@ def install_platform_tools(
             download_bytes = _download_archive(
                 DOWNLOAD_URLS[platform_name],
                 archive,
+                expected_sha256=PLATFORM_TOOLS_SHA256[platform_name],
                 opener=opener,
             )
             extracted_root = _safe_extract(archive, extraction)
