@@ -18,6 +18,15 @@ void main() {
       expect(() => device.details['model'] = 'changed', throwsA(isA<UnsupportedError>()));
     });
 
+    test('readiness requires a matching transport and state', () {
+      final inconsistent = DeviceDescriptor.fromJson({
+        'serial': 'device-03',
+        'transport': 'fastboot',
+        'state': 'device',
+      });
+      expect(inconsistent.isReady, isFalse);
+    });
+
     test('unknown protocol values remain representable but not ready', () {
       final device = DeviceDescriptor.fromJson({
         'serial': 'device-02',
