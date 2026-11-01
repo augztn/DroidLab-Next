@@ -42,7 +42,7 @@ String _safeSummary(String status) {
     case 'failed':
       return 'Operation failed. Detailed error text was omitted from local history.';
     default:
-      return 'Operation status unavailable.';
+      return 'Operation failed. Detailed error text was omitted from local history.';
   }
 }
 
@@ -164,9 +164,9 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
       state = AsyncData(records);
 
       // Rewrite old, potentially sensitive records immediately after migration.
+      final safeSerializedRecords = records.map((record) => record.toJson()).toList();
       final requiresMigration = serializedRecords.length != records.length ||
-          original.take(records.length).toList().asMap().entries.any((entry) =>
-              entry.value.toJson().toString() != records[entry.key].toJson().toString());
+          jsonEncode(serializedRecords) != jsonEncode(safeSerializedRecords);
       if (requiresMigration) await _persist(records);
     } on Object catch (error, stack) {
       persistenceError = 'Unable to load local operation history.';
