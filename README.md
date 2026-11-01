@@ -10,11 +10,11 @@ DroidLab is a cross-platform desktop engineering workstation for Android device 
 - Python backend: headless process execution, fresh device preflight, payload extraction and guarded device operations.
 - Design system: centralized dark theme tokens.
 
-The original Tkinter implementation remains in [DroidLab-Next](https://github.com/augztn/DroidLab-Next) as the behavioral reference. Development takes place on `rewrite/flutter-desktop`.
+The original Tkinter implementation remains in [DroidLab-Next](https://github.com/augztn/DroidLab-Next) as the behavioral reference. Development takes place on `hardening/backend-modularization` and is proposed to `main` through pull request #6.
 
 ## Development
 
-Requires Flutter 3.47.9 (or compatible stable), Python 3.10+, Android platform-tools (`adb` and `fastboot`), and `payload-dumper-go` for payload workflows. The desktop bundles stage the Python backend but do not currently bundle Python or ADB/Fastboot on Windows/macOS; install those tools on the target host or configure their paths in Settings.
+Requires Flutter 3.47.9 (or compatible stable), Python 3.10+, Android platform-tools (`adb` and `fastboot`), and `payload-dumper-go` for payload workflows. Windows and macOS release bundles include a checksum-verified Python runtime. Android Platform-Tools are installed per-user through the explicit Google license-acceptance flow; Linux uses the host Python runtime and distribution/SDK-managed ADB and Fastboot.
 
 ```sh
 bash scripts/bootstrap-flutter.sh
@@ -46,7 +46,7 @@ Install `appimagetool`, Flutter stable, Python 3.10+, `wget`, and `sha256sum`, t
 bash scripts/build-linux-appimage.sh
 ```
 
-The script pins and verifies payload-dumper-go 2.1.0 before bundling it. The AppImage uses the host's Python 3 runtime and Android platform tools; install `python3`, `adb`, and `fastboot` on the target machine. The Python backend is staged beside the app in CI bundles and embedded in the AppImage. Tool discovery checks app-relative locations, the shared DroidLab settings file, environment overrides, then PATH.
+The script pins and verifies payload-dumper-go 2.1.0 before bundling it. The AppImage uses the host's Python 3 runtime and Android platform tools; install `python3`, `adb`, and `fastboot` on the target machine. The Python backend is staged beside the app in CI bundles and embedded in the AppImage. Windows and macOS bundles include a checksum-verified Python runtime. Tool discovery checks environment overrides, shared DroidLab settings, bundled candidates, managed Platform-Tools, then PATH.
 
 GitHub Actions runs Flutter analysis, widget/unit tests and native desktop builds on Linux, Windows and macOS, stages the backend beside each build, and runs Python backend tests.
 
