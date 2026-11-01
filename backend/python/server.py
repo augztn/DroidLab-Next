@@ -313,7 +313,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             destination = validate_android_path(args.get("destination_path"), "destination_path")
             intent = {
                 "operation": "adb.transfer", "serial": serial, "direction": "push",
-                "source_path": str(source), "destination_path": destination,
+                "source_path": args.get("source_path"), "destination_path": args.get("destination_path"),
             }
             require_confirmation(args, "ADB push", intent)
             command = [tool_path("adb"), "-s", serial, "push", str(source), destination]
@@ -323,13 +323,43 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             ensure_pull_target_is_new(source, destination)
             intent = {
                 "operation": "adb.transfer", "serial": serial, "direction": "pull",
-                "source_path": source, "destination_path": str(destination),
+                "source_path": args.get("source_path"), "destination_path": args.get("destination_path"),
             }
             require_confirmation(args, "ADB pull", intent)
             command = [tool_path("adb"), "-s", serial, "pull", source, str(destination)]
         else:
             raise ValueError("direction must be 'push' or 'pull'.")
         response(request_id, "preflight", target=serial, command=command, destructive=False)
+        if direction == "pull":
+            # Pull into a private sibling directory, then publish with an atomic
+            # hard-link. This closes the check/use race and never overwrites a
+            # file created by another process while the transfer is running.
+            with tempfile.TemporaryDirectory(prefix=".droidlab-pull-", dir=destination) as staging:
+                staged_command = [tool_path("adb"), "-s", serial, "pull", source, staging]
+                result = run_streaming(
+                    staged_command,
+                    timeout=bounded_timeout(args.get("timeout_seconds"), 600, 3600),
+                    cancel_event=cancel,
+                    on_line=lambda line: response(request_id, "output", stream="stdout", line=line),
+                )
+                if result.returncode:
+                    raise RuntimeError(
+                        f"ADB pull failed ({result.returncode}); verify the device state before retrying. "
+                        f"{result.stdout[-MAX_RETAINED_OUTPUT:]}"
+                    )
+                staged_file = Path(staging) / Path(source).name
+                if staged_file.is_symlink() or not staged_file.is_file():
+                    raise RuntimeError("ADB pull did not produce the expected regular file.")
+                published = destination / staged_file.name
+                try:
+                    os.link(staged_file, published)
+                except FileExistsError:
+                    raise FileExistsError(f"Refusing to overwrite existing pull destination: {published}")
+                return {
+                    "exit_code": 0, "direction": direction,
+                    "path": str(published), "output": result.stdout,
+                }
+
         result = run_streaming(
             command, timeout=bounded_timeout(args.get("timeout_seconds"), 600, 3600),
             cancel_event=cancel,
@@ -337,7 +367,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         )
         if result.returncode:
             raise RuntimeError(
-                f"ADB {direction} failed ({result.returncode}); verify the destination before retrying. "
+                f"ADB push failed ({result.returncode}); verify the destination before retrying. "
                 f"{result.stdout[-MAX_RETAINED_OUTPUT:]}"
             )
         return {"exit_code": 0, "direction": direction, "output": result.stdout}
