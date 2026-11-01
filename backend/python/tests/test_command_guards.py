@@ -30,14 +30,14 @@ class CommandGuardTests(unittest.TestCase):
   self.assertTrue(is_adb_target_connected("SERIAL",adb))
   self.assertFalse(is_adb_target_connected("OFFLINE",adb))
   self.assertTrue(is_adb_target_connected("RECOVERY",adb,allowed_states=("recovery",)))
-  self.assertTrue(is_fastboot_target_connected("FB-1","FB-1 fastboot product:foo\n"))
+  self.assertTrue(is_fastboot_target_connected("FB-1","FB-1 fastboot product:foo\n"))\n  self.assertTrue(is_fastboot_target_connected("FB-1","FB-1 fastbootd usb:3-1\n"))
   self.assertFalse(is_fastboot_target_connected("FB-1","FB-1 fastboot\n",returncode=1))
  def test_confirmation_is_bound_to_exact_operation_intent(self):
   intent={"operation":"fastboot.erase","serial":"DEVICE-1","partition":"userdata"}
   server.require_confirmation({"confirmed":True,"confirmation":intent},"Fastboot erase",intent)
   with self.assertRaises(PermissionError):server.require_confirmation({"confirmed":True,"confirmation":{**intent,"partition":"boot"}},"Fastboot erase",intent)
 
- def test_require_adb_explains_unauthorized_device_without_dispatch(self):
+ def test_fastboot_scan_accepts_fastbootd_and_classifies_mode(self):\n  devices_output="1bf3c2b0 fastbootd usb:3-1\\n"\n  mode_output=subprocess.CompletedProcess(["fastboot"],0,"","is-userspace: yes\\n")\n  with patch.object(server,"tool_path",return_value="fastboot"), patch.object(server,"run_capture",side_effect=[subprocess.CompletedProcess(["fastboot","devices","-l"],0,devices_output,""),mode_output]):\n   devices=server.fastboot_scan()\n  self.assertEqual(len(devices),1)\n  self.assertEqual(devices[0]["serial"],"1bf3c2b0")\n  self.assertEqual(devices[0]["transport"],"fastboot")\n  self.assertEqual(devices[0]["mode"],"fastbootd")\n\n def test_require_adb_explains_unauthorized_device_without_dispatch(self):
   output="List of devices attached\n1bf3c2b0 unauthorized usb:1-1\n"
   with patch.object(server,"tool_path",return_value="adb"), patch.object(server,"run_capture",return_value=subprocess.CompletedProcess(["adb","devices","-l"],0,output,"")):
    with self.assertRaisesRegex(RuntimeError,"accept the.*RSA fingerprint prompt"):
