@@ -140,6 +140,13 @@ def _download_archive(url: str, destination: Path, *, expected_sha256: str, open
     return total
 
 
+def _remove_path(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path)
+
+
 def _safe_extract(archive: Path, destination: Path) -> Path:
     destination.mkdir(parents=True, exist_ok=True)
     total_size = 0
@@ -282,10 +289,8 @@ def install_platform_tools(
             _verified_probe(probe, fastboot, ["--version"])
 
             backup = destination.parent / f".{destination.name}.previous"
-            if backup.is_symlink() or (backup.exists() and not backup.is_dir()):
-                backup.unlink()
-            elif backup.exists():
-                shutil.rmtree(backup)
+            if backup.exists() or backup.is_symlink():
+                _remove_path(backup)
             moved_old = False
             try:
                 if destination.exists():
@@ -293,7 +298,7 @@ def install_platform_tools(
                     moved_old = True
                 extracted_root.rename(destination)
                 if moved_old:
-                    shutil.rmtree(backup)
+                    _remove_path(backup)
             except Exception:
                 if moved_old and not destination.exists() and backup.exists():
                     backup.rename(destination)
