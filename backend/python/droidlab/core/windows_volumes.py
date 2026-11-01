@@ -22,7 +22,7 @@ def list_removable_drives(*, kernel32: Any | None = None) -> list[dict[str, str]
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
     get_logical_drives = kernel32.GetLogicalDriveStringsW
-    get_logical_drives.argtypes = [ctypes.c_uint32, ctypes.c_wchar_p]
+    get_logical_drives.argtypes = [ctypes.c_uint32, ctypes.POINTER(ctypes.c_wchar)]
     get_logical_drives.restype = ctypes.c_uint32
 
     required = get_logical_drives(0, None)
@@ -38,7 +38,7 @@ def list_removable_drives(*, kernel32: Any | None = None) -> list[dict[str, str]
     get_drive_type.argtypes = [ctypes.c_wchar_p]
     get_drive_type.restype = ctypes.c_uint32
 
-    roots = (entry for entry in buffer[:copied].split("\\0") if entry)
+    roots = (entry for entry in buffer[:copied].split("\0") if entry)
     drives: list[dict[str, str]] = []
     for root in roots:
         if get_drive_type(root) != DRIVE_REMOVABLE:
