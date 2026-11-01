@@ -51,7 +51,7 @@ def resolve_tool_path(name: str, *, bundle_root: Path | None = None) -> str:
             f"Configured {name} path is not an executable file or command on PATH: {path}"
         )
 
-    root = bundle_root or Path(__file__).resolve().parents[3]
+    root = bundle_root or Path(__file__).resolve().parents[4]
     executable_names = [name]
     if os.name == "nt" and not name.lower().endswith(".exe"):
         executable_names = [name + ".exe", name]
