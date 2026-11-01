@@ -206,7 +206,7 @@ class ProtocolTests(unittest.TestCase):
             with patch.object(server, "run_capture", return_value=result("SERIAL fastboot\\n")):
                 with patch.object(server, "run_streaming", return_value=result("Setting current slot to 'b'\\n")) as run:
                     value = server.execute("id", "fastboot.set_active", args, threading.Event())
-        self.assertEqual(run.call_args.args[0], ["fastboot", "-s", "SERIAL", "--set-active=other"])
+        self.assertEqual(run.call_args.args[0], ["fastboot", "-s", "SERIAL", "set_active", "other"])
         self.assertEqual(value["slot"], "other")
 
     def test_adb_reboot_fastboot_uses_adb_reboot_fastboot(self):
