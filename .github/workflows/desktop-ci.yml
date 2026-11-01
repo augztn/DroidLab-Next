@@ -66,6 +66,12 @@ jobs:
       - name: Stage Python backend (Linux and macOS)
         if: runner.os != 'Windows'
         run: python3 scripts/stage_backend.py
+      - name: Stage bundled CPython runtime (Windows)
+        if: runner.os == 'Windows'
+        run: python scripts/stage_python_runtime.py
+      - name: Stage bundled CPython runtime (macOS)
+        if: runner.os == 'macOS'
+        run: python3 scripts/stage_python_runtime.py
       - name: Install AppImage tooling
         if: runner.os == 'Linux'
         run: |
