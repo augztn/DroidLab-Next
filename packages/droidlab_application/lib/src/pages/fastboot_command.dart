@@ -73,10 +73,14 @@ class FastbootCommand {
     if (index >= arguments.length) return null;
 
     final verb = arguments[index].toLowerCase();
+    final hasDestructiveGlobalOption =
+        arguments.take(index).any((token) => token.toLowerCase() == '-w');
     return FastbootCommand(
       arguments: List.unmodifiable(arguments),
       hasExplicitSerial: hasExplicitSerial,
-      isDiscovery: !hasExplicitSerial && _discoveryVerbs.contains(verb),
+      isDiscovery: !hasExplicitSerial &&
+          !hasDestructiveGlobalOption &&
+          _discoveryVerbs.contains(verb),
     );
   }
 
