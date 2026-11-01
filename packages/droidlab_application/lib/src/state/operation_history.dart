@@ -10,6 +10,13 @@ import 'package:path_provider/path_provider.dart';
 /// device identifiers or user-supplied arguments. Keep those details out of
 /// the persistent history; users can inspect the live operation console when
 /// they need the full diagnostic context.
+/// Keeps command arguments and user-provided suffixes out of persisted labels.
+String historyOperationLabel(String operation) {
+  final label = operation.split(':').first.trim();
+  if (label.isEmpty) return 'Operation';
+  return label.length <= 80 ? label : label.substring(0, 80);
+}
+
 String operationFailureSummary(Object error) {
   if (error is BackendException && error.code == 'cancelled') {
     return 'Operation cancelled.';
@@ -177,7 +184,7 @@ Future<T> trackOperation<T>(
     await ref.read(operationHistoryProvider.notifier).record(OperationRecord(
       id: started.microsecondsSinceEpoch.toString(),
       timestamp: DateTime.now(),
-      operation: operation,
+      operation: historyOperationLabel(operation),
       target: target,
       status: 'completed',
       summary: successSummary?.call(result) ?? 'Operation completed.',
