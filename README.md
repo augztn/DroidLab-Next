@@ -32,7 +32,7 @@ Run backend tests from the repository root:
 python -m unittest discover -s backend/python/tests -v
 ```
 
-Architecture and implementation records: [Architecture](docs/ARCHITECTURE.md) · [Backend protocol](docs/BACKEND_PROTOCOL.md) · [Feature parity](docs/FEATURE_PARITY.md) · [Migration plan](docs/MIGRATION_PLAN.md) · [Safety requirements](docs/SAFETY_REQUIREMENTS.md) · [Release](docs/RELEASE.md). · [Physical device validation](docs/DEVICE_VALIDATION.md) · [Release signing](docs/RELEASE_SIGNING.md).
+Architecture and implementation records: [Architecture](docs/ARCHITECTURE.md) · [Backend protocol](docs/BACKEND_PROTOCOL.md) · [Feature parity](docs/FEATURE_PARITY.md) · [Migration plan](docs/MIGRATION_PLAN.md) · [Safety requirements](docs/SAFETY_REQUIREMENTS.md) · [Release](docs/RELEASE.md) · [Physical device validation](docs/DEVICE_VALIDATION.md) · [Release signing](docs/RELEASE_SIGNING.md).
 
 ## Safety
 
