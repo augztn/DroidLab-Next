@@ -565,7 +565,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         require_fastboot(serial, cancel_event=cancel)
         binary = tool_path("fastboot")
         result = run_streaming([binary, "-s", serial, "getvar", "all"], timeout=30, cancel_event=cancel)
-        output = (result.stdout or "") + "\\n" + (result.stderr or "")
+        output = (result.stdout or "") + "\n" + (result.stderr or "")
         if result.returncode and not output.strip():
             raise RuntimeError("Fastboot partition discovery failed.")
         partitions: dict[str, dict[str, str]] = {}
