@@ -572,10 +572,12 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             else:
                 verb_index += 1
         verb = tokens[verb_index].lower() if verb_index < len(tokens) else ""
-        discovery = verb in discovery_verbs
+        # A command carrying an explicit -s selector is device-targeted even
+        # when its verb is normally host-side (for example, "fastboot -s X devices").
+        discovery = verb in discovery_verbs and explicit_serial is None
         if not discovery and not serial:
             raise ValueError("Select a Fastboot device for this command.")
-        if discovery and serial and explicit_serial is None:
+        if discovery and serial:
             serial = None
         intent = {"operation": "fastboot.command", "serial": serial, "command": raw_command}
         require_confirmation(args, "Advanced Fastboot command", intent)
