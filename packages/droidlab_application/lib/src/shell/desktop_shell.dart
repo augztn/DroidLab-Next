@@ -46,8 +46,11 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
 
   Future<void> _subscribeToBackendEvents(BackendClient client) async {
     if (identical(_eventClient, client)) return;
-    await _events?.cancel();
+    final previousSubscription = _events;
+    _events = null;
     _eventClient = client;
+    await previousSubscription?.cancel();
+    if (!mounted || !identical(_eventClient, client)) return;
     _events = client.events.listen((event) {
       if (!mounted || !identical(_eventClient, client)) return;
       late final String line;
