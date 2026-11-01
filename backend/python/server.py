@@ -17,7 +17,7 @@ from droidlab.core import payload_dumper
 from droidlab.core.tool_resolver import resolve_tool_path
 from droidlab.core.windows_volumes import list_removable_drives
 from droidlab.core.platform_tools_installer import (
-    PLATFORM_TOOLS_VERSION, install_platform_tools, platform_tools_status,
+    PLATFORM_TOOLS_VERSION, install_platform_tools,
 )
 from droidlab.core.file_transfer import (
     ensure_pull_target_is_new, publish_file_no_replace, validate_android_path,
