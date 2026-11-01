@@ -57,6 +57,12 @@ jobs:
       - name: Domain model tests (typed device boundary)
         working-directory: packages/droidlab_domain
         run: flutter test
+      - name: Design system tests (legacy palette and adaptive themes)
+        working-directory: packages/droidlab_design_system
+        run: flutter test
+      - name: Application package tests
+        working-directory: packages/droidlab_application
+        run: flutter test
       - name: Build desktop release
         working-directory: apps/desktop
         run: flutter build ${{ matrix.platform }} --release
