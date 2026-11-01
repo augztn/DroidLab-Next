@@ -32,6 +32,26 @@ class CommandGuardTests(unittest.TestCase):
         self.assertTrue(is_destructive_fastboot(["flashing", "unlock"]))
         self.assertFalse(is_destructive_fastboot(["getvar", "product"]))
 
+    def test_adb_destructive_detection_covers_shell_wrappers_and_substitutions(self):
+        destructive = (
+            ["shell", "rm", "--recursive", "--force", "/data"],
+            ["shell", "rm", "-r", "-f", "/data"],
+            ["shell", "rm", "-f", "-r", "/data"],
+            ["shell", "toybox", "rm", "-rf", "/data"],
+            ["shell", "busybox", "rm", "-rf", "/data"],
+            ["shell", "echo", "$(rm -rf /data)"],
+            ["shell", "echo", "`rm -rf /data`"],
+            ["shell", "sh", "-c", "echo safe; rm -rf /data"],
+            ["shell", "su", "-c", "rm --recursive --force /data"],
+            ["shell", "echo", "$(reboot)"],
+        )
+        for command in destructive:
+            with self.subTest(command=command):
+                self.assertTrue(is_destructive_adb(command))
+
+        self.assertFalse(is_destructive_adb(["shell", "rm", "-r", "/data/cache"]))
+        self.assertFalse(is_destructive_adb(["shell", "getprop", "ro.build.version.release"]))
+
     def test_partition_validation(self):
         self.assertTrue(is_valid_partition_name("vendor_boot_a"))
         for value in ("", ".", "../userdata", "-boot", "boot/../system"):
