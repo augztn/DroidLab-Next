@@ -213,6 +213,19 @@ def _probe_tool(path: Path, args: list[str]) -> str:
     return output.strip()
 
 
+def _verified_probe(
+    probe: Callable[[Path, list[str]], str],
+    path: Path,
+    args: list[str],
+) -> str:
+    output = probe(path, args)
+    if not isinstance(output, str) or PLATFORM_TOOLS_VERSION not in output:
+        raise RuntimeError(
+            f"{path.name} did not report the expected Platform-Tools version {PLATFORM_TOOLS_VERSION}."
+        )
+    return output
+
+
 def install_platform_tools(
     *,
     license_accepted: bool,
@@ -237,8 +250,8 @@ def install_platform_tools(
         current = platform_tools_status(platform_name=platform_name, install_dir=destination)
         if current["installed"]:
             try:
-                probe(Path(str(current["adb_path"])), ["version"])
-                probe(Path(str(current["fastboot_path"])), ["--version"])
+                _verified_probe(probe, Path(str(current["adb_path"])), ["version"])
+                _verified_probe(probe, Path(str(current["fastboot_path"])), ["--version"])
                 return {**current, "already_installed": True, "download_bytes": 0}
             except (OSError, RuntimeError, subprocess.SubprocessError):
                 pass
@@ -265,8 +278,8 @@ def install_platform_tools(
             if platform_name == "darwin":
                 adb.chmod(adb.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
                 fastboot.chmod(fastboot.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-            probe(adb, ["version"])
-            probe(fastboot, ["--version"])
+            _verified_probe(probe, adb, ["version"])
+            _verified_probe(probe, fastboot, ["--version"])
 
             backup = destination.parent / f".{destination.name}.previous"
             if backup.is_symlink() or (backup.exists() and not backup.is_dir()):
