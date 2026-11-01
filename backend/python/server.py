@@ -555,7 +555,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             }
     if operation == "fastboot.command":
         serial, raw_command = args.get("serial"), args.get("command")
-        if not isinstance(raw_command, str) or not raw_command.strip() or "\\x00" in raw_command:
+        if not isinstance(raw_command, str) or not raw_command.strip() or "\x00" in raw_command:
             raise ValueError("A non-empty Fastboot command is required.")
         tokens = strip_fastboot_executable(split_command_text(raw_command))
         if not tokens:
