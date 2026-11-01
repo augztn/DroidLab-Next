@@ -80,8 +80,12 @@ class DroidLabSettingsStore {
       if (value is Map<String, dynamic>) return DroidLabSettings.fromJson(value);
       if (value is Map) return DroidLabSettings.fromJson(value.cast<String, dynamic>());
       await _preserveCorruptConfig('The settings file did not contain a JSON object.');
-    } on FileSystemException {
-      // First launch or unavailable legacy config: use environment defaults.
+    } on FileSystemException catch (error) {
+      // First launch is normal. If a file exists but cannot be read, preserve
+      // it so a later save cannot silently discard potentially valid settings.
+      if (await _file.exists()) {
+        await _preserveCorruptConfig('The settings file could not be read: ${error.message}.');
+      }
     } on FormatException catch (error) {
       // Preserve malformed and unsupported future schemas instead of silently
       // replacing the only copy when the user next saves settings.
@@ -103,7 +107,7 @@ class DroidLabSettingsStore {
         '${_file.path}.corrupt.${DateTime.now().toUtc().microsecondsSinceEpoch}',
       );
       await _file.rename(preserved.path);
-      recoveryNotice = 'The settings file could not be read and was preserved at ${preserved.path}. Defaults are active; review the recovered file before saving new settings.';
+      recoveryNotice = '${reason} The original file was preserved at ${preserved.path}. Defaults are active; review the recovered file before saving new settings.';
     } on FileSystemException catch (error) {
       recoveryNotice = 'The settings file could not be read or preserved. No replacement has been written. Details: ${error.message}';
     }
