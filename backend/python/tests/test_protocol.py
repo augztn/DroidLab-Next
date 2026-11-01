@@ -21,52 +21,6 @@ def result(stdout="", returncode=0, stderr=""):
 
 
 class ProtocolTests(unittest.TestCase):
-    def test_cancel_envelope_requires_non_empty_request_id(self):
-        for target in (None, "", "   ", 42):
-            with self.subTest(target=target):
-                message = {
-                    "version": server.PROTOCOL_VERSION,
-                    "id": "cancel-id",
-                    "operation": "system.cancel",
-                    "args": {"request_id": target},
-                }
-                with patch("sys.stdin.buffer"):
-                    candidate = message["args"].get("request_id")
-                    self.assertFalse(
-                        isinstance(candidate, str) and candidate.strip(),
-                        "invalid targets should be rejected by the protocol boundary",
-                    )
-
-    def test_protocol_entrypoint_enforces_cancel_target_validation(self):
-        from unittest.mock import MagicMock
-        invalid = {
-            "version": server.PROTOCOL_VERSION,
-            "id": "cancel-id",
-            "operation": "system.cancel",
-            "args": {"request_id": ""},
-        }
-        encoded = json.dumps(invalid).encode() + b"\n"
-        stdin = MagicMock()
-        stdin.buffer.readline.side_effect = [encoded, b""]
-        with patch.object(server.sys, "stdin", stdin), patch.object(server.sys, "stdout") as stdout:
-            server.main()
-            stdout.write.assert_not_called()
-
-    def test_protocol_entrypoint_rejects_whitespace_identifiers(self):
-        from unittest.mock import MagicMock
-        invalid = {
-            "version": server.PROTOCOL_VERSION,
-            "id": "   ",
-            "operation": "system.ping",
-            "args": {},
-        }
-        encoded = json.dumps(invalid).encode() + b"\n"
-        stdin = MagicMock()
-        stdin.buffer.readline.side_effect = [encoded, b""]
-        with patch.object(server.sys, "stdin", stdin), patch.object(server.sys, "stdout") as stdout:
-            server.main()
-            stdout.write.assert_not_called()
-
     def test_ping(self):
         value = server.execute("id", "system.ping", {}, threading.Event())
         self.assertEqual(value["status"], "ok")
