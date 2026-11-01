@@ -223,7 +223,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         command_text = args.get("command_text")
         if not isinstance(command_text, str) or not command_text.strip() or "\x00" in command_text:
             raise ValueError("A non-empty host ADB command is required.")
-        command_args = shlex.split(command_text, posix=(os.name != "nt"))
+        command_args = split_command_text(command_text)
         if not command_args:
             raise ValueError("A non-empty host ADB command is required.")
         command_args = string_list(command_args, "arguments")
