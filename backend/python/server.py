@@ -106,7 +106,7 @@ def fastboot_scan(cancel_event: threading.Event | None = None) -> list[dict[str,
                     5,
                     cancel_event,
                 )
-                mode_output = (mode_result.stdout or "") + "\\n" + (mode_result.stderr or "")
+                mode_output = (mode_result.stdout or "") + "\n" + (mode_result.stderr or "")
                 userspace = parse_fastboot_getvar(mode_output, "is-userspace").lower()
                 mode = {"yes": "fastbootd", "no": "bootloader"}.get(userspace, "unknown")
             except ProcessCancelledError:
