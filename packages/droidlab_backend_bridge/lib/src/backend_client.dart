@@ -72,13 +72,7 @@ class BackendClient {
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((line) {
-        _diagnostics.add(line);
-        if (_diagnostics.length > config.maxRetainedLines) {
-          _diagnostics.removeRange(
-            0,
-            _diagnostics.length - config.maxRetainedLines,
-          );
-        }
+        _recordDiagnostic(line);
       });
       final result = await request(
         'system.ping',
@@ -147,7 +141,7 @@ class BackendClient {
       process.stdin.writeln(payload);
       await process.stdin.flush();
     } on Object catch (error) {
-      _diagnostics.add('Cancellation request failed: $error');
+      _recordDiagnostic('Cancellation request failed: $error');
     }
   }
 
@@ -193,7 +187,16 @@ class BackendClient {
         throw FormatException('Unknown protocol event type: $type');
       }
     } on Object catch (error) {
-      _diagnostics.add('Protocol decode error: $error');
+      _recordDiagnostic('Protocol decode error: $error');
+    }
+  }
+
+  void _recordDiagnostic(String line) {
+    final limit = config.maxRetainedLines;
+    if (limit <= 0) return;
+    _diagnostics.add(line);
+    if (_diagnostics.length > limit) {
+      _diagnostics.removeRange(0, _diagnostics.length - limit);
     }
   }
 
