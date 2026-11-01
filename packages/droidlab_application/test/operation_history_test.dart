@@ -3,6 +3,14 @@ import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('history labels omit user supplied command arguments', () {
+    expect(
+      historyOperationLabel('Advanced ADB: shell cat /private/token.txt'),
+      'Advanced ADB',
+    );
+    expect(historyOperationLabel('   '), 'Operation');
+  });
+
   test('failure summaries never persist exception details', () {
     final error = BackendException(
       'token=super-secret and /home/user/private/device.log',
