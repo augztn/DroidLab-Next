@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../diagnostics/diagnostic_redactor.dart';
+import 'fastboot_command.dart';
 import '../state/app_settings.dart';
 import '../state/backend_providers.dart';
 import '../state/operation_history.dart';
