@@ -487,8 +487,9 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     final serials = devices.map((device) => device['serial'] as String).toList();
     // A single connected Fastboot device is unambiguous, so select it
     // automatically. Multiple devices still require an explicit user choice.
-    final selectedSerial = serials.contains(_selectedSerial)
-        ? _selectedSerial
+    final currentSelection = _selectedSerial ?? _serial.text.trim();
+    final selectedSerial = serials.contains(currentSelection)
+        ? currentSelection
         : serials.length == 1
             ? serials.single
             : null;
