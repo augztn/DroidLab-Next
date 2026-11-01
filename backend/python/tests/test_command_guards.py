@@ -45,13 +45,13 @@ class CommandGuardTests(unittest.TestCase):
             validate_device_selector(["-s", "other", "shell"], "adb", "selected")
 
     def test_transport_states(self):
-        adb = "List of devices attached\\nSERIAL device product:foo\\nRECOVERY recovery\\nOFFLINE offline\\n"
+        adb = "List of devices attached\nSERIAL device product:foo\nRECOVERY recovery\nOFFLINE offline\n"
         self.assertTrue(is_adb_target_connected("SERIAL", adb))
         self.assertFalse(is_adb_target_connected("OFFLINE", adb))
         self.assertTrue(is_adb_target_connected("RECOVERY", adb, allowed_states=("recovery",)))
-        self.assertTrue(is_fastboot_target_connected("FB-1", "FB-1 fastboot product:foo\\n"))
-        self.assertTrue(is_fastboot_target_connected("FB-1", "FB-1 fastbootd usb:3-1\\n"))
-        self.assertFalse(is_fastboot_target_connected("FB-1", "FB-1 fastboot\\n", returncode=1))
+        self.assertTrue(is_fastboot_target_connected("FB-1", "FB-1 fastboot product:foo\n"))
+        self.assertTrue(is_fastboot_target_connected("FB-1", "FB-1 fastbootd usb:3-1\n"))
+        self.assertFalse(is_fastboot_target_connected("FB-1", "FB-1 fastboot\n", returncode=1))
 
     def test_confirmation_is_bound_to_exact_operation_intent(self):
         intent = {"operation": "fastboot.erase", "serial": "DEVICE-1", "partition": "userdata"}
@@ -64,9 +64,9 @@ class CommandGuardTests(unittest.TestCase):
             )
 
     def test_fastboot_scan_accepts_fastbootd_and_classifies_mode(self):
-        devices_output = "1bf3c2b0 fastbootd usb:3-1\\n"
+        devices_output = "1bf3c2b0 fastbootd usb:3-1\n"
         mode_output = subprocess.CompletedProcess(
-            ["fastboot"], 0, "", "is-userspace: yes\\n"
+            ["fastboot"], 0, "", "is-userspace: yes\n"
         )
         with (
             patch.object(server, "tool_path", return_value="fastboot"),
@@ -89,7 +89,7 @@ class CommandGuardTests(unittest.TestCase):
         self.assertEqual(devices[0]["mode"], "fastbootd")
 
     def test_require_adb_explains_unauthorized_device_without_dispatch(self):
-        output = "List of devices attached\\n1bf3c2b0 unauthorized usb:1-1\\n"
+        output = "List of devices attached\n1bf3c2b0 unauthorized usb:1-1\n"
         with (
             patch.object(server, "tool_path", return_value="adb"),
             patch.object(
