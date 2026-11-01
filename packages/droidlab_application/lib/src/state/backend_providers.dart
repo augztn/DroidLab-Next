@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
+import 'package:droidlab_domain/droidlab_domain.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/backend_device_repository.dart';
 import 'app_settings.dart';
 
 final backendClientProvider = Provider<BackendClient>((ref) {
@@ -71,4 +73,15 @@ final deviceListProvider =
   final client = ref.watch(backendClientProvider);
   final result = await client.request('devices.list', const {});
   return result.data;
+});
+
+/// Typed device-discovery boundary used by features migrating off raw JSON.
+final deviceRepositoryProvider = Provider<DeviceRepository>((ref) {
+  return BackendDeviceRepository(ref.watch(backendClientProvider));
+});
+
+final discoveredDevicesProvider =
+    FutureProvider.autoDispose<List<DeviceDescriptor>>((ref) async {
+  await ref.watch(backendReadyProvider.future);
+  return ref.watch(deviceRepositoryProvider).discover();
 });
