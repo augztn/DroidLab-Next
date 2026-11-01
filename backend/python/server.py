@@ -90,7 +90,7 @@ def fastboot_scan(cancel_event: threading.Event | None = None) -> list[dict[str,
     devices = []
     for line in result.stdout.splitlines():
         fields = line.split()
-        if len(fields) >= 2 and fields[1].lower() == "fastboot":
+        if len(fields) >= 2 and fields[1].lower() in {"fastboot", "fastbootd"}:
             serial = fields[0]
             details = {}
             for item in fields[2:]:
