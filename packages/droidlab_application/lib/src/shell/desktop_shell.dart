@@ -20,6 +20,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   bool _consoleVisible = true;
   final List<String> _consoleLines = [];
   StreamSubscription<BackendEvent>? _events;
+  BackendClient? _eventClient;
   Timer? _deviceRefreshTimer;
   Future<void> _logWriteQueue = Future<void>.value();
   IOSink? _operationLogSink;
@@ -40,8 +41,15 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
         ref.invalidate(deviceListProvider);
       }
     });
-    _events = ref.read(backendClientProvider).events.listen((event) {
-      if (!mounted) return;
+
+  }
+
+  Future<void> _subscribeToBackendEvents(BackendClient client) async {
+    if (identical(_eventClient, client)) return;
+    await _events?.cancel();
+    _eventClient = client;
+    _events = client.events.listen((event) {
+      if (!mounted || !identical(_eventClient, client)) return;
       late final String line;
       if (event is BackendOutput) {
         line = '[${event.stream}] ${event.line}';
@@ -132,6 +140,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
 
   @override
   Widget build(BuildContext context) {
+    final client = ref.watch(backendClientProvider);
+    unawaited(_subscribeToBackendEvents(client));
     final backend = ref.watch(backendReadyProvider);
     final devices = ref.watch(deviceListProvider);
     return LayoutBuilder(builder: (context, constraints) {
