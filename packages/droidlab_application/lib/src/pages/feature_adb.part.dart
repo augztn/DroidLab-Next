@@ -102,13 +102,34 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   }
 
   String? _stripHostExecutable(String command, String executable) {
-    final pattern = RegExp(
-      '^' + RegExp.escape(executable) + r'(?:\.exe)?(?:\s+|$)',
-      caseSensitive: false,
-    );
-    final match = pattern.firstMatch(command.trimLeft());
-    if (match == null) return null;
-    return command.trimLeft().substring(match.end).trim();
+    final trimmed = command.trimLeft();
+    if (trimmed.isEmpty) return null;
+
+    // Parse only the first executable token. Quoted paths may contain spaces;
+    // unquoted paths are accepted when the executable itself has no spaces.
+    final quote = trimmed.startsWith('"') || trimmed.startsWith("'")
+        ? trimmed[0]
+        : null;
+    late final String executableToken;
+    late final int tokenEnd;
+    if (quote != null) {
+      final closingQuote = trimmed.indexOf(quote, 1);
+      if (closingQuote < 0) return null;
+      executableToken = trimmed.substring(1, closingQuote);
+      tokenEnd = closingQuote + 1;
+    } else {
+      final match = RegExp(r'^\S+').firstMatch(trimmed);
+      if (match == null) return null;
+      executableToken = match.group(0)!;
+      tokenEnd = match.end;
+    }
+
+    final normalizedPath = executableToken.replaceAll(r'\', '/');
+    final basename = normalizedPath.split('/').last.toLowerCase();
+    final expected = executable.toLowerCase();
+    if (basename != expected && basename != '$expected.exe') return null;
+
+    return trimmed.substring(tokenEnd).trim();
   }
 
   Future<bool> _confirmCommand({
@@ -297,8 +318,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         setState(() => _output = result.data['output'] as String? ?? 'Command completed.');
       }
     } catch (error) {
-      if (mounted) setState(() => _output = error.toString());
-    } finally {
+      if (mounted) setState(() => _output = error.toString());    } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -597,8 +617,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
 
   Future<void> _sideload() async {
     final serial = _serial.text.trim();
-    final packagePath = _package.text.trim();
-    if (serial.isEmpty || packagePath.isEmpty || _busy) return;
+    final packagePath = _package.text.trim();    if (serial.isEmpty || packagePath.isEmpty || _busy) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -897,8 +916,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('recovery'), child: const Text('Recovery')),
         FilledButton.tonal(onPressed: _busy || !canReboot ? null : () => _reboot('fastboot'), child: const Text('Fastbootd')),
         OutlinedButton(onPressed: _busy || !(canRunAdbCommands || selectedFastboot) ? null : _loadDeviceInfo, child: const Text('Device info')),
-        OutlinedButton(
-          onPressed: _logcatRequestId != null ? _stopLogcat : (canRunAdbCommands ? _startLogcat : null),
+        OutlinedButton(          onPressed: _logcatRequestId != null ? _stopLogcat : (canRunAdbCommands ? _startLogcat : null),
           child: Text(_logcatRequestId == null ? 'Start logcat' : 'Stop logcat'),
         ),
       ]),
@@ -1029,4 +1047,3 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   );
   }
 }
-
