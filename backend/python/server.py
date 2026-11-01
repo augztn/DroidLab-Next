@@ -560,6 +560,24 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if result.returncode:
             raise RuntimeError(f"Fastboot erase failed ({result.returncode}); inspect device state before retrying.")
         return {"exit_code": 0, "message": "Fastboot reported erase completion."}
+    if operation == "fastboot.partitions":
+        serial = args.get("serial")
+        require_fastboot(serial, cancel_event=cancel)
+        binary = tool_path("fastboot")
+        result = run_streaming([binary, "-s", serial, "getvar", "all"], timeout=30, cancel_event=cancel)
+        output = (result.stdout or "") + "\\n" + (result.stderr or "")
+        if result.returncode and not output.strip():
+            raise RuntimeError("Fastboot partition discovery failed.")
+        partitions: dict[str, dict[str, str]] = {}
+        pattern = re.compile(r"(?im)^\\s*(?:\\(bootloader\\)\\s*)?(partition-size|partition-type|has-slot|is-logical):([A-Za-z0-9_.-]+)\\s*:\\s*(.*?)\\s*$")
+        for match in pattern.finditer(output):
+            field, name, value = match.groups()
+            entry = partitions.setdefault(name, {"name": name})
+            entry[{"partition-size": "size", "partition-type": "type", "has-slot": "has_slot", "is-logical": "is_logical"}[field.lower()]] = value
+        if not partitions:
+            raise RuntimeError("The bootloader did not expose partition metadata. Some devices restrict getvar all; use partition names from the firmware package.")
+        return {"serial": serial, "partitions": [partitions[name] for name in sorted(partitions, key=str.casefold)], "source": "fastboot getvar all"}
+
     if operation == "fastboot.set_active":
         serial, slot = args.get("serial"), str(args.get("slot", "")).lower()
         if slot not in {"a", "b", "other"}:
