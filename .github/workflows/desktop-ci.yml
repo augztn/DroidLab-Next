@@ -39,7 +39,7 @@ jobs:
         run: flutter create --project-name droidlab_desktop --platforms=linux,windows,macos .
       - name: Resolve dependencies
         working-directory: apps/desktop
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
       - name: Upload resolved dependency lockfile
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
