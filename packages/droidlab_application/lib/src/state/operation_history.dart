@@ -4,12 +4,6 @@ import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
-/// Returns a deliberately non-diagnostic failure summary for local history.
-///
-/// Backend exception messages can contain command output, filesystem paths,
-/// device identifiers or user-supplied arguments. Keep those details out of
-/// the persistent history; users can inspect the live operation console when
-/// they need the full diagnostic context.
 /// Keeps command arguments and user-provided suffixes out of persisted labels.
 String historyOperationLabel(String operation) {
   final label = operation.split(':').first.trim();
@@ -17,6 +11,11 @@ String historyOperationLabel(String operation) {
   return label.length <= 80 ? label : label.substring(0, 80);
 }
 
+/// Returns a deliberately non-diagnostic failure summary for local history.
+///
+/// Backend exception messages can contain command output, filesystem paths,
+/// device identifiers or user-supplied arguments. Keep those details out of
+/// persistent history.
 String operationFailureSummary(Object error) {
   if (error is BackendException && error.code == 'cancelled') {
     return 'Operation cancelled.';
