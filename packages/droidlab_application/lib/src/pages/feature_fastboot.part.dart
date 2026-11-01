@@ -158,6 +158,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     );
     if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
+    var rebootAccepted = false;
     try {
       final result = await trackOperation(
         ref,
@@ -173,12 +174,13 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           },
         ),
       );
+      rebootAccepted = true;
       if (mounted) setState(() => _output = result.data.toString());
     } catch (error) {
       if (mounted) setState(() => _output = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
-      if (mounted) {
+      if (mounted && rebootAccepted) {
         final expectedTransport = mode == 'system' || mode == 'recovery'
             ? 'adb'
             : 'fastboot';
