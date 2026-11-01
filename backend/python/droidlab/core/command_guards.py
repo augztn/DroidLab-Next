@@ -58,7 +58,7 @@ def _is_destructive_shell_text(text, depth=0):
         if recursive and force:
             return True
 
-    if any(pattern.search(text) for pattern in _SHELL_DESTRUCTIVE_PATTERNS[1:]):
+    if any(pattern.search(text) for pattern in _SHELL_DESTRUCTIVE_PATTERNS):
         return True
     if depth >= 6:
         return False
