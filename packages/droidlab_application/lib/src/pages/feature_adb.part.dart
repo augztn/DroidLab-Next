@@ -72,7 +72,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   void _dropCommandPath(DropDoneDetails detail) {
     if (detail.files.isEmpty) return;
     final path = detail.files.first.path;
-    final quoted = '"${path.replaceAll('"', r'\\"')}"';
+    final quoted = '"${path.replaceAll('"', r'\"')}"';
     final current = _command.text.trim();
     setState(() {
       _command.text = current.isEmpty ? quoted : '$current $quoted';
