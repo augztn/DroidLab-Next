@@ -6,7 +6,7 @@ class DashboardPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final backend = ref.watch(backendReadyProvider);
-    final devices = ref.watch(deviceListProvider);
+    final devices = ref.watch(discoveredDevicesProvider);
     final wide = MediaQuery.sizeOf(context).width >= 1500;
     return _PageFrame(
       title: 'Dashboard',
@@ -30,7 +30,7 @@ class DashboardPage extends ConsumerWidget {
             title: 'Connected devices',
             icon: Icons.devices,
             value: devices.when(
-              data: (data) => ((data['devices'] as List<dynamic>? ?? const []).length).toString(),
+              data: (devices) => devices.length.toString(),
               error: (_, __) => '—',
               loading: () => '…',
             ),
