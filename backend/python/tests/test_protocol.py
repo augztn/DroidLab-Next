@@ -620,7 +620,7 @@ class ProtocolTests(unittest.TestCase):
                             server.execute("id", "adb.command", args, threading.Event())
         self.assertEqual(
             run.call_args.args[0],
-            ["adb.exe", "-s", "SERIAL", "install", "-r", r"C:\\Users\\me\\My Phone\\app.apk"],
+            ["adb.exe", "-s", "SERIAL", "install", "-r", r"C:\Users\me\My Phone\app.apk"],
         )
 
 if __name__ == "__main__":
