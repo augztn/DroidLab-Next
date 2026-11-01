@@ -15,8 +15,11 @@ from droidlab.core import payload_dumper
 PROTOCOL_VERSION = 1
 MAX_LINE_BYTES = 1024 * 1024
 MAX_RETAINED_OUTPUT = 2 * 1024 * 1024
+MAX_ACTIVE_REQUESTS = 8
 _WRITE_LOCK = threading.Lock()
+_ACTIVE_LOCK = threading.Lock()
 _ACTIVE: dict[str, threading.Event] = {}
+_WORKER_SLOTS = threading.BoundedSemaphore(MAX_ACTIVE_REQUESTS)
 _DEVICE_LOCKS: dict[str, threading.Lock] = {}
 _DEVICE_LOCKS_LOCK = threading.Lock()
 _MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active"}
@@ -208,6 +211,8 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         for scanner, label in ((lambda: adb_scan(cancel), "adb"), (lambda: fastboot_scan(cancel), "fastboot")):
             try:
                 devices.extend(scanner())
+            except ProcessCancelledError:
+                raise
             except Exception as exc:
                 warnings.append({"transport": label, "message": str(exc)})
         return {"devices": devices, "warnings": warnings}
@@ -756,7 +761,9 @@ def handle(message: dict[str, Any], cancel: threading.Event) -> None:
     finally:
         if lock is not None and lock_acquired:
             lock.release()
-        _ACTIVE.pop(request_id, None)
+        with _ACTIVE_LOCK:
+            _ACTIVE.pop(request_id, None)
+        _WORKER_SLOTS.release()
 
 def main() -> None:
     logging.basicConfig(stream=sys.stderr, level=os.environ.get("DROIDLAB_LOG_LEVEL", "INFO"),
@@ -765,7 +772,9 @@ def main() -> None:
 
     def request_shutdown(signum: int, _frame: Any) -> None:
         logging.info("Received shutdown signal %s; cancelling active child operations.", signum)
-        for event in list(_ACTIVE.values()):
+        with _ACTIVE_LOCK:
+            active_events = list(_ACTIVE.values())
+        for event in active_events:
             event.set()
         raise SystemExit(128 + signum)
 
@@ -788,7 +797,8 @@ def main() -> None:
             if message.get("operation") == "system.cancel":
                 args = message.get("args", {})
                 target = args.get("request_id") if isinstance(args, dict) else None
-                event = _ACTIVE.get(target)
+                with _ACTIVE_LOCK:
+                    event = _ACTIVE.get(target)
                 if event is not None:
                     event.set()
                 emit({"id": message.get("id", ""), "type": "completed",
@@ -800,16 +810,39 @@ def main() -> None:
             if len(json.dumps(message).encode("utf-8")) > MAX_LINE_BYTES:
                 raise ValueError("Request exceeds maximum size.")
             cancel = threading.Event()
-            _ACTIVE[request_id] = cancel
+            with _ACTIVE_LOCK:
+                if request_id in _ACTIVE:
+                    emit({
+                        "id": request_id,
+                        "type": "failed",
+                        "error": {"code": "DuplicateRequestId", "message": "Request ID is already active."},
+                    })
+                    continue
+                if not _WORKER_SLOTS.acquire(blocking=False):
+                    emit({
+                        "id": request_id,
+                        "type": "failed",
+                        "error": {"code": "BackendBusy", "message": "Backend is at its active request limit. Retry after an operation finishes."},
+                    })
+                    continue
+                _ACTIVE[request_id] = cancel
             worker = threading.Thread(target=handle, args=(message, cancel), daemon=False)
+            try:
+                worker.start()
+            except BaseException:
+                with _ACTIVE_LOCK:
+                    _ACTIVE.pop(request_id, None)
+                _WORKER_SLOTS.release()
+                raise
             workers.append(worker)
-            worker.start()
             workers = [thread for thread in workers if thread.is_alive()]
         except Exception as exc:
             logging.warning("Rejected protocol input: %s", exc)
     finally:
         # EOF and process signals both cancel children and wait for process-tree cleanup.
-        for event in list(_ACTIVE.values()):
+        with _ACTIVE_LOCK:
+            active_events = list(_ACTIVE.values())
+        for event in active_events:
             event.set()
         for worker in workers:
             worker.join()
