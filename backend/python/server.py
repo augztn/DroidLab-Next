@@ -693,7 +693,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         command += (["reboot"] if mode == "system" else
                     ["reboot", "recovery"] if mode == "recovery" else
                     ["reboot", "fastboot"] if mode == "fastbootd" else
-                    ["reboot-bootloader"])
+                    ["reboot", "bootloader"])
         result = run_streaming(command, timeout=45, cancel_event=cancel)
         if result.returncode:
             raise RuntimeError(f"Fastboot reboot failed: {result.stdout}")
