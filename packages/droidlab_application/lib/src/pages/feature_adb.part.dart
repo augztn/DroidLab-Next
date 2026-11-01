@@ -319,6 +319,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     );
     if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
+    var rebootAccepted = false;
     try {
       final result = await trackOperation(
         ref,
@@ -331,12 +332,13 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
           'confirmation': {'operation': 'adb.reboot', 'serial': serial, 'mode': mode},
         }),
       );
+      rebootAccepted = true;
       if (mounted) setState(() => _output = result.data.toString());
     } catch (error) {
       if (mounted) setState(() => _output = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
-      if (mounted && (mode == 'bootloader' || mode == 'fastboot')) {
+      if (mounted && rebootAccepted && (mode == 'bootloader' || mode == 'fastboot')) {
         final expectedFastbootMode = mode == 'fastboot' ? 'fastbootd' : 'bootloader';
         final transitioned = await _waitForDeviceTransport(
           ref: ref,
@@ -350,7 +352,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
           setState(() => _output =
               'Reboot was accepted, but $serial was not detected in $expectedFastbootMode. Refresh devices and check the USB connection.');
         }
-      } else if (mounted) {
+      } else if (mounted && rebootAccepted) {
         // Recovery and normal Android boot remain on the ADB workspace.
         await _waitForDeviceTransport(
           ref: ref,
