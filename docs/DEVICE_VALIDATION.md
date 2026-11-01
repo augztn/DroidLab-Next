@@ -52,5 +52,5 @@ Attach the completed matrix, `fastboot getvar all` output after removing serials
 - On Windows, verify that USB flash drives reported by Windows as `DRIVE_REMOVABLE` appear in the mounted-storage selector.
 - Verify that fixed internal disks, USB-attached disks reported as `DRIVE_FIXED`, optical drives and unavailable drive letters do not appear.
 - Drag a regular file onto the ADB Toolkit push source field, select an authorized device, confirm the exact source and destination, and verify the file contents on-device.
-- Pull a known file into a clean local directory and verify its contents. Repeat with an existing same-name local file and confirm DroidLab refuses to overwrite it.
+- Pull a known file into a clean local directory and verify its contents on a filesystem with hard-link support and on FAT/exFAT where the exclusive-create fallback is used. Repeat with an existing same-name local file and confirm DroidLab refuses to overwrite it.
 - Disconnect the device during a transfer and verify the operation reports an uncertain/failed outcome without automatically retrying.
