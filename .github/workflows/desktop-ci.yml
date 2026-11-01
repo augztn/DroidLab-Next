@@ -3,7 +3,7 @@ on:
   push:
     branches: [main, 'rewrite/**']
   pull_request:
-    branches: [main]
+    branches: [main, 'rewrite/**']
   workflow_dispatch:
 concurrency:
   group: droidlab-desktop-${{ github.ref }}
