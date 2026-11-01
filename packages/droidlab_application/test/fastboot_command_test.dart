@@ -50,6 +50,12 @@ void main() {
       expect(parsed.isDiscovery, isFalse);
     });
 
+    test('does not classify wipe-flagged discovery as host-only', () {
+      final parsed = FastbootCommand.parse('fastboot -w devices');
+      expect(parsed, isNotNull);
+      expect(parsed!.isDiscovery, isFalse);
+    });
+
     test('preserves quoted arguments containing spaces in preview', () {
       final parsed = FastbootCommand.parse(
         r'flash boot "C:\Images\my boot.img"',
