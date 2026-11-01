@@ -15,7 +15,7 @@ void main() {
       expect(device.state, DeviceConnectionState.device);
       expect(device.isReady, isTrue);
       expect(device.details['model'], 'Pixel');
-      expect(() => device.details['model'] = 'changed', throwsUnsupportedError);
+      expect(() => device.details['model'] = 'changed', throwsA(isA<UnsupportedError>()));
     });
 
     test('unknown protocol values remain representable but not ready', () {
