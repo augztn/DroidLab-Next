@@ -587,10 +587,12 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         })
         require_fastboot(serial, cancel_event=cancel)
         binary = tool_path("fastboot")
-        attempts = [
-            [binary, "-s", serial, "--set-active=" + slot],
-            [binary, "-s", serial, "set_active", slot],
-        ]
+        attempts = (
+            [[binary, "-s", serial, "set_active", "other"]]
+            if slot == "other" else
+            [[binary, "-s", serial, "--set-active=" + slot],
+             [binary, "-s", serial, "set_active", slot]]
+        )
         output = ""
         for index, command in enumerate(attempts):
             response(request_id, "preflight", target=serial, command=command, destructive=True)
