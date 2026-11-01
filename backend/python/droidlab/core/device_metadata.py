@@ -30,9 +30,18 @@ def parse_battery_level(output: str) -> int | None:
 
 
 def parse_fastboot_getvar(output: str, key: str) -> str:
-    """Extract one Fastboot getvar value from stdout/stderr text."""
+    """Extract a Fastboot getvar value across common platform-tools output formats.
+
+    Fastboot versions and vendor implementations vary in how they decorate
+    informational lines. Accept the standard bootloader prefix, INFO prefix,
+    and timestamp prefix while still requiring the requested key at the start
+    of the metadata payload.
+    """
     pattern = re.compile(
-        r"(?im)^\s*(?:\(bootloader\)\s*)?" + re.escape(key) + r":\s*(.*?)\s*$"
+        r"(?im)^\s*(?:(?:\(bootloader\)|INFO:?)\s*)?"
+        r"(?:\[[^\]]+\]\s*)?"
+        + re.escape(key)
+        + r"\s*:\s*(.*?)\s*$"
     )
     match = pattern.search(output)
     return match.group(1).strip() if match else ""
