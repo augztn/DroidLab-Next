@@ -572,9 +572,17 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             else:
                 verb_index += 1
         verb = tokens[verb_index].lower() if verb_index < len(tokens) else ""
-        # A command carrying an explicit -s selector is device-targeted even
-        # when its verb is normally host-side (for example, "fastboot -s X devices").
-        discovery = verb in discovery_verbs and explicit_serial is None
+        # A command carrying an explicit -s selector or Fastboot's -w wipe
+        # option is device-targeted even when its verb normally looks host-side.
+        # Never let a destructive global option downgrade a command to discovery.
+        has_destructive_global_option = any(
+            token.lower() == "-w" for token in tokens[:verb_index]
+        )
+        discovery = (
+            verb in discovery_verbs
+            and explicit_serial is None
+            and not has_destructive_global_option
+        )
         if not discovery and not serial:
             raise ValueError("Select a Fastboot device for this command.")
         if discovery and serial:
