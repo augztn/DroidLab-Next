@@ -7,6 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import server
+
 from droidlab.core.file_transfer import (
     ensure_pull_target_is_new,
     publish_file_no_replace,
@@ -17,6 +19,15 @@ from droidlab.core.file_transfer import (
 
 
 class FileTransferValidationTests(unittest.TestCase):
+    def test_windows_command_parser_preserves_quoted_file_paths(self):
+        from unittest.mock import patch
+
+        with patch.object(server.os, "name", "nt"):
+            self.assertEqual(
+                server.split_command_text('push "C:\\\\Program Files\\\\payload.zip" /sdcard/'),
+                ["push", "C:\\\\Program Files\\\\payload.zip", "/sdcard/"],
+            )
+
     def test_android_path_requires_absolute_non_traversal_path(self):
         self.assertEqual(validate_android_path("/sdcard/Download/file.zip", "remote"), "/sdcard/Download/file.zip")
         for value in ("relative/file", "/sdcard/../data", "/", "-s"):
