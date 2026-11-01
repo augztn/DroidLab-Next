@@ -90,4 +90,4 @@ def is_adb_target_connected(serial,output,returncode=0,allowed_states=("device",
  return False
 def is_fastboot_target_connected(serial,output,returncode=0):
  if returncode!=0 or not serial:return False
- return any(len(fields:=line.split())>=2 and fields[0]==serial and fields[1].lower()=="fastboot" for line in output.splitlines())
+ return any(len(fields:=line.split())>=2 and fields[0]==serial and fields[1].lower() in {"fastboot", "fastbootd"} for line in output.splitlines())
