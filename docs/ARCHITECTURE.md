@@ -5,7 +5,7 @@ DroidLab is a Flutter desktop application with a separately executable Python ba
 ## Workspace
 
 - `apps/desktop`: Flutter composition root and generated native runner projects.
-- `packages/droidlab_domain`: platform-independent domain contracts.
+- `packages/droidlab_domain`: reserved package boundary; currently only a placeholder, with no production domain models or repository contracts yet.
 - `packages/droidlab_application`: Riverpod providers, navigation, feature pages and operation history.
 - `packages/droidlab_backend_bridge`: Dart process lifecycle and JSONL protocol client.
 - `packages/droidlab_design_system`: Material 3 theme tokens.
