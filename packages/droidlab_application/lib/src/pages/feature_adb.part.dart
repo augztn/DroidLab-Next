@@ -812,9 +812,17 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
                 final serial = device['serial'] as String;
                 final state = device['state'] as String? ?? 'unknown';
                 final transport = device['transport'] as String? ?? 'unknown';
+                final fastbootMode = device['mode'] == 'fastbootd'
+                    ? 'Fastbootd'
+                    : device['mode'] == 'bootloader'
+                        ? 'Bootloader Fastboot'
+                        : 'Fastboot mode unknown';
+                final label = transport == 'fastboot'
+                    ? '$serial  ·  $fastbootMode'
+                    : '$serial  ·  $transport: $state';
                 return DropdownMenuItem<String>(
                   value: serial,
-                  child: Text('$serial  ·  $transport: $state', overflow: TextOverflow.ellipsis),
+                  child: Text(label, overflow: TextOverflow.ellipsis),
                 );
               }).toList(),
               onChanged: (value) {
