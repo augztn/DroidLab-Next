@@ -13,6 +13,7 @@ from droidlab.core.process_runner import run_streaming, ProcessCancelledError
 from droidlab.core.device_metadata import (
     first_property, parse_battery_level, parse_fastboot_getvar, parse_getprop_output,
 )
+from droidlab.core.fastboot_command import strip_fastboot_executable
 from droidlab.core import payload_dumper
 from droidlab.core.tool_resolver import resolve_tool_path
 from droidlab.core.windows_volumes import list_removable_drives
@@ -556,7 +557,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         serial, raw_command = args.get("serial"), args.get("command")
         if not isinstance(raw_command, str) or not raw_command.strip() or "\\x00" in raw_command:
             raise ValueError("A non-empty Fastboot command is required.")
-        tokens = split_command_text(raw_command)
+        tokens = strip_fastboot_executable(split_command_text(raw_command))
         if not tokens:
             raise ValueError("A non-empty Fastboot command is required.")
         explicit_serial = explicit_device_selector(tokens, "fastboot")
@@ -758,7 +759,7 @@ def _device_command_requires_lock(operation: str, args: dict[str, Any]) -> bool:
     if operation == "fastboot.command":
         raw = args.get("command", "")
         try:
-            tokens = shlex.split(raw, posix=(os.name != "nt"))
+            tokens = strip_fastboot_executable(shlex.split(raw, posix=(os.name != "nt")))
         except (TypeError, ValueError):
             return True
         index = 0
