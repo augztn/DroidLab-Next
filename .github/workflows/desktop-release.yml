@@ -1,0 +1,123 @@
+name: Desktop Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+          - os: macos-latest
+            platform: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+      - name: Generate native runners
+        working-directory: apps/desktop
+        run: flutter create --project-name droidlab_desktop --platforms=linux,windows,macos .
+      - name: Resolve dependencies
+        working-directory: apps/desktop
+        run: flutter pub get
+      - name: Analyze and test
+        working-directory: apps/desktop
+        run: flutter analyze --fatal-infos && flutter test
+      - name: Build release
+        working-directory: apps/desktop
+        run: flutter build ${{ matrix.platform }} --release
+      - name: Stage backend
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then python scripts/stage_backend.py; else python3 scripts/stage_backend.py; fi
+      - name: Sign Windows executable (when certificate is configured)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+          SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:SIGNING_PFX_BASE64) { Write-Host 'No Windows signing certificate configured; packaging unsigned build.'; exit 0 }
+          $pfx = Join-Path $env:RUNNER_TEMP 'droidlab-signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNING_PFX_BASE64))
+          $exe = Get-ChildItem 'apps/desktop/build/windows/x64/runner/Release' -Filter '*.exe' | Select-Object -First 1
+          if (-not $exe) { throw 'DroidLab executable not found.' }
+          signtool sign /f $pfx /p $env:SIGNING_PFX_PASSWORD /fd SHA256 /tr https://timestamp.digicert.com /td SHA256 $exe.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed.' }
+          signtool verify /pa /v $exe.FullName
+      - name: Sign macOS application (when certificate is configured)
+        if: runner.os == 'macOS'
+        env:
+          SIGNING_P12_BASE64: ${{ secrets.MACOS_SIGNING_CERTIFICATE_BASE64 }}
+          SIGNING_P12_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          if [ -z "$SIGNING_P12_BASE64" ]; then echo 'No macOS signing certificate configured; packaging unsigned build.'; exit 0; fi
+          P12="$RUNNER_TEMP/droidlab-signing.p12"
+          KEYCHAIN="$RUNNER_TEMP/droidlab-signing.keychain-db"
+          echo "$SIGNING_P12_BASE64" | base64 --decode > "$P12"
+          security create-keychain -p "$SIGNING_P12_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$SIGNING_P12_PASSWORD" "$KEYCHAIN"
+          security import "$P12" -P "$SIGNING_P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$SIGNING_P12_PASSWORD" "$KEYCHAIN"
+          APP=$(find apps/desktop/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)
+          test -d "$APP"
+          codesign --deep --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+      - name: Package Linux
+        if: runner.os == 'Linux'
+        run: tar -C apps/desktop/build/linux/x64/release/bundle -czf "DroidLab-linux-x64-${GITHUB_REF_NAME}.tar.gz" .
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path 'apps/desktop/build/windows/x64/runner/Release/*' -DestinationPath "DroidLab-windows-x64-${{ github.event.inputs.tag || github.ref_name }}.zip" -Force
+      - name: Package macOS
+        if: runner.os == 'macOS'
+        run: APP=$(find apps/desktop/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit) && ditto -c -k --sequesterRsrc --keepParent "$APP" "DroidLab-macos-${GITHUB_REF_NAME}.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: droidlab-${{ matrix.platform }}
+          path: DroidLab-*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: droidlab-*
+          path: release-assets
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          files: release-assets/*
