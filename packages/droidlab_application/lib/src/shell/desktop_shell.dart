@@ -102,6 +102,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
         }
         _operationLogSink!.add(encoded);
         _operationLogBytes += encoded.length;
+        await _operationLogSink!.flush();
       } catch (_) {
         // Logging must never interrupt device operations or UI event handling.
       }
