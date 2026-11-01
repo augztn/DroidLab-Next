@@ -8,7 +8,7 @@ import 'app_settings.dart';
 
 final backendClientProvider = Provider<BackendClient>((ref) {
   final settingsState = ref.watch(droidLabSettingsProvider);
-  final settings = settingsState.valueOrNull ?? const DroidLabSettings();
+  final settings = settingsState.requireValue;
   final python = settings.pythonPath.trim().isNotEmpty
       ? settings.pythonPath.trim()
       : (Platform.environment['DROIDLAB_PYTHON']?.trim().isNotEmpty == true
