@@ -2047,6 +2047,21 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   );
 }
 
+String _redactDiagnosticText(String value) {
+  final home = Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'];
+  var redacted = value;
+  if (home != null && home.isNotEmpty) redacted = redacted.replaceAll(home, '<HOME>');
+  redacted = redacted.replaceAll(
+    RegExp(r'(?i)(serial|device|target)(\\s*[:=]\\s*)([A-Za-z0-9._:-]{6,})'),
+    (match) => '${match.group(1)}${match.group(2)}<DEVICE_ID>',
+  );
+  redacted = redacted.replaceAll(
+    RegExp(r'(?i)(authorization\\s*[:=]\\s*bearer\\s+|token|password|passwd|api[_-]?key)(\\s*[:=]\\s*)([^\\s,;]+)'),
+    (match) => '${match.group(1)}${match.group(2)}<REDACTED>',
+  );
+  return redacted;
+}
+
 class LogsPage extends ConsumerWidget {
   const LogsPage({super.key});
 
@@ -2100,7 +2115,7 @@ class LogsPage extends ConsumerWidget {
         ..writeln()
         ..writeln('===== OPERATION CONSOLE =====');
       if (await operationLog.exists()) {
-        contents.write(await operationLog.readAsString());
+        contents.write(_redactDiagnosticText(await operationLog.readAsString()));
       } else {
         contents.writeln('No persisted operation-console log is available yet.');
       }
@@ -2110,7 +2125,7 @@ class LogsPage extends ConsumerWidget {
       if (diagnostics.isEmpty) {
         contents.writeln('No backend stderr diagnostics have been captured.');
       } else {
-        contents.write(diagnostics.join('\n'));
+        contents.write(_redactDiagnosticText(diagnostics.join('\n')));
         contents.writeln();
       }
       final file = File(location.path);
@@ -2170,14 +2185,14 @@ class LogsPage extends ConsumerWidget {
         '${logDirectory.path}${Platform.pathSeparator}operations.log',
       );
       if (await operationLog.exists()) {
-        report.write(await operationLog.readAsString());
+        report.write(_redactDiagnosticText(await operationLog.readAsString()));
       } else {
         report.writeln('No persisted operation-console log found.');
       }
       report.writeln();
       report.writeln('--- Backend application log (latest file) ---');
       if (await logFile.exists()) {
-        report.write(await logFile.readAsString());
+        report.write(_redactDiagnosticText(await logFile.readAsString()));
       } else {
         report.writeln('No application log file found.');
         report.writeln();
@@ -2185,7 +2200,7 @@ class LogsPage extends ConsumerWidget {
         if (diagnostics.isEmpty) {
           report.writeln('No backend stderr diagnostics captured.');
         } else {
-          report.write(diagnostics.join('\n'));
+          report.write(_redactDiagnosticText(diagnostics.join('\n')));
         }
       }
       final file = File(location.path);
