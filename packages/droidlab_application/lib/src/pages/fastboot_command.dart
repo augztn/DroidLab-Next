@@ -123,7 +123,6 @@ class FastbootCommand {
           return argument;
         }
         final escaped = argument
-            .replaceAll(r'\', r'\\')
             .replaceAll('"', r'\"');
         return '"$escaped"';
       }).join(' ');
