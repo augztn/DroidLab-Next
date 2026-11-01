@@ -569,7 +569,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if result.returncode and not output.strip():
             raise RuntimeError("Fastboot partition discovery failed.")
         partitions: dict[str, dict[str, str]] = {}
-        pattern = re.compile(r"(?im)^\\s*(?:\\(bootloader\\)\\s*)?(partition-size|partition-type|has-slot|is-logical):([A-Za-z0-9_.-]+)\\s*:\\s*(.*?)\\s*$")
+        pattern = re.compile(r"(?im)^\s*(?:\(bootloader\)\s*)?(partition-size|partition-type|has-slot|is-logical):([A-Za-z0-9_.-]+)\s*:\s*(.*?)\s*$")
         for match in pattern.finditer(output):
             field, name, value = match.groups()
             entry = partitions.setdefault(name, {"name": name})
