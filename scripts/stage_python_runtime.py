@@ -74,6 +74,21 @@ def bundle_destination() -> Path:
     )
 
 
+def discover_install_root(extraction: Path, platform_name: str) -> tuple[Path, Path]:
+    """Resolve the documented install-only archive layout."""
+    install_root = extraction / "python"
+    executable = (
+        install_root / "python.exe"
+        if platform_name == "win32"
+        else install_root / "bin/python3"
+    )
+    if not install_root.is_dir() or not executable.is_file():
+        raise RuntimeError(
+            f"Unexpected CPython install-only archive layout; missing {executable}."
+        )
+    return install_root, executable
+
+
 def main() -> None:
     machine = platform.machine()
     asset = ASSETS.get((sys.platform, machine))
@@ -118,16 +133,7 @@ def main() -> None:
             ["tar", "-xzf", str(archive), "-C", str(extraction)],
             check=True,
         )
-        install_root = extraction / "python/install"
-        executable = (
-            install_root / "python.exe"
-            if sys.platform == "win32"
-            else install_root / "bin/python3"
-        )
-        if not install_root.is_dir() or not executable.is_file():
-            raise RuntimeError(
-                f"Unexpected CPython archive layout; missing {executable}."
-            )
+        install_root, executable = discover_install_root(extraction, sys.platform)
         probe = subprocess.run(
             [
                 str(executable),
