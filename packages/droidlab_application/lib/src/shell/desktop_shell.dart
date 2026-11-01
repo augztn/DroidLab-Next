@@ -60,8 +60,17 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       } else {
         return;
       }
-      final timestamped = '${DateTime.now().toIso8601String()} $line';
-      unawaited(_appendOperationLog(timestamped));
+      final timestamp = DateTime.now().toIso8601String();
+      // Keep detailed output and preflight commands in the live console only.
+      // The durable log stores event categories, never device IDs, paths,
+      // command arguments, or arbitrary command output.
+      final persistedEvent = event is BackendOutput
+          ? '[output omitted]'
+          : event is BackendPreflight
+              ? '[preflight details omitted]'
+              : '[operation accepted]';
+      unawaited(_appendOperationLog('$timestamp $persistedEvent'));
+      final timestamped = '$timestamp $line';
       setState(() {
         _consoleLines.add(timestamped);
         if (_consoleLines.length > 300) {
