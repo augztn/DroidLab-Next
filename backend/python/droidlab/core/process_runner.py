@@ -107,6 +107,17 @@ def run_streaming(
         raise ProcessCancelledError("Process cancelled before launch.")
 
     launch_options = dict(popen_kwargs or {})
+    # The runner owns its I/O and process-lifetime contract. Allowing callers to
+    # replace these options can break bounded output capture, cancellation, or
+    # process-tree cleanup. Keep any future extension explicit and reviewed.
+    reserved_options = {
+        "stdin", "stdout", "stderr", "text", "encoding", "errors",
+        "bufsize", "start_new_session", "creationflags",
+    }
+    overridden = reserved_options.intersection(launch_options)
+    if overridden:
+        names = ", ".join(sorted(overridden))
+        raise ValueError(f"reserved Popen option cannot be overridden: {names}")
     if os.name == "posix":
         launch_options["start_new_session"] = True
     proc = subprocess.Popen(
