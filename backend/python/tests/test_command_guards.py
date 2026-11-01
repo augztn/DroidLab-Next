@@ -32,6 +32,14 @@ class CommandGuardTests(unittest.TestCase):
         self.assertTrue(is_destructive_fastboot(["flashing", "unlock"]))
         self.assertFalse(is_destructive_fastboot(["getvar", "product"]))
 
+    def test_fastboot_wipe_flag_never_uses_read_only_lock_classification(self):
+        self.assertTrue(server._device_command_requires_lock(
+            "fastboot.command", {"command": "-w devices"}
+        ))
+        self.assertFalse(server._device_command_requires_lock(
+            "fastboot.command", {"command": "devices"}
+        ))
+
     def test_adb_destructive_detection_covers_shell_wrappers_and_substitutions(self):
         destructive = (
             ["shell", "rm", "--recursive", "--force", "/data"],
