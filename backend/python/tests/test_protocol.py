@@ -191,8 +191,8 @@ class ProtocolTests(unittest.TestCase):
             "confirmation": {"operation": "fastboot.reboot", "serial": "SERIAL", "mode": "fastbootd"},
         }
         with patch.object(server, "tool_path", return_value="fastboot"):
-            with patch.object(server, "run_capture", return_value=result("SERIAL fastboot\\n")):
-                with patch.object(server, "run_streaming", return_value=result("OKAY\\n")) as run:
+            with patch.object(server, "run_capture", return_value=result("SERIAL fastboot\n")):
+                with patch.object(server, "run_streaming", return_value=result("OKAY\n")) as run:
                     value = server.execute("id", "fastboot.reboot", args, threading.Event())
         self.assertEqual(run.call_args.args[0], ["fastboot", "-s", "SERIAL", "reboot", "fastboot"])
         self.assertIn("fastbootd", value["message"])
@@ -203,8 +203,8 @@ class ProtocolTests(unittest.TestCase):
             "confirmation": {"operation": "fastboot.set_active", "serial": "SERIAL", "slot": "other"},
         }
         with patch.object(server, "tool_path", return_value="fastboot"):
-            with patch.object(server, "run_capture", return_value=result("SERIAL fastboot\\n")):
-                with patch.object(server, "run_streaming", return_value=result("Setting current slot to 'b'\\n")) as run:
+            with patch.object(server, "run_capture", return_value=result("SERIAL fastboot\n")):
+                with patch.object(server, "run_streaming", return_value=result("Setting current slot to 'b'\n")) as run:
                     value = server.execute("id", "fastboot.set_active", args, threading.Event())
         self.assertEqual(run.call_args.args[0], ["fastboot", "-s", "SERIAL", "set_active", "other"])
         self.assertEqual(value["slot"], "other")
@@ -215,16 +215,16 @@ class ProtocolTests(unittest.TestCase):
             "confirmation": {"operation": "adb.reboot", "serial": "SERIAL", "mode": "fastboot"},
         }
         with patch.object(server, "tool_path", side_effect=lambda name: name):
-            with patch.object(server, "run_capture", return_value=result("List of devices attached\\nSERIAL device\\n")):
-                with patch.object(server, "run_streaming", return_value=result("rebooting into bootloader\\n")) as run:
+            with patch.object(server, "run_capture", return_value=result("List of devices attached\nSERIAL device\n")):
+                with patch.object(server, "run_streaming", return_value=result("rebooting into bootloader\n")) as run:
                     server.execute("id", "adb.reboot", args, threading.Event())
         self.assertEqual(run.call_args.args[0], ["adb", "-s", "SERIAL", "reboot", "fastboot"])
 
     def test_fastboot_partition_discovery_parses_partition_metadata(self):
         args = {"serial": "SERIAL"}
-        output = "(bootloader) partition-size:boot_a: 0x04000000\\npartition-type:boot_a: raw\\n(bootloader) has-slot:boot: yes\\n"
+        output = "(bootloader) partition-size:boot_a: 0x04000000\npartition-type:boot_a: raw\n(bootloader) has-slot:boot: yes\n"
         with patch.object(server, "tool_path", return_value="fastboot"):
-            with patch.object(server, "run_capture", return_value=result("SERIAL fastboot\\n")):
+            with patch.object(server, "run_capture", return_value=result("SERIAL fastboot\n")):
                 with patch.object(server, "run_streaming", return_value=result(output)):
                     value = server.execute("id", "fastboot.partitions", args, threading.Event())
         self.assertEqual(value["partitions"][0]["name"], "boot_a")
@@ -234,7 +234,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_fastboot_partition_discovery_requires_connected_device(self):
         with patch.object(server, "tool_path", return_value="fastboot"):
-            with patch.object(server, "run_capture", return_value=result("List of devices attached\\n")):
+            with patch.object(server, "run_capture", return_value=result("List of devices attached\n")):
                 with self.assertRaises(RuntimeError):
                     server.execute("id", "fastboot.partitions", {"serial": "MISSING"}, threading.Event())
 
