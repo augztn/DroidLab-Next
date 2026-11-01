@@ -1,0 +1,168 @@
+name: Desktop Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+          - os: macos-latest
+            platform: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.47.9'
+          cache: true
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+      - name: Generate native runners
+        working-directory: apps/desktop
+        run: flutter create --project-name droidlab_desktop --platforms=linux,windows,macos .
+      - name: Resolve dependencies
+        working-directory: apps/desktop
+        run: flutter pub get --enforce-lockfile
+      - name: Analyze and test
+        working-directory: apps/desktop
+        run: flutter analyze --fatal-infos && flutter test
+      - name: Build release
+        working-directory: apps/desktop
+        run: flutter build ${{ matrix.platform }} --release
+      - name: Stage backend
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then python scripts/stage_backend.py; else python3 scripts/stage_backend.py; fi
+      - name: Sign Windows executable (when certificate is configured)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+          SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:SIGNING_PFX_BASE64 -or -not $env:SIGNING_PFX_PASSWORD) { throw 'Windows release signing secrets are required for tagged production releases.' }
+          $pfx = Join-Path $env:RUNNER_TEMP 'droidlab-signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNING_PFX_BASE64))
+          $binaries = Get-ChildItem 'apps/desktop/build/windows/x64/runner/Release' -Recurse -File | Where-Object { $_.Extension -in '.exe', '.dll' }
+          if (-not $binaries) { throw 'No Windows executable or DLL files found to sign.' }
+          foreach ($binary in $binaries) {
+            signtool sign /f $pfx /p $env:SIGNING_PFX_PASSWORD /fd SHA256 /tr https://timestamp.digicert.com /td SHA256 $binary.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Authenticode signing failed: $($binary.FullName)" }
+            signtool verify /pa /v $binary.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Authenticode verification failed: $($binary.FullName)" }
+          }
+      - name: Sign macOS application (when certificate is configured)
+        if: runner.os == 'macOS'
+        env:
+          SIGNING_P12_BASE64: ${{ secrets.MACOS_SIGNING_CERTIFICATE_BASE64 }}
+          SIGNING_P12_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          if [ -z "$SIGNING_P12_BASE64" ] || [ -z "$SIGNING_P12_PASSWORD" ] || [ -z "$SIGNING_IDENTITY" ]; then echo 'macOS Developer ID signing secrets are required for tagged production releases.' >&2; exit 1; fi
+          P12="$RUNNER_TEMP/droidlab-signing.p12"
+          KEYCHAIN="$RUNNER_TEMP/droidlab-signing.keychain-db"
+          echo "$SIGNING_P12_BASE64" | base64 --decode > "$P12"
+          security create-keychain -p "$SIGNING_P12_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$SIGNING_P12_PASSWORD" "$KEYCHAIN"
+          security import "$P12" -P "$SIGNING_P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$SIGNING_P12_PASSWORD" "$KEYCHAIN"
+          APP=$(find apps/desktop/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)
+          test -d "$APP"
+          codesign --deep --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+      - name: Notarize and staple macOS application (when credentials are configured)
+        if: runner.os == 'macOS'
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_NOTARIZATION_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_NOTARIZATION_ISSUER_ID }}
+          SIGNING_P12_BASE64: ${{ secrets.MACOS_SIGNING_CERTIFICATE_BASE64 }}
+          SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          if [ -z "$APPLE_API_KEY_BASE64" ] || [ -z "$APPLE_API_KEY_ID" ] || [ -z "$APPLE_API_ISSUER_ID" ]; then
+            echo 'Apple notarization credentials are required for tagged production releases.' >&2
+            exit 1
+          fi
+          if [ -z "$SIGNING_P12_BASE64" ] || [ -z "$SIGNING_IDENTITY" ]; then
+            echo 'A signed Developer ID application is required for notarization.' >&2
+            exit 1
+          fi
+          API_KEY="$RUNNER_TEMP/AuthKey_$APPLE_API_KEY_ID.p8"
+          echo "$APPLE_API_KEY_BASE64" | base64 --decode > "$API_KEY"
+          APP=$(find apps/desktop/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)
+          test -d "$APP"
+          NOTARIZATION_ARCHIVE="$RUNNER_TEMP/DroidLab-notarization.zip"
+          ditto -c -k --keepParent "$APP" "$NOTARIZATION_ARCHIVE"
+          xcrun notarytool submit "$NOTARIZATION_ARCHIVE" --key "$API_KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID" --wait
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+          spctl --assess --type execute --verbose "$APP"
+      - name: Install AppImage tooling
+        if: runner.os == 'Linux'
+        run: |
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O "$RUNNER_TEMP/appimagetool"
+          sudo install -m 0755 "$RUNNER_TEMP/appimagetool" /usr/local/bin/appimagetool
+      - name: Build Linux AppImage
+        if: runner.os == 'Linux'
+        env:
+          VERSION: ${{ github.event.inputs.tag || github.ref_name }}
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: bash scripts/build-linux-appimage.sh
+      - name: Package Linux
+        if: runner.os == 'Linux'
+        run: |
+          tar -C apps/desktop/build/linux/x64/release/bundle -czf "DroidLab-linux-x64-${{ github.event.inputs.tag || github.ref_name }}.tar.gz" .
+          cp dist/*.AppImage .
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path 'apps/desktop/build/windows/x64/runner/Release/*' -DestinationPath "DroidLab-windows-x64-${{ github.event.inputs.tag || github.ref_name }}.zip" -Force
+      - name: Package macOS
+        if: runner.os == 'macOS'
+        run: APP=$(find apps/desktop/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit) && ditto -c -k --sequesterRsrc --keepParent "$APP" "DroidLab-macos-${{ github.event.inputs.tag || github.ref_name }}.zip"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: droidlab-${{ matrix.platform }}
+          path: DroidLab-*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: droidlab-*
+          path: release-assets
+          merge-multiple: true
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          files: release-assets/*
