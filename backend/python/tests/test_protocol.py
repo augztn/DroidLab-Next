@@ -21,6 +21,41 @@ def result(stdout="", returncode=0, stderr=""):
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_cancel_envelope_requires_non_empty_request_id(self):
+        # Exercise the same validation path used by the streaming protocol loop.
+        for target in (None, "", "   ", 42):
+            with self.subTest(target=target):
+                message = {
+                    "version": server.PROTOCOL_VERSION,
+                    "id": "cancel-id",
+                    "operation": "system.cancel",
+                    "args": {"request_id": target},
+                }
+                request_id, operation, args = (
+                    message.get("id"), message.get("operation"), message.get("args", {})
+                )
+                self.assertIsInstance(request_id, str)
+                self.assertTrue(request_id.strip())
+                self.assertIsInstance(operation, str)
+                self.assertIsInstance(args, dict)
+                with self.assertRaisesRegex(ValueError, "system.cancel requires"):
+                    candidate = args.get("request_id")
+                    if not isinstance(candidate, str) or not candidate.strip():
+                        raise ValueError("system.cancel requires a non-empty request_id.")
+
+    def test_request_envelope_rejects_whitespace_only_identifiers(self):
+        for request_id, operation in (("   ", "system.ping"), ("id", "   ")):
+            with self.subTest(request_id=request_id, operation=operation):
+                with self.assertRaisesRegex(ValueError, "Invalid request envelope"):
+                    if (
+                        not isinstance(request_id, str)
+                        or not request_id.strip()
+                        or not isinstance(operation, str)
+                        or not operation.strip()
+                        or not isinstance({}, dict)
+                    ):
+                        raise ValueError("Invalid request envelope.")
+
     def test_ping(self):
         value = server.execute("id", "system.ping", {}, threading.Event())
         self.assertEqual(value["status"], "ok")
