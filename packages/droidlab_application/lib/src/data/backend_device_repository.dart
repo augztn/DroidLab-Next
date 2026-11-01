@@ -16,12 +16,22 @@ final class BackendDeviceRepository implements DeviceRepository {
     );
     final rawDevices = result.data['devices'];
     if (rawDevices is! List) {
-      throw const FormatException('Backend devices.list response has no device list.');
+      throw const FormatException(
+        'Backend devices.list response has no device list.',
+      );
     }
-    return List<DeviceDescriptor>.unmodifiable(
-      rawDevices.whereType<Map>().map(
-        (value) => DeviceDescriptor.fromJson(value.cast<String, Object?>()),
-      ),
-    );
+
+    final devices = <DeviceDescriptor>[];
+    for (final rawDevice in rawDevices) {
+      if (rawDevice is! Map) {
+        throw const FormatException(
+          'Backend devices.list response contains an invalid device entry.',
+        );
+      }
+      devices.add(
+        DeviceDescriptor.fromJson(rawDevice.cast<String, Object?>()),
+      );
+    }
+    return List<DeviceDescriptor>.unmodifiable(devices);
   }
 }
