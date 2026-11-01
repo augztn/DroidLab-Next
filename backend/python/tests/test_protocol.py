@@ -600,5 +600,28 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(server._WORKER_SLOTS._value, server.MAX_ACTIVE_REQUESTS)
 
 
+    def test_advanced_adb_command_preserves_quoted_windows_paths(self):
+        command_text = 'install -r "C:\\Users\\me\\My Phone\\app.apk"'
+        args = {
+            "serial": "SERIAL",
+            "command_text": command_text,
+            "confirmed": True,
+            "confirmation": {
+                "operation": "adb.command",
+                "serial": "SERIAL",
+                "command_text": command_text,
+            },
+        }
+        with patch.object(server.os, "name", "nt"):
+            with patch.object(server, "tool_path", return_value="adb.exe"):
+                with patch.object(server, "run_capture", return_value=result("List of devices attached\\nSERIAL device\\n")):
+                    with patch.object(server, "run_streaming", return_value=result("Success\\n")) as run:
+                        with patch.object(server, "response"):
+                            server.execute("id", "adb.command", args, threading.Event())
+        self.assertEqual(
+            run.call_args.args[0],
+            ["adb.exe", "-s", "SERIAL", "install", "-r", r"C:\\Users\\me\\My Phone\\app.apk"],
+        )
+
 if __name__ == "__main__":
     unittest.main()
