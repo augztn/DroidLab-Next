@@ -23,9 +23,8 @@ class FakeKernel32:
         self.GetLogicalDriveStringsW = FakeFunction(self._get_logical_drives)
         self.GetDriveTypeW = FakeFunction(lambda root: drive_types[root])
 
-    @staticmethod
-    def _get_logical_drives(size, buffer):
-        value = "C:\\" + chr(0) + "E:\\" + chr(0) + "F:\\" + chr(0) + chr(0)
+    def _get_logical_drives(self, size, buffer):
+        value = chr(0).join(self.drive_types) + chr(0) + chr(0)
         if buffer is None:
             return len(value) - 1
         for index, character in enumerate(value):
