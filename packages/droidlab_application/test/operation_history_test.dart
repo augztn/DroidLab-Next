@@ -1,4 +1,5 @@
 import 'package:droidlab_application/droidlab_application.dart';
+import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
