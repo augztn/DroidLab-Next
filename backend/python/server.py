@@ -10,6 +10,9 @@ from droidlab.core.command_guards import (
     validate_device_selector,
 )
 from droidlab.core.process_runner import run_streaming, ProcessCancelledError
+from droidlab.core.device_metadata import (
+    first_property, parse_battery_level, parse_fastboot_getvar, parse_getprop_output,
+)
 from droidlab.core import payload_dumper
 from droidlab.core.tool_resolver import resolve_tool_path
 
@@ -353,35 +356,28 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
                 timeout=30, cancel_event=cancel)
             if result.returncode:
                 raise RuntimeError(f"ADB getprop failed: {result.stdout[-MAX_RETAINED_OUTPUT:]}")
-            properties = {}
-            for line in result.stdout.splitlines():
-                if line.startswith("[") and "]: [" in line:
-                    key, value = line[1:].split("]: [", 1)
-                    properties[key] = value.rstrip("]")
-            def prop(*keys: str) -> str:
-                return next((properties.get(key, "") for key in keys if properties.get(key)), "")
+            properties = parse_getprop_output(result.stdout)
             values.update({
-                "Brand / Manufacturer": prop("ro.product.manufacturer", "ro.product.brand"),
-                "Device name / Model": prop("ro.product.marketname", "ro.product.model") or serial,
-                "Model code": prop("ro.product.name", "ro.product.model"),
-                "Codename": prop("ro.product.device", "ro.build.product"),
-                "Active slot": prop("ro.boot.slot_suffix", "ro.boot.slot"),
-                "Android Version": prop("ro.build.version.release"),
-                "Android SDK": prop("ro.build.version.sdk"),
+                "Brand / Manufacturer": first_property(properties, "ro.product.manufacturer", "ro.product.brand"),
+                "Device name / Model": first_property(properties, "ro.product.marketname", "ro.product.model") or serial,
+                "Model code": first_property(properties, "ro.product.name", "ro.product.model"),
+                "Codename": first_property(properties, "ro.product.device", "ro.build.product"),
+                "Active slot": first_property(properties, "ro.boot.slot_suffix", "ro.boot.slot"),
+                "Android Version": first_property(properties, "ro.build.version.release"),
+                "Android SDK": first_property(properties, "ro.build.version.sdk"),
             })
             battery = run_streaming([tool_path("adb"), "-s", serial, "shell", "dumpsys", "battery"],
                 timeout=15, cancel_event=cancel)
-            match = re.search(r"(?m)^\s*level:\s*(\d+)", battery.stdout)
-            if match:
-                values["Battery"] = match.group(1) + "%"
+            battery_level = parse_battery_level(battery.stdout)
+            if battery_level is not None:
+                values["Battery"] = f"{battery_level}%"
         elif device.get("transport") == "fastboot":
             binary = tool_path("fastboot")
             def getvar(key: str) -> str:
                 result = run_streaming([binary, "-s", serial, "getvar", key],
                     timeout=10, cancel_event=cancel)
                 output = (result.stdout or "") + "\n" + (result.stderr or "")
-                match = re.search(r"(?im)(?:\(bootloader\)\s*)?" + re.escape(key) + r":\s*(.+)$", output)
-                return match.group(1).strip() if match else ""
+                return parse_fastboot_getvar(output, key)
             userspace = getvar("is-userspace").lower()
             if userspace == "yes":
                 fastboot_mode = "Fastbootd (userspace Fastboot)"
@@ -409,11 +405,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             timeout=30, cancel_event=cancel)
         if result.returncode:
             raise RuntimeError(f"getprop failed: {result.stdout[-MAX_RETAINED_OUTPUT:]}")
-        properties = {}
-        for line in result.stdout.splitlines():
-            if line.startswith("[") and "]: [" in line:
-                key, value = line[1:].split("]: [", 1)
-                properties[key] = value.rstrip("]")
+        properties = parse_getprop_output(result.stdout)
         return {"serial": serial, "properties": {key: properties.get(key, "") for key in keys}}
     if operation == "adb.logcat.start":
         serial, filters = args.get("serial"), args.get("filters", [])
