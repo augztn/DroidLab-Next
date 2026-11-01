@@ -5,11 +5,10 @@ from pathlib import PurePath
 
 _ADB_DESTRUCTIVE_VERBS = {"reboot","sideload","root","unroot","remount","disable-verity","enable-verity","uninstall","erase","format","flash","wipe"}
 _SHELL_DESTRUCTIVE_PATTERNS = (
- re.compile(r"(?:^|[;&|]\s*)rm\s+(?:-[a-z]*r[a-z]*f\b|-[a-z]*r\s+-[a-z]*f\b|-[a-z]*f\s+-[a-z]*r\b)", re.I),
- re.compile(r"(?:^|[;&|]\s*)(?:mkfs(?:\.[\w-]+)?|dd|reboot|poweroff|shutdown|wipe|format)\b", re.I),
- re.compile(r"(?:^|[;&|]\s*)setprop\b", re.I),
- re.compile(r"(?:^|[;&|]\s*)pm\s+(?:uninstall|disable-user)\b", re.I),
- re.compile(r"(?:^|[;&|]\s*)svc\b[^;&|]*\bdisable\b", re.I),
+ re.compile(r"(?:^|[;&|(){}\s])(?:[^\s;&|(){}]+/)?(?:mkfs(?:\.[\w-]+)?|dd|reboot|poweroff|shutdown|wipe|format)\b", re.I),
+ re.compile(r"(?:^|[;&|(){}\s])setprop\b", re.I),
+ re.compile(r"(?:^|[;&|(){}\s])pm\s+(?:uninstall|disable-user)\b", re.I),
+ re.compile(r"(?:^|[;&|(){}\s])svc\b[^;&|(){}]*\bdisable\b", re.I),
 )
 _FASTBOOT_DESTRUCTIVE_VERBS = {"flash","flashall","erase","format","wipe","set_active","update","delete-logical-partition","create-logical-partition","resize-logical-partition"}
 def _strip_executable(tokens,names):
@@ -39,7 +38,7 @@ def _is_destructive_shell_text(text, depth=0):
     ):
         flags = []
         for token in text[match.end():].split():
-            token = token.strip("'""")
+            token = token.strip("'\\\"")
             if token.startswith("-"):
                 flags.append(token.lower())
                 if len(flags) >= 6:
