@@ -139,7 +139,6 @@ class DroidLabSettingsController extends AsyncNotifier<DroidLabSettings> {
 
   Future<void> saveSettings(DroidLabSettings settings) async {
     final previous = state;
-    state = const AsyncLoading();
     try {
       await ref.read(droidLabSettingsStoreProvider).save(settings);
       state = AsyncData(settings);
