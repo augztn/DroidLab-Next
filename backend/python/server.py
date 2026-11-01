@@ -16,6 +16,10 @@ from droidlab.core.device_metadata import (
 from droidlab.core import payload_dumper
 from droidlab.core.tool_resolver import resolve_tool_path
 from droidlab.core.windows_volumes import list_removable_drives
+from droidlab.core.file_transfer import (
+    ensure_pull_target_is_new, validate_android_path,
+    validate_pull_directory, validate_push_source,
+)
 
 PROTOCOL_VERSION = 1
 MAX_LINE_BYTES = 1024 * 1024
@@ -27,7 +31,7 @@ _ACTIVE: dict[str, threading.Event] = {}
 _WORKER_SLOTS = threading.BoundedSemaphore(MAX_ACTIVE_REQUESTS)
 _DEVICE_LOCKS: dict[str, threading.Lock] = {}
 _DEVICE_LOCKS_LOCK = threading.Lock()
-_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active"}
+_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active"}
 
 def emit(message: dict[str, Any]) -> None:
     envelope = {"version": PROTOCOL_VERSION, "timestamp": time.time(), **message}
@@ -300,6 +304,44 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             "transport": transport,
             "message": f"{transport.upper()} accepted reboot request to {mode}; USB mode transition is not verified.",
         }
+    if operation == "adb.transfer":
+        serial = args.get("serial")
+        direction = args.get("direction")
+        require_adb(serial, cancel_event=cancel)
+        if direction == "push":
+            source = validate_push_source(args.get("source_path"))
+            destination = validate_android_path(args.get("destination_path"), "destination_path")
+            intent = {
+                "operation": "adb.transfer", "serial": serial, "direction": "push",
+                "source_path": str(source), "destination_path": destination,
+            }
+            require_confirmation(args, "ADB push", intent)
+            command = [tool_path("adb"), "-s", serial, "push", str(source), destination]
+        elif direction == "pull":
+            source = validate_android_path(args.get("source_path"), "source_path")
+            destination = validate_pull_directory(args.get("destination_path"))
+            ensure_pull_target_is_new(source, destination)
+            intent = {
+                "operation": "adb.transfer", "serial": serial, "direction": "pull",
+                "source_path": source, "destination_path": str(destination),
+            }
+            require_confirmation(args, "ADB pull", intent)
+            command = [tool_path("adb"), "-s", serial, "pull", source, str(destination)]
+        else:
+            raise ValueError("direction must be 'push' or 'pull'.")
+        response(request_id, "preflight", target=serial, command=command, destructive=False)
+        result = run_streaming(
+            command, timeout=bounded_timeout(args.get("timeout_seconds"), 600, 3600),
+            cancel_event=cancel,
+            on_line=lambda line: response(request_id, "output", stream="stdout", line=line),
+        )
+        if result.returncode:
+            raise RuntimeError(
+                f"ADB {direction} failed ({result.returncode}); verify the destination before retrying. "
+                f"{result.stdout[-MAX_RETAINED_OUTPUT:]}"
+            )
+        return {"exit_code": 0, "direction": direction, "output": result.stdout}
+
     if operation == "adb.sideload":
         serial, package = args.get("serial"), args.get("package_path")
         require_confirmation(args, "ADB recovery sideload", {
