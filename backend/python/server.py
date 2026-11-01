@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DroidLab versioned JSON Lines backend. stdout is protocol-only; diagnostics use stderr."""
 from __future__ import annotations
-import json, logging, math, os, re, shlex, shutil, signal, subprocess, sys, threading, time
+import json, logging, math, os, re, shlex, signal, subprocess, sys, threading, time
 from pathlib import Path
 from typing import Any
 from droidlab.core.command_guards import (
@@ -11,6 +11,7 @@ from droidlab.core.command_guards import (
 )
 from droidlab.core.process_runner import run_streaming, ProcessCancelledError
 from droidlab.core import payload_dumper
+from droidlab.core.tool_resolver import resolve_tool_path
 
 PROTOCOL_VERSION = 1
 MAX_LINE_BYTES = 1024 * 1024
@@ -34,64 +35,7 @@ def emit(message: dict[str, Any]) -> None:
 def response(request_id: str, kind: str, **kwargs: Any) -> None:
     emit({"id": request_id, "type": kind, **kwargs})
 
-def _user_settings() -> dict[str, Any]:
-    home = Path(os.environ.get("USERPROFILE") or os.environ.get("HOME") or Path.home())
-    config = home / "DroidLab" / "config.json"
-    try:
-        value = json.loads(config.read_text(encoding="utf-8"))
-        return value if isinstance(value, dict) else {}
-    except (OSError, ValueError):
-        return {}
-
-def tool_path(name: str) -> str:
-    normalized = name.lower().removesuffix(".exe")
-    setting_keys = {
-        "python": ("python_path", "python"),
-        "python3": ("python_path", "python"),
-        "adb": ("adb_path", "adb"),
-        "fastboot": ("fastboot_path", "fastboot"),
-        "payload-dumper-go": ("payload_dumper_path", "payload_dumper_go"),
-    }
-    env_key = "DROIDLAB_" + normalized.upper().replace("-", "_") + "_PATH"
-    configured = os.environ.get(env_key, "").strip()
-    if not configured:
-        settings = _user_settings()
-        configured = next(
-            (str(settings.get(key, "")).strip() for key in setting_keys.get(normalized, ())
-             if isinstance(settings.get(key), str) and str(settings.get(key)).strip()),
-            "",
-        )
-    if configured:
-        path = Path(configured).expanduser()
-        if path.is_file() and (os.name == "nt" or os.access(path, os.X_OK)):
-            return str(path.resolve())
-        # Permit executable names such as "adb" or "python3" in Settings.
-        if not path.is_absolute() and len(path.parts) == 1:
-            found_configured = shutil.which(configured)
-            if found_configured:
-                return found_configured
-        raise RuntimeError(f"Configured {name} path is not an executable file or command on PATH: {path}")
-
-    # Prefer tool binaries distributed next to the app before the host PATH.
-    bundle_root = Path(__file__).resolve().parents[2]
-    executable_names = [name]
-    if os.name == "nt" and not name.lower().endswith(".exe"):
-        executable_names = [name + ".exe", name]
-    candidates = []
-    for executable in executable_names:
-        candidates.extend([
-            bundle_root / executable,
-            bundle_root / "bin" / executable,
-            bundle_root / "platform-tools" / executable,
-            bundle_root / "usr" / "bin" / executable,
-        ])
-    for candidate in candidates:
-        if candidate.is_file() and (os.name == "nt" or os.access(candidate, os.X_OK)):
-            return str(candidate.resolve())
-    found = shutil.which(name) or (shutil.which(name + ".exe") if os.name == "nt" else None)
-    if not found:
-        raise RuntimeError(f"{name} was not found in the application bundle, Settings, or PATH.")
-    return found
+tool_path = resolve_tool_path
 
 def run_capture(command: list[str], timeout: float = 10,
                 cancel_event: threading.Event | None = None) -> subprocess.CompletedProcess[str]:
