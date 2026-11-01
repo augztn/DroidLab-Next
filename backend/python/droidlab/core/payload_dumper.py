@@ -3,24 +3,18 @@ from __future__ import annotations
 import hashlib, os, shutil, subprocess, sys, tempfile
 from pathlib import Path
 from .command_guards import is_valid_partition_name
+from .tool_resolver import resolve_tool_path
 from .process_runner import run_streaming, ProcessCancelledError
 class BackendError(RuntimeError): pass
 INSPECTION_TIMEOUT=120
 EXTRACTION_TIMEOUT=3600
 def _find_cli():
- configured=os.environ.get("DROIDLAB_PAYLOAD_DUMPER_GO_PATH","").strip()
- if configured:
-  path=Path(configured).expanduser()
-  if path.is_file() and (os.name=="nt" or os.access(path,os.X_OK)):return [str(path.resolve())]
-  raise BackendError(f"Configured payload-dumper-go path is not executable: {path}")
- root=Path(__file__).resolve().parents[3]
- candidates=[root/"bin"/"payload-dumper-go",root.parent/"payload-dumper-go",root/"opt"/"payload-dumper"/"bin"/"payload-dumper-go",Path(sys.executable).resolve().parent/"payload-dumper-go"]
- for path in candidates:
-  if path.is_file() and (os.name=="nt" or os.access(path,os.X_OK)): return [str(path)]
- for name in ("payload-dumper-go","payload-dumper-go.exe"):
-  found=shutil.which(name)
-  if found:return [found]
- return None
+ # Resolve env, shared config, platform bundle, then PATH in one place.
+ bundle_root = Path(__file__).resolve().parents[3].parent
+ try:
+  return [resolve_tool_path("payload-dumper-go", bundle_root=bundle_root)]
+ except RuntimeError as exc:
+  raise BackendError(str(exc)) from exc
 def _run(cli,args,progress=None,cancel_event=None,timeout=INSPECTION_TIMEOUT):
  try:return run_streaming(cli+args,timeout=timeout,cancel_event=cancel_event,on_line=progress)
  except ProcessCancelledError as exc: raise BackendError("Payload operation cancelled.") from exc

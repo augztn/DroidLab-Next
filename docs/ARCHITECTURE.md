@@ -29,4 +29,4 @@ Operation history is deliberately privacy-minimized: operation labels are allowl
 
 ## Packaging
 
-CI generates Linux, Windows and macOS runner projects and builds native bundles. The Python backend is staged beside the executable (macOS: app Resources). The Linux AppImage script pins payload-dumper-go 2.1.0 and verifies its SHA-256; it requires host Python 3 and ADB/Fastboot. Python and Android platform-tools are not currently bundled into Windows/macOS release outputs.
+CI generates Linux, Windows and macOS runner projects and builds native bundles. The Python backend is staged beside the executable (macOS: app Resources). Tool discovery resolves explicit environment overrides, the shared `~/DroidLab/config.json` settings, platform bundle locations, then PATH. The Linux AppImage stores the backend under `usr/lib/droidlab/backend` and host tools under `usr/bin`; the resolver accounts for that split layout. The AppImage pins payload-dumper-go 2.1.0 and verifies its SHA-256. Python and Android platform-tools are not currently bundled into Windows/macOS release outputs, so those runtimes must be installed on the target host.

@@ -62,6 +62,9 @@ def resolve_tool_path(name: str, *, bundle_root: Path | None = None) -> str:
             root / "bin" / executable,
             root / "platform-tools" / executable,
             root / "usr" / "bin" / executable,
+            # AppImage stores the backend under usr/lib/droidlab/backend
+            # and host tools beside the app under usr/bin.
+            root.parent / "bin" / executable,
         ])
     for candidate in candidates:
         if candidate.is_file() and (os.name == "nt" or os.access(candidate, os.X_OK)):

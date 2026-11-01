@@ -48,6 +48,20 @@ class ToolResolverTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "Configured adb path"):
                     resolve_tool_path("adb")
 
+    def test_appimage_usr_bin_is_found_from_usr_lib_backend(self):
+        with tempfile.TemporaryDirectory() as directory:
+            appdir = Path(directory) / "AppDir"
+            backend_root = appdir / "usr" / "lib"
+            executable = appdir / "usr" / "bin" / "adb"
+            executable.parent.mkdir(parents=True)
+            executable.write_text("#!/bin/sh\\nexit 0\\n", encoding="utf-8")
+            executable.chmod(0o755)
+            with patch.dict(os.environ, {"DROIDLAB_ADB_PATH": "", "PATH": ""}):
+                self.assertEqual(
+                    resolve_tool_path("adb", bundle_root=backend_root),
+                    str(executable.resolve()),
+                )
+
     def test_bundle_candidates_precede_path_lookup(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -24,6 +24,14 @@ class PayloadDumperTests(unittest.TestCase):
  def test_invalid_partition_is_rejected(self):
   with self.assertRaises(payload_dumper.BackendError):payload_dumper.extract(str(self.source),str(self.root/"images"),["../userdata"])
 
+ def test_payload_dumper_uses_shared_settings_path(self):
+  configured=self.root/ "configured-payload-dumper"
+  configured.write_text("binary",encoding="utf-8");configured.chmod(0o755)
+  home=self.root/"home";config=home/"DroidLab"/"config.json";config.parent.mkdir(parents=True)
+  config.write_text('{"payload_dumper_path":'+__import__("json").dumps(str(configured))+'}',encoding="utf-8")
+  with patch.dict(os.environ,{"HOME":str(home),"DROIDLAB_PAYLOAD_DUMPER_GO_PATH":""}):
+   self.assertEqual(payload_dumper._find_cli(),[str(configured.resolve())])
+
  def test_finds_payload_dumper_next_to_desktop_bundle(self):
   bundle=self.root/"bundle"; backend=bundle/"backend/python/droidlab/core"; backend.mkdir(parents=True)
   binary=bundle/"payload-dumper-go"; binary.write_text("binary",encoding="utf-8"); binary.chmod(0o755)
