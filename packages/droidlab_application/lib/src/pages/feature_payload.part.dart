@@ -88,6 +88,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
     final seen = <String>{};
     if (Platform.isWindows) {
       try {
+        await ref.read(backendReadyProvider.future);
         final result = await ref.read(backendClientProvider).request(
           'storage.removable_drives',
           const {},
