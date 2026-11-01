@@ -293,7 +293,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         return {"exit_code": result.returncode, "output": result.stdout, "serial": serial}
     if operation == "adb.reboot":
         serial, mode = args.get("serial"), args.get("mode", "system")
-        if mode not in {"system", "bootloader", "recovery"}:
+        if mode not in {"system", "bootloader", "recovery", "fastboot"}:
             raise ValueError("Unsupported reboot mode.")
         require_confirmation(args, "Device reboot", {
             "operation": "adb.reboot", "serial": serial, "mode": mode,
@@ -562,8 +562,8 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         return {"exit_code": 0, "message": "Fastboot reported erase completion."}
     if operation == "fastboot.set_active":
         serial, slot = args.get("serial"), str(args.get("slot", "")).lower()
-        if slot not in {"a", "b"}:
-            raise ValueError("Active slot must be a or b.")
+        if slot not in {"a", "b", "other"}:
+            raise ValueError("Active slot must be a, b, or other.")
         require_confirmation(args, "Fastboot active-slot change", {
             "operation": "fastboot.set_active", "serial": serial, "slot": slot,
         })
@@ -586,7 +586,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         raise RuntimeError("Fastboot could not change active slot. Device state was not verified; inspect current-slot before retrying. " + output[-MAX_RETAINED_OUTPUT:])
     if operation == "fastboot.reboot":
         serial, mode = args.get("serial"), args.get("mode", "system")
-        if mode not in {"system", "recovery", "bootloader"}:
+        if mode not in {"system", "recovery", "bootloader", "fastbootd"}:
             raise ValueError("Unsupported Fastboot reboot mode.")
         require_confirmation(args, "Fastboot reboot", {
             "operation": "fastboot.reboot", "serial": serial, "mode": mode,
@@ -595,6 +595,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         command = [tool_path("fastboot"), "-s", serial]
         command += (["reboot"] if mode == "system" else
                     ["reboot", "recovery"] if mode == "recovery" else
+                    ["reboot", "fastboot"] if mode == "fastbootd" else
                     ["reboot-bootloader"])
         result = run_streaming(command, timeout=45, cancel_event=cancel)
         if result.returncode:
