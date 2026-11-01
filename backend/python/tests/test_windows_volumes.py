@@ -1,4 +1,3 @@
-import ctypes
 import sys
 import unittest
 from pathlib import Path
@@ -26,7 +25,7 @@ class FakeKernel32:
 
     @staticmethod
     def _get_logical_drives(size, buffer):
-        value = "C:\\\\0E:\\\\0F:\\\\0\\0"
+        value = "C:\\" + chr(0) + "E:\\" + chr(0) + "F:\\" + chr(0) + chr(0)
         if buffer is None:
             return len(value) - 1
         for index, character in enumerate(value):
@@ -37,17 +36,17 @@ class FakeKernel32:
 class WindowsVolumeTests(unittest.TestCase):
     def test_only_drive_removable_volumes_are_returned(self):
         api = FakeKernel32({
-            "C:\\\\": 3,  # DRIVE_FIXED
-            "E:\\\\": DRIVE_REMOVABLE,
-            "F:\\\\": 5,  # DRIVE_CDROM
+            "C:\\": 3,  # DRIVE_FIXED
+            "E:\\": DRIVE_REMOVABLE,
+            "F:\\": 5,  # DRIVE_CDROM
         })
         self.assertEqual(
             list_removable_drives(kernel32=api),
-            [{"path": "E:\\\\", "label": "Removable drive (E:)"}],
+            [{"path": "E:\\", "label": "Removable drive (E:)"}],
         )
 
     def test_empty_removable_result_is_valid(self):
-        api = FakeKernel32({"C:\\\\": 3, "D:\\\\": 4})
+        api = FakeKernel32({"C:\\": 3, "D:\\": 4})
         self.assertEqual(list_removable_drives(kernel32=api), [])
 
 
