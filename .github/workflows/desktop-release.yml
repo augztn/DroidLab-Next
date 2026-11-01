@@ -120,6 +120,17 @@ jobs:
           xcrun stapler staple "$APP"
           xcrun stapler validate "$APP"
           spctl --assess --type execute --verbose "$APP"
+      - name: Install AppImage tooling
+        if: runner.os == 'Linux'
+        run: |
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O "$RUNNER_TEMP/appimagetool"
+          sudo install -m 0755 "$RUNNER_TEMP/appimagetool" /usr/local/bin/appimagetool
+      - name: Build Linux AppImage
+        if: runner.os == 'Linux'
+        env:
+          VERSION: ${{ github.event.inputs.tag || github.ref_name }}
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: bash scripts/build-linux-appimage.sh
       - name: Package Linux
         if: runner.os == 'Linux'
         run: tar -C apps/desktop/build/linux/x64/release/bundle -czf "DroidLab-linux-x64-${{ github.event.inputs.tag || github.ref_name }}.tar.gz" .
