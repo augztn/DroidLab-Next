@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:droidlab_application/droidlab_application.dart';
+import 'package:droidlab_application/src/state/backend_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -86,6 +87,30 @@ void main() {
 
     expect((await store.load()).toJson(), value.toJson());
   });
+  test('backend client is retained for theme and tool-path changes', () async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-backend-provider-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final store = DroidLabSettingsStore(
+      file: File(temporary.path + '/DroidLab/config.json'),
+    );
+    final container = ProviderContainer(
+      overrides: [droidLabSettingsStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(droidLabSettingsProvider.future);
+    final original = container.read(backendClientProvider);
+    await container.read(droidLabSettingsProvider.notifier).saveSettings(
+      const DroidLabSettings(theme: 'oled_black', adbPath: '/custom/adb'),
+    );
+    expect(identical(container.read(backendClientProvider), original), isTrue);
+
+    await container.read(droidLabSettingsProvider.notifier).saveSettings(
+      const DroidLabSettings(pythonPath: '/custom/python3'),
+    );
+    expect(identical(container.read(backendClientProvider), original), isFalse);
+  });
+
   test('saved tool paths remain in config for backend per-command resolution', () async {
     final temporary = await Directory.systemTemp.createTemp('droidlab-tool-env-');
     addTearDown(() => temporary.delete(recursive: true));
