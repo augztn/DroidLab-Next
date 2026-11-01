@@ -2,6 +2,29 @@ import 'package:droidlab_application/droidlab_application.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('failure summaries never persist exception details', () {
+    final error = BackendException(
+      'token=super-secret and /home/user/private/device.log',
+      code: 'backend_error',
+    );
+
+    final summary = operationFailureSummary(error);
+
+    expect(summary, contains('omitted'));
+    expect(summary, isNot(contains('super-secret')));
+    expect(summary, isNot(contains('/home/user/private')));
+  });
+
+  test('cancelled operations have a stable non-sensitive summary', () {
+    expect(
+      operationFailureSummary(const BackendException(
+        'cancelled while processing /private/path',
+        code: 'cancelled',
+      )),
+      'Operation cancelled.',
+    );
+  });
+
   test('operation records round-trip through JSON', () {
     final original = OperationRecord(
       id: 'op-1',
