@@ -23,7 +23,6 @@ from typing import Callable
 from urllib.parse import urlparse
 
 PLATFORM_TOOLS_VERSION = "37.0.1"
-SDK_LICENSE_URL = "https://developer.android.com/studio/terms"
 PLATFORM_TOOLS_PAGE = "https://developer.android.com/tools/releases/platform-tools"
 DOWNLOAD_URLS = {
     "win32": "https://dl.google.com/android/repository/platform-tools_r37.0.1-win.zip",
@@ -161,7 +160,7 @@ def _safe_extract(archive: Path, destination: Path) -> Path:
                 raise RuntimeError("Platform-Tools archive contains an unexpected top-level path.")
             if any(part in {"", ".", ".."} for part in relative.parts):
                 raise RuntimeError("Platform-Tools archive contains a path traversal entry.")
-            if ":" in relative.parts[0]:
+            if any(":" in part for part in relative.parts):
                 raise RuntimeError("Platform-Tools archive contains a drive-qualified path.")
             normalized = relative.as_posix().rstrip("/")
             if normalized in seen:
@@ -270,7 +269,9 @@ def install_platform_tools(
             probe(fastboot, ["--version"])
 
             backup = destination.parent / f".{destination.name}.previous"
-            if backup.exists():
+            if backup.is_symlink() or (backup.exists() and not backup.is_dir()):
+                backup.unlink()
+            elif backup.exists():
                 shutil.rmtree(backup)
             moved_old = False
             try:
