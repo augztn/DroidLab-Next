@@ -614,8 +614,8 @@ class ProtocolTests(unittest.TestCase):
         }
         with patch.object(server.os, "name", "nt"):
             with patch.object(server, "tool_path", return_value="adb.exe"):
-                with patch.object(server, "run_capture", return_value=result("List of devices attached\\nSERIAL device\\n")):
-                    with patch.object(server, "run_streaming", return_value=result("Success\\n")) as run:
+                with patch.object(server, "run_capture", return_value=result("List of devices attached\nSERIAL device\n")):
+                    with patch.object(server, "run_streaming", return_value=result("Success\n")) as run:
                         with patch.object(server, "response"):
                             server.execute("id", "adb.command", args, threading.Event())
         self.assertEqual(
