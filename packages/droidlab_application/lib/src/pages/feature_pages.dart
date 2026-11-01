@@ -1662,7 +1662,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
     _output.text = '$home${Platform.pathSeparator}DroidLab';
     _events = ref.read(backendClientProvider).events.listen((event) {
       if (event is BackendOutput && event.stream == 'payload' && mounted) {
-        final match = RegExp(r'(\\d{1,3})%').firstMatch(event.line);
+        final match = RegExp(r'(\d{1,3})%').firstMatch(event.line);
         final percent = match == null ? null : int.tryParse(match.group(1)!);
         setState(() {
           _activityLines.add(event.line);
