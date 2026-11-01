@@ -1,59 +1,37 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-String _userConfigPath() {
-  final home = Platform.environment['USERPROFILE'] ??
-      Platform.environment['HOME'] ?? Directory.current.path;
-  return '$home${Platform.pathSeparator}DroidLab${Platform.pathSeparator}config.json';
-}
-
-Map<String, dynamic> _savedSettings() {
-  try {
-    final value = jsonDecode(File(_userConfigPath()).readAsStringSync());
-    return value is Map<String, dynamic> ? value : <String, dynamic>{};
-  } on FileSystemException {
-    return <String, dynamic>{};
-  } on FormatException {
-    return <String, dynamic>{};
-  }
-}
-
-String _settingPath(String envName, String settingName, String fallback) {
-  final environment = Platform.environment[envName]?.trim();
-  if (environment != null && environment.isNotEmpty) return environment;
-  final value = _savedSettings()[settingName];
-  if (value is String && value.trim().isNotEmpty) return value.trim();
-  return fallback;
-}
+import 'app_settings.dart';
 
 final backendClientProvider = Provider<BackendClient>((ref) {
-  final python = _settingPath(
-    'DROIDLAB_PYTHON',
-    'python_path',
-    Platform.isWindows ? 'python' : 'python3',
-  );
-  final configured = _settingPath(
-    'DROIDLAB_BACKEND_SCRIPT',
-    'backend_path',
-    '',
-  );
-  // Only forward explicit process-environment overrides here. Saved tool
-  // locations remain in config.json and are resolved by Python for each
-  // operation, so changing ADB/Fastboot/payload paths takes effect immediately
-  // without keeping stale values in this long-lived backend process.
+  final settingsState = ref.watch(droidLabSettingsProvider);
+  final settings = settingsState.valueOrNull ?? const DroidLabSettings();
+  final python = settings.pythonPath.trim().isNotEmpty
+      ? settings.pythonPath.trim()
+      : (Platform.environment['DROIDLAB_PYTHON']?.trim().isNotEmpty == true
+          ? Platform.environment['DROIDLAB_PYTHON']!.trim()
+          : (Platform.isWindows ? 'python' : 'python3'));
+  final configured = settings.backendPath.trim().isNotEmpty
+      ? settings.backendPath.trim()
+      : (Platform.environment['DROIDLAB_BACKEND_SCRIPT']?.trim() ?? '');
+
+  // ADB/Fastboot/payload tool overrides remain in config.json and are resolved
+  // by Python for each operation. Environment overrides are forwarded only
+  // when explicitly set by the launching process.
+  const toolEnvironmentNames = [
+    'DROIDLAB_ADB_PATH',
+    'DROIDLAB_FASTBOOT_PATH',
+    'DROIDLAB_PAYLOAD_DUMPER_GO_PATH',
+  ];
   final environment = <String, String>{
-    for (final name in [
-      'DROIDLAB_ADB_PATH',
-      'DROIDLAB_FASTBOOT_PATH',
-      'DROIDLAB_PAYLOAD_DUMPER_GO_PATH',
-    ])
+    for (final name in toolEnvironmentNames)
       if ((Platform.environment[name] ?? '').trim().isNotEmpty)
         name: Platform.environment[name]!.trim(),
   };
+
   final executableDirectory = File(Platform.resolvedExecutable).parent;
   final candidates = <String>[
     if (configured.isNotEmpty) configured,
@@ -79,6 +57,9 @@ final backendClientProvider = Provider<BackendClient>((ref) {
 });
 
 final backendReadyProvider = FutureProvider<BackendResult>((ref) async {
+  // Do not launch a backend with default paths while persisted settings are
+  // still loading. The client provider then rebuilds from the loaded settings.
+  await ref.watch(droidLabSettingsProvider.future);
   final client = ref.watch(backendClientProvider);
   await client.start();
   return client.request('system.tools', const {});
