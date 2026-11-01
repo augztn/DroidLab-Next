@@ -185,6 +185,41 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(value["serial"], "FASTBOOT-1")
         self.assertEqual(run.call_args.args[0], ["fastboot", "-s", "FASTBOOT-1", "getvar", "all"])
 
+    def test_fastbootd_reboot_uses_fastboot_reboot_fastboot(self):
+        args = {
+            "serial": "SERIAL", "mode": "fastbootd", "confirmed": True,
+            "confirmation": {"operation": "fastboot.reboot", "serial": "SERIAL", "mode": "fastbootd"},
+        }
+        with patch.object(server, "tool_path", return_value="fastboot"):
+            with patch.object(server, "run_capture", return_value=result("SERIAL fastboot\\n")):
+                with patch.object(server, "run_streaming", return_value=result("OKAY\\n")) as run:
+                    value = server.execute("id", "fastboot.reboot", args, threading.Event())
+        self.assertEqual(run.call_args.args[0], ["fastboot", "-s", "SERIAL", "reboot", "fastboot"])
+        self.assertIn("fastbootd", value["message"])
+
+    def test_other_active_slot_uses_bootloader_other_selector(self):
+        args = {
+            "serial": "SERIAL", "slot": "other", "confirmed": True,
+            "confirmation": {"operation": "fastboot.set_active", "serial": "SERIAL", "slot": "other"},
+        }
+        with patch.object(server, "tool_path", return_value="fastboot"):
+            with patch.object(server, "run_capture", return_value=result("SERIAL fastboot\\n")):
+                with patch.object(server, "run_streaming", return_value=result("Setting current slot to 'b'\\n")) as run:
+                    value = server.execute("id", "fastboot.set_active", args, threading.Event())
+        self.assertEqual(run.call_args.args[0], ["fastboot", "-s", "SERIAL", "--set-active=other"])
+        self.assertEqual(value["slot"], "other")
+
+    def test_adb_reboot_fastboot_uses_adb_reboot_fastboot(self):
+        args = {
+            "serial": "SERIAL", "mode": "fastboot", "confirmed": True,
+            "confirmation": {"operation": "adb.reboot", "serial": "SERIAL", "mode": "fastboot"},
+        }
+        with patch.object(server, "tool_path", side_effect=lambda name: name):
+            with patch.object(server, "run_capture", return_value=result("List of devices attached\\nSERIAL device\\n")):
+                with patch.object(server, "run_streaming", return_value=result("rebooting into bootloader\\n")) as run:
+                    server.execute("id", "adb.reboot", args, threading.Event())
+        self.assertEqual(run.call_args.args[0], ["adb", "-s", "SERIAL", "reboot", "fastboot"])
+
     def test_fastboot_targeted_command_requires_selected_device(self):
         with self.assertRaises(ValueError):
             server.execute("id", "fastboot.command", {
