@@ -54,6 +54,9 @@ jobs:
       - name: Unit and widget tests
         working-directory: apps/desktop
         run: flutter test
+      - name: Domain model tests
+        working-directory: packages/droidlab_domain
+        run: flutter test
       - name: Build desktop release
         working-directory: apps/desktop
         run: flutter build ${{ matrix.platform }} --release
