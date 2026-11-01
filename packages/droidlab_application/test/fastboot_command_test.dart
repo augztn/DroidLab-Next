@@ -19,7 +19,7 @@ void main() {
 
     test('strips quoted Windows executable paths containing spaces', () {
       final parsed = FastbootCommand.parse(
-        '"C:\Android SDK\platform-tools\fastboot.exe" -s SERIAL getvar product',
+        r'"C:\Android SDK\platform-tools\fastboot.exe" -s SERIAL getvar product',
       );
       expect(parsed, isNotNull);
       expect(parsed!.arguments, ['-s', 'SERIAL', 'getvar', 'product']);
