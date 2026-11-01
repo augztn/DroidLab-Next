@@ -26,6 +26,12 @@ Flutter owns one Python subprocess. The service reads UTF-8 JSON Lines from stdi
 | `devices.list` | — | Fresh ADB and Fastboot discovery |
 | `adb.shell` | `serial`, `command[]`, `confirmed`, `confirmation` | Every shell command requires exact target-and-command confirmation; destructive heuristic is additional preflight metadata |
 | `adb.device_info` | `serial` | Selected Android getprop metadata |
+| `device.info` | `serial` | Selected device metadata across the active transport |
+| `adb.command` | `command_text`, optional `serial`, `confirmed`, `confirmation` | Advanced ADB host command with target-selector validation and confirmation |
+| `fastboot.command` | `command`, optional `serial`, `confirmed`, `confirmation` | Advanced Fastboot command with target-selector validation and confirmation |
+| `fastboot.partitions` | `serial` | Lists partition metadata exposed by Fastboot |
+| `fastboot.set_active` | `serial`, `slot`, `confirmed` | Changes active A/B slot, including the opposite slot selector |
+| `fastboot.wipe` | `serial`, `confirmed` | Guarded factory/userdata wipe workflow |
 | `adb.reboot` | `serial`, `mode`, `confirmed` | Guarded system/bootloader/recovery reboot |
 | `adb.logcat.start` | `serial`, optional `filters[]` | Long-running streamed logcat; cancel by request ID |
 | `adb.bugreport` | `serial`, `output_path` | Generates a report without overwriting an existing file |
