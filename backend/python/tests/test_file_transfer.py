@@ -20,12 +20,10 @@ from droidlab.core.file_transfer import (
 
 class FileTransferValidationTests(unittest.TestCase):
     def test_windows_command_parser_preserves_quoted_file_paths(self):
-        from unittest.mock import patch
-
         with patch.object(server.os, "name", "nt"):
             self.assertEqual(
-                server.split_command_text('push "C:\\\\Program Files\\\\payload.zip" /sdcard/'),
-                ["push", "C:\\\\Program Files\\\\payload.zip", "/sdcard/"],
+                server.split_command_text(r'push "C:\Program Files\payload.zip" /sdcard/'),
+                ["push", r"C:\Program Files\payload.zip", "/sdcard/"],
             )
 
     def test_android_path_requires_absolute_non_traversal_path(self):
