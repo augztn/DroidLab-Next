@@ -178,19 +178,30 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       if (mounted) setState(() => _output = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
-      if (mounted && mode == 'system') {
+      if (mounted) {
+        final expectedTransport = mode == 'system' || mode == 'recovery'
+            ? 'adb'
+            : 'fastboot';
+        final expectedFastbootMode = mode == 'fastbootd'
+            ? 'fastbootd'
+            : mode == 'bootloader'
+                ? 'bootloader'
+                : null;
         final transitioned = await _waitForDeviceTransport(
           ref: ref,
           serial: serial,
-          transport: 'adb',
+          transport: expectedTransport,
+          fastbootMode: expectedFastbootMode,
         );
-        if (mounted && transitioned) context.go('/adb');
-      } else if (mounted) {
-        await _waitForDeviceTransport(
-          ref: ref,
-          serial: serial,
-          transport: 'fastboot',
-        );
+        if (!mounted) return;
+        if (transitioned && expectedTransport == 'adb') {
+          context.go('/adb');
+        } else if (!transitioned) {
+          final expectedLabel = expectedFastbootMode ??
+              (mode == 'recovery' ? 'recovery / ADB' : expectedTransport);
+          setState(() => _output =
+              'Reboot was accepted, but $serial was not detected in $expectedLabel. Refresh devices and check the USB connection.');
+        }
       }
     }
   }
@@ -462,7 +473,10 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           hint: const Text('Select a Fastboot device'),
           items: devices.map((device) => DropdownMenuItem<String>(
             value: device['serial'] as String,
-            child: Text(device['serial'] as String, overflow: TextOverflow.ellipsis),
+            child: Text(
+              '${device['serial']} · ${device['mode'] == 'fastbootd' ? 'Fastbootd' : device['mode'] == 'bootloader' ? 'Bootloader Fastboot' : 'Fastboot mode unknown'}',
+              overflow: TextOverflow.ellipsis,
+            ),
           )).toList(),
           onChanged: (value) => setState(() {
             _selectedSerial = value;
@@ -480,7 +494,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       if (devices.isEmpty)
         const Padding(
           padding: EdgeInsets.only(top: 8),
-          child: Text('No Fastboot device detected. Switch the phone to bootloader mode, then refresh.'),
+          child: Text('No Fastboot device detected. Use ADB Toolkit → Fastbootd to enter userspace Fastboot, or reboot to bootloader, then refresh.'),
         ),
       const SizedBox(height: 12),
       if (_discoveredPartitions.isNotEmpty)
