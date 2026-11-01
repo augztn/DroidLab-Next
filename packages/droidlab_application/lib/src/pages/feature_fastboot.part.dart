@@ -208,51 +208,19 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     }
   }
 
-  String _fastbootCommandArguments(String command) {
-    final trimmed = command.trim();
-    if (trimmed.isEmpty) return '';
-    // Accept argument-only input or a copied full command, including a quoted
-    // executable path such as "C:\Android SDK\platform-tools\fastboot.exe".
-    final executable = RegExp(
-      r'^\s*(?:"[^"]*fastboot(?:\.exe)?"|[^\s]*fastboot(?:\.exe)?)\s+',
-      caseSensitive: false,
-    ).firstMatch(trimmed);
-    return executable == null ? trimmed : trimmed.substring(executable.end).trim();
-  }
+  FastbootCommand? _parseFastbootCommand(String command) =>
+      FastbootCommand.parse(command);
 
-  bool _isFastbootDiscoveryCommand(String command) {
-    final arguments = _fastbootCommandArguments(command);
-    if (arguments.isEmpty) return false;
-    final tokens = arguments.split(RegExp(r'\s+'));
-    var index = 0;
-    const takesValue = {'-s', '-i', '-p', '-c', '--slot'};
-    while (index < tokens.length && tokens[index].startsWith('-')) {
-      final token = tokens[index];
-      if (takesValue.contains(token) && index + 1 < tokens.length) {
-        index += 2;
-      } else {
-        index += 1;
-      }
-    }
-    if (index >= tokens.length) return false;
-    // An explicit -s selector makes even a normally host-side verb a
-    // device-targeted command and must use the selected-device confirmation.
-    if (tokens.contains('-s') || tokens.any((token) => token.startsWith('-s='))) {
-      return false;
-    }
-    return const {'devices', 'help', '--help', '--version', 'version'}
-        .contains(tokens[index].toLowerCase());
-  }
+  bool _isFastbootDiscoveryCommand(String command) =>
+      _parseFastbootCommand(command)?.isDiscovery ?? false;
 
   String _fastbootCommandPreview(String command) {
-    final arguments = _fastbootCommandArguments(command);
-    if (arguments.isEmpty) return '';
-    final tokens = arguments.split(RegExp(r'\s+'));
-    final hasExplicitSerial = tokens.contains('-s') ||
-        tokens.any((token) => token.startsWith('-s='));
-    if (_isFastbootDiscoveryCommand(command) ||
+    final parsed = _parseFastbootCommand(command);
+    if (parsed == null || parsed.arguments.isEmpty) return '';
+    final arguments = parsed.preview;
+    if (parsed.isDiscovery ||
         _serial.text.trim().isEmpty ||
-        hasExplicitSerial) {
+        parsed.hasExplicitSerial) {
       return 'fastboot ' + arguments;
     }
     return 'fastboot -s ' + _serial.text.trim() + ' ' + arguments;
