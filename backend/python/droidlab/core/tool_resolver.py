@@ -7,6 +7,8 @@ import shutil
 from pathlib import Path
 from typing import Any, Iterable
 
+from droidlab.core.platform_tools_installer import managed_platform_tools_dir
+
 
 def user_settings() -> dict[str, Any]:
     home = Path(os.environ.get("USERPROFILE") or os.environ.get("HOME") or Path.home())
@@ -117,6 +119,12 @@ def resolve_tool_path(name: str, *, bundle_root: Path | None = None) -> str:
     ):
         if candidate.is_file() and (os.name == "nt" or os.access(candidate, os.X_OK)):
             return str(candidate.resolve())
+
+    managed_directory = managed_platform_tools_dir()
+    for executable in executable_names:
+        managed_candidate = managed_directory / executable
+        if managed_candidate.is_file() and (os.name == "nt" or os.access(managed_candidate, os.X_OK)):
+            return str(managed_candidate.resolve())
 
     found = shutil.which(name) or (
         shutil.which(name + ".exe") if os.name == "nt" else None
