@@ -15,6 +15,7 @@ from droidlab.core.device_metadata import (
 )
 from droidlab.core.fastboot_command import strip_adb_executable, strip_fastboot_executable
 from droidlab.core import payload_dumper
+from droidlab.core.debloat_catalog import lookup_guidance, load_catalog
 from droidlab.core.tool_resolver import resolve_tool_path
 from droidlab.core.windows_volumes import list_removable_drives
 from droidlab.core.platform_tools_installer import (
@@ -522,6 +523,22 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         else:
             raise RuntimeError("Unsupported device transport.")
         return {"serial": serial, "transport": device.get("transport"), "state": device.get("state"), "metadata": values}
+    if operation == "debloat.catalog.list":
+        entries, recommendations = load_catalog()
+        return {
+            "schema_version": 1,
+            "source": "nightx24/ADB-App-Manager",
+            "entries": [entries[key].to_dict() for key in sorted(entries, key=str.casefold)],
+            "recommendations": [
+                {"package": package, "risk": value[0], "impact": value[1]}
+                for package, value in sorted(recommendations.items(), key=lambda item: item[0].casefold())
+            ],
+        }
+    if operation == "debloat.package.guidance":
+        package = args.get("package")
+        if not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+", package):
+            raise ValueError("Invalid Android package name.")
+        return lookup_guidance(package)
     if operation == "debloat.packages.list":
         serial = args.get("serial")
         user_id = args.get("user_id", 0)
