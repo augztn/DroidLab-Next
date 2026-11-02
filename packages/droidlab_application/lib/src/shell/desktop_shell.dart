@@ -230,30 +230,32 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
             color: colors.surface,
             border: Border(bottom: BorderSide(color: colors.outlineVariant)),
           ),
-          child: Row(children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: () => context.go('/dashboard'),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Image.asset('assets/branding/droidlab_app_icon.png', width: 38, height: 38, fit: BoxFit.contain),
-                const SizedBox(width: 10),
-                Text('DroidLab', style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700, letterSpacing: -0.5,
-                )),
-              ]),
-            ),
-            const Spacer(),
-            FilledButton(
-              onPressed: () => context.go('/settings'),
-              style: FilledButton.styleFrom(
-                backgroundColor: colors.primary,
-                foregroundColor: colors.onPrimary,
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => context.go('/dashboard'),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Image.asset('assets/branding/droidlab_app_icon.png', width: 38, height: 38, fit: BoxFit.contain),
+                    const SizedBox(width: 10),
+                    Flexible(child: Text('DroidLab', maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700, letterSpacing: -0.5,
+                      ),
+                    )),
+                  ]),
+                ),
               ),
-              child: Text(compact ? 'Settings' : 'Workstation Settings'),
-            ),
-          ]),
+              const SizedBox(width: 12),
+              IconButton(
+                tooltip: 'Workstation Settings',
+                onPressed: () => context.go('/settings'),
+                icon: const Icon(Icons.settings_outlined),
+              ),
+            ],
+          ),
         ),
         Expanded(child: Row(children: [
           AnimatedContainer(
