@@ -697,6 +697,15 @@ class DebloatCatalogTests(unittest.TestCase):
                 self.assertTrue(entry.function.strip())
                 self.assertTrue(entry.risk.strip())
                 self.assertTrue(entry.impact.strip())
+        from droidlab.core.debloat_catalog import lookup_guidance
+        self.assertEqual(
+            lookup_guidance("com.oneplus.membership")["recommendation"],
+            "Not recommended — review first",
+        )
+        self.assertEqual(
+            lookup_guidance("org.lineageos.jelly")["recommendation"],
+            "Optional — review first",
+        )
 
     def test_core_packages_are_not_recommended_for_removal(self):
         from droidlab.core.debloat_catalog import lookup_guidance
