@@ -59,8 +59,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         timeout: const Duration(seconds: 20),
       );
       final topText = processesResult.data['output']?.toString() ?? '';
-      final lm = RegExp(r'(?m)^\s*level:\s*(\d+)').firstMatch(batteryText);
-      final tm = RegExp(r'(?m)^\s*temperature:\s*(-?\d+)').firstMatch(batteryText);
+      final lm = RegExp(r'^\s*level:\s*(\d+)', multiLine: true).firstMatch(batteryText);
+      final tm = RegExp(r'^\s*temperature:\s*(-?\d+)', multiLine: true).firstMatch(batteryText);
       final level = lm == null ? null : int.tryParse(lm.group(1)!);
       final temp = tm == null ? null : double.tryParse(tm.group(1)!);
       final lines = topText.split(RegExp(r'\r?\n')).map((v) => v.trimRight()).where((v) => v.trim().isNotEmpty).toList();
