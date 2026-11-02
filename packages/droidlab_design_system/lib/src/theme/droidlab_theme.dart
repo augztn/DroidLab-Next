@@ -53,8 +53,10 @@ abstract final class DroidLabTheme {
 
     return ThemeData(
       useMaterial3: true,
-      visualDensity: VisualDensity.compact,
-      listTileTheme: const ListTileThemeData(dense: true, minVerticalPadding: 4),
+      visualDensity: VisualDensity.standard,
+      fontFamily: 'Inter',
+      typography: Typography.material2021(platform: TargetPlatform.windows),
+      listTileTheme: const ListTileThemeData(dense: true, minVerticalPadding: 6, horizontalTitleGap: 12),
       brightness: Brightness.light,
       colorScheme: scheme,
       scaffoldBackgroundColor: background,
@@ -72,7 +74,7 @@ abstract final class DroidLabTheme {
         filled: true,
         fillColor: input,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: border),
         ),
         enabledBorder: OutlineInputBorder(
@@ -84,6 +86,10 @@ abstract final class DroidLabTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: button,
           foregroundColor: text,
+          minimumSize: const Size(0, 40),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0.1),
         ),
       ),
       appBarTheme: const AppBarTheme(
@@ -160,8 +166,10 @@ abstract final class DroidLabTheme {
 
     return ThemeData(
       useMaterial3: true,
-      visualDensity: VisualDensity.compact,
-      listTileTheme: const ListTileThemeData(dense: true, minVerticalPadding: 4),
+      visualDensity: VisualDensity.standard,
+      fontFamily: 'Inter',
+      typography: Typography.material2021(platform: TargetPlatform.windows),
+      listTileTheme: const ListTileThemeData(dense: true, minVerticalPadding: 6, horizontalTitleGap: 12),
       brightness: Brightness.dark,
       colorScheme: scheme,
       scaffoldBackgroundColor: colors.background,
@@ -191,6 +199,10 @@ abstract final class DroidLabTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: colors.button,
           foregroundColor: colors.text,
+          minimumSize: const Size(0, 40),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0.1),
         ),
       ),
       appBarTheme: AppBarTheme(
