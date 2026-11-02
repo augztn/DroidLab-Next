@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""Deterministic child process used by BackendClient lifecycle tests."""
+import json
+import sys
+import time
+
+
+mode = sys.argv[1] if len(sys.argv) > 1 else "normal"
+if mode == "delayed_start":
+    time.sleep(0.25)
+
+
+def emit(message):
+    sys.stdout.write(json.dumps({"version": 1, **message}) + "\n")
+    sys.stdout.flush()
+
+
+for raw in sys.stdin:
+    try:
+        request = json.loads(raw)
+    except json.JSONDecodeError:
+        continue
+
+    operation = request.get("operation")
+    request_id = request.get("id")
+    if operation == "system.ping":
+        emit({
+            "id": request_id,
+            "type": "completed",
+            "result": {"status": "ok"},
+        })
+        continue
+
+    if mode == "exit_on_request":
+        raise SystemExit(23)
+
+    if operation == "system.cancel":
+        emit({
+            "id": request.get("args", {}).get("request_id", ""),
+            "type": "cancelled",
+        })
+        continue
+
+    if mode == "slow":
+        time.sleep(0.2)
+
+    emit({
+        "id": request_id,
+        "type": "completed",
+        "result": {"operation": operation},
+    })
