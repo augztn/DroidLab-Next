@@ -227,12 +227,17 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     if (!confirmed || !mounted) return;
     setState(() { _busy = true; _error = null; });
     final succeeded = <String>[];
+    final skipped = <String>[];
     final failed = <String, String>{};
     try {
       // Dispatch one package at a time. The backend independently validates
       // the device, package presence and exact confirmation for every change.
       for (final package in packages) {
         if (!mounted) return;
+        if (action == 'disable' && _disabled.contains(package)) {
+          skipped.add(package);
+          continue;
+        }
         try {
           await _applyPackage(package, action);
           succeeded.add(package);
@@ -242,10 +247,11 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       }
       if (mounted) {
         setState(() {
-          _selectedPackages.removeAll(succeeded);
+          _selectedPackages.removeAll([...succeeded, ...skipped]);
+          final summary = '${succeeded.length} succeeded, ${skipped.length} already disabled, ${failed.length} failed.';
           _error = failed.isEmpty
-              ? '${succeeded.length} packages ${action == 'disable' ? 'disabled' : 'uninstalled for this user'}.'
-              : '${succeeded.length} succeeded; ${failed.length} failed. First failure: ${failed.entries.first.key}: ${failed.entries.first.value}';
+              ? summary
+              : '$summary First failure: ${failed.entries.first.key}: ${failed.entries.first.value}';
         });
       }
     } finally {
@@ -317,7 +323,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
               onChanged: (value) {
                 final parsed = int.tryParse(value);
                 if (parsed != null && parsed >= 0 && parsed <= 2147483647 && !_busy) {
-                  setState(() { _loadGeneration++; _userId = parsed; _packages = const []; _disabled = {}; _recommendations = {}; });
+                  setState(() { _loadGeneration++; _userId = parsed; _packages = const []; _disabled = {}; _recommendations = {}; _selectedPackages.clear(); });
                 }
               },
             )),
