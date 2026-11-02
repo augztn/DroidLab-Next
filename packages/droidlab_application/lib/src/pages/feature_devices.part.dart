@@ -155,9 +155,12 @@ class _DeviceManagerPageState extends ConsumerState<DeviceManagerPage> {
                       }, child: const Text('Select Target')),
                     const SizedBox(width: 8),
                     OutlinedButton(
-                      onPressed: () => context.go(
-                        transport == 'fastboot' || transport == 'fastbootd' ? '/fastboot' : '/adb',
-                      ),
+                      onPressed: () {
+                        ref.read(selectedTargetSerialProvider.notifier).state = targetSerial;
+                        context.go(
+                          transport == 'fastboot' || transport == 'fastbootd' ? '/fastboot' : '/adb',
+                        );
+                      },
                       child: const Text('Open Toolkit'),
                     ),
                   ]),
