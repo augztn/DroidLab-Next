@@ -220,15 +220,14 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         ))),
         const SizedBox(height: 10),
         Card(child: Padding(padding: const EdgeInsets.all(9), child: Column(children: [
-          const Row(children: [
-            Icon(Icons.warning_amber_rounded), SizedBox(width: 8),
+          Row(children: [
+            const Icon(Icons.warning_amber_rounded), const SizedBox(width: 8),
             Expanded(child: Text('System-app changes can break Android features. Uninstall for user does not remove the system image APK. Package guidance is device-dependent; no package is automatically marked safe.', style: Theme.of(context).textTheme.bodySmall)),
           ]),
           const SizedBox(height: 6),
           Row(children: [
             Expanded(child: TextField(
-              dense: true,
-              decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search package IDs', border: OutlineInputBorder()),
+              decoration: const InputDecoration(isDense: true, prefixIcon: Icon(Icons.search), hintText: 'Search package IDs', border: OutlineInputBorder()),
               onChanged: (value) => setState(() => _query = value),
             )),
             const SizedBox(width: 8),
