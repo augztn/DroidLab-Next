@@ -226,82 +226,88 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final appearance = Card(child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Appearance & Theme Identity',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 5),
+        Text('Choose the surface palette used across the workstation.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        const SizedBox(height: 18),
+        DropdownButtonFormField<String>(
+          initialValue: _theme,
+          decoration: const InputDecoration(labelText: 'Color theme'),
+          items: const [
+            DropdownMenuItem(value: 'cyberpunk_glass', child: Text('Cyberpunk Glass')),
+            DropdownMenuItem(value: 'standard_dark', child: Text('Standard Dark')),
+            DropdownMenuItem(value: 'oled_black', child: Text('OLED Black')),
+          ],
+          onChanged: (value) => setState(() => _theme = value ?? _theme),
+        ),
+      ]),
+    ));
+    final tools = Card(child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Executable Overrides & Platform-Tools Bootstrap',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 5),
+        Text('Blank overrides use app-managed tools first, then system PATH.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        const SizedBox(height: 16),
+        _toolField('Python executable', _python, 'python3 or full executable path'),
+        _toolField('Backend script', _backend, 'server.py'),
+        _toolField('ADB executable', _adb, 'adb'),
+        _toolField('Fastboot executable', _fastboot, 'fastboot'),
+        _toolField('Payload dumper', _payloadDumper, 'payload-dumper-go'),
+        if (Platform.isWindows || Platform.isMacOS) ...[
+          const SizedBox(height: 8),
+          FilledButton.tonalIcon(
+            onPressed: _installingPlatformTools || _saving ? null : _installPlatformTools,
+            icon: _installingPlatformTools
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.download),
+            label: Text(_installingPlatformTools ? 'Installing Platform-Tools…' : 'Download & Verify Platform-Tools'),
+          ),
+          const SizedBox(height: 8),
+          Text('Downloads official Google tools after license acceptance and installs them per-user. Existing explicit overrides remain higher priority.',
+            style: Theme.of(context).textTheme.bodySmall),
+        ],
+        const SizedBox(height: 10),
+        Text('Configuration: ~/DroidLab/config.json',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace')),
+      ]),
+    ));
     return _PageFrame(
-      title: 'Settings',
-      subtitle: 'Appearance and executable paths. Blank tool paths use app-managed tools first, then system PATH.',
+      title: 'Workstation Settings (`~/DroidLab/config.json`)',
+      subtitle: 'Theme palette tokens, executable override resolution, and Google Platform-Tools per-user bootstrap',
       child: !_loaded
           ? const Center(child: CircularProgressIndicator())
-          : ListView(children: [
-              Card(child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('APPEARANCE', style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: _theme,
-                    decoration: const InputDecoration(labelText: 'Color theme'),
-                    items: const [
-                      DropdownMenuItem(value: 'cyberpunk_glass', child: Text('Charcoal Blue (legacy default)')),
-                      DropdownMenuItem(value: 'standard_dark', child: Text('Charcoal')),
-                      DropdownMenuItem(value: 'oled_black', child: Text('OLED Black')),
-                    ],
-                    onChanged: (value) => setState(() => _theme = value ?? _theme),
+          : LayoutBuilder(builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 950;
+              return Column(children: [
+                Expanded(child: wide
+                  ? Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      Expanded(child: appearance),
+                      const SizedBox(width: 24),
+                      Expanded(child: SingleChildScrollView(child: tools)),
+                    ])
+                  : ListView(children: [appearance, const SizedBox(height: 14), tools])),
+                const SizedBox(height: 12),
+                Row(children: [
+                  FilledButton.icon(
+                    onPressed: _saving ? null : _save,
+                    icon: _saving
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.save),
+                    label: const Text('Save settings'),
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(_status, style: Theme.of(context).textTheme.bodySmall)),
                 ]),
-              )),
-              const SizedBox(height: 14),
-              Card(child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('TOOL LOCATIONS', style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 12),
-                  _toolField('Python executable', _python, 'python3 or full executable path'),
-                  _toolField('Backend script', _backend, 'server.py'),
-                  _toolField('ADB executable', _adb, 'adb'),
-                  _toolField('Fastboot executable', _fastboot, 'fastboot'),
-                  _toolField('Payload dumper', _payloadDumper, 'payload-dumper-go'),
-                  if (Platform.isWindows || Platform.isMacOS) ...[
-                    const SizedBox(height: 4),
-                    FilledButton.tonalIcon(
-                      onPressed: _installingPlatformTools || _saving
-                          ? null
-                          : _installPlatformTools,
-                      icon: _installingPlatformTools
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.download),
-                      label: Text(_installingPlatformTools
-                          ? 'Installing Platform-Tools…'
-                          : 'Install Android Platform-Tools'),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Downloads the official Google tools after license acceptance and installs them per-user. Existing explicit executable overrides remain higher priority.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  Text(
-                    'Settings are stored at ~/DroidLab/config.json, compatible with the legacy application.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ]),
-              )),
-              const SizedBox(height: 12),
-              Row(children: [
-                FilledButton.icon(
-                  onPressed: _saving ? null : _save,
-                  icon: _saving
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.save),
-                  label: const Text('Save settings'),
-                ),
-                const SizedBox(width: 12),
-                Expanded(child: Text(_status, style: Theme.of(context).textTheme.bodySmall)),
-              ]),
-            ]),
+              ]);
+            }),
     );
   }
 }
