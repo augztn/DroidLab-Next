@@ -86,7 +86,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
   @override Widget build(BuildContext context) {
     final backend = ref.watch(backendReadyProvider);
-    final devices = ref.watch(discoveredDevicesProvider);
+    final devices = ref.watch(deviceListProvider);
     final wide = MediaQuery.sizeOf(context).width >= 1500;
     final colors = Theme.of(context).colorScheme;
     return _PageFrame(title: 'Dashboard', subtitle: 'Android engineering workstation overview.',
@@ -94,7 +94,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       child: ListView(children: [
         GridView.count(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: wide ? 3 : 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 2.2, children: [
           _MetricCard(title: 'Backend', icon: Icons.hub, value: backend.when(data: (_) => 'Online', error: (_, __) => 'Unavailable', loading: () => 'Starting')),
-          _MetricCard(title: 'Connected devices', icon: Icons.devices, value: devices.when(data: (v) => v.length.toString(), error: (_, __) => '—', loading: () => '…')),
+          _MetricCard(title: 'Connected devices', icon: Icons.devices, value: devices.when(data: (payload) => ((payload['devices'] as List?)?.length ?? 0).toString(), error: (_, __) => 'Error', loading: () => '…')),
           const _MetricCard(title: 'Desktop', value: 'Ready', icon: Icons.desktop_windows),
         ]),
         const SizedBox(height: 16),
