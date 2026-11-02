@@ -259,7 +259,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
         Expanded(child: Row(children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 160),
-            width: expanded ? 276 : 66,
+            width: expanded ? 276 : (constraints.maxWidth < 620 ? 54 : 66),
             decoration: BoxDecoration(
               color: colors.surface,
               border: Border(right: BorderSide(color: colors.outlineVariant)),
@@ -364,7 +364,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
             ]),
           ),
           Expanded(child: Padding(
-            padding: EdgeInsets.fromLTRB(compact ? 16 : 28, compact ? 18 : 28, compact ? 16 : 28, 18),
+            padding: EdgeInsets.fromLTRB(constraints.maxWidth < 620 ? 12 : compact ? 16 : 28, constraints.maxWidth < 620 ? 14 : compact ? 18 : 28, constraints.maxWidth < 620 ? 12 : compact ? 16 : 28, 18),
             child: widget.child,
           )),
         ])),
@@ -376,35 +376,58 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
               border: Border(top: BorderSide(color: colors.outlineVariant)),
             ),
             child: Column(children: [
-              SizedBox(
-                height: 40,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Row(children: [
-                    Icon(Icons.terminal, color: colors.primary, size: 17),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text(
-                      'Operation Console (Bounded 300-line JSONL Event Stream)',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Colors.white),
-                    )),
-                    TextButton.icon(
+              LayoutBuilder(builder: (context, headerConstraints) {
+                final narrow = headerConstraints.maxWidth < 620;
+                final title = Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.terminal, color: colors.primary, size: 17),
+                  const SizedBox(width: 10),
+                  Flexible(child: Text(
+                    'Operation Console',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Colors.white),
+                  )),
+                ]);
+                final actions = Wrap(
+                  spacing: 2,
+                  children: [
+                    IconButton(
+                      tooltip: 'Clear console',
                       onPressed: () => setState(() {
                         _consoleLines.clear();
                         ref.read(operationConsoleLinesProvider.notifier).state = const [];
                       }),
-                      icon: const Icon(Icons.delete_outline, size: 16),
-                      label: const Text('Clear'),
-                      style: TextButton.styleFrom(foregroundColor: colors.onSurfaceVariant),
+                      icon: const Icon(Icons.delete_outline, size: 18),
                     ),
-                    TextButton.icon(
+                    IconButton(
+                      tooltip: 'Hide console',
                       onPressed: () => setState(() => _consoleVisible = false),
-                      icon: const Icon(Icons.keyboard_arrow_down, size: 17),
-                      label: const Text('Hide'),
-                      style: TextButton.styleFrom(foregroundColor: colors.onSurfaceVariant),
+                      icon: const Icon(Icons.keyboard_arrow_down, size: 19),
                     ),
-                  ]),
-                ),
-              ),
+                  ],
+                );
+                return SizedBox(
+                  height: 44,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: narrow
+                        ? Row(children: [Expanded(child: title), actions])
+                        : Row(children: [
+                            Expanded(child: Row(children: [
+                              title,
+                              const SizedBox(width: 7),
+                              Flexible(child: Text(
+                                '(Bounded 300-line JSONL Event Stream)',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+                              )),
+                            ])),
+                            actions,
+                          ]),
+                  ),
+                );
+              }),
               const Divider(height: 1),
               Expanded(child: _consoleLines.isEmpty
                 ? const Padding(

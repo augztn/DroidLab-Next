@@ -283,8 +283,9 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
             : Column(children: [source, const SizedBox(height: 10), output]);
         }),
         const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: DropdownButtonFormField<String>(
+        LayoutBuilder(builder: (context, constraints) {
+          final compact = constraints.maxWidth < 680;
+          final drivePicker = DropdownButtonFormField<String>(
             initialValue: _selectedMount,
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'Mounted removable drive'),
@@ -294,23 +295,43 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
               child: Text('${item.label} · ${item.path}', overflow: TextOverflow.ellipsis),
             )).toList(),
             onChanged: (value) => setState(() => _selectedMount = value),
-          )),
-          const SizedBox(width: 8),
-          IconButton.filledTonal(
-            tooltip: 'Refresh mounted drives',
-            onPressed: _refreshMountedLocations,
-            icon: const Icon(Icons.refresh),
-          ),
-          OutlinedButton(
-            onPressed: _selectedMount == null ? null : _useMountedOutput,
-            child: const Text('Use for output'),
-          ),
-          const SizedBox(width: 6),
-          OutlinedButton(
-            onPressed: _selectedMount == null ? null : _browseMountedInput,
-            child: const Text('Browse drive'),
-          ),
-        ]),
+          );
+          final driveActions = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              IconButton.filledTonal(
+                tooltip: 'Refresh mounted drives',
+                onPressed: _refreshMountedLocations,
+                icon: const Icon(Icons.refresh),
+              ),
+              OutlinedButton(
+                onPressed: _selectedMount == null ? null : _useMountedOutput,
+                child: const Text('Use for output'),
+              ),
+              OutlinedButton(
+                onPressed: _selectedMount == null ? null : _browseMountedInput,
+                child: const Text('Browse drive'),
+              ),
+            ],
+          );
+          return compact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    drivePicker,
+                    const SizedBox(height: 8),
+                    driveActions,
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: drivePicker),
+                    const SizedBox(width: 8),
+                    driveActions,
+                  ],
+                );
+        }),
         const SizedBox(height: 14),
         Wrap(spacing: 8, runSpacing: 8, children: [
           FilledButton(onPressed: _busy ? null : _inspect, child: const Text('Inspect payload')),
