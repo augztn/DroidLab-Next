@@ -92,7 +92,7 @@ def lookup_guidance(package: str) -> dict[str, Any]:
     if entry is not None:
         value = entry.to_dict()
         value["listed"] = True
-        value["recommendation"] = rec[0] if rec else entry.risk
+        value["recommendation"] = rec[0] if rec else "Not recommended — review first"
         value["recommendation_note"] = rec[1] if rec else entry.impact
         return value
     if rec is not None:
@@ -121,7 +121,7 @@ def lookup_guidance(package: str) -> dict[str, Any]:
 
 
 def classify_package(package: str) -> str:
-    """Return a conservative UI class; only explicit critical/high entries are protected."""
+    """Classify a recommendation independently from the broader OEM risk guide."""
     guidance = lookup_guidance(package)
     risk = guidance["risk"].casefold()
     if "critical" in risk:
