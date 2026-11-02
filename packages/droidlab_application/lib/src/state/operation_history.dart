@@ -23,6 +23,7 @@ String historyOperationLabel(String operation) {
       value.startsWith('fastboot switch')) return 'Fastboot slot change';
   if (value.startsWith('discover fastboot')) return 'Discover Fastboot partitions';
   if (value.startsWith('payload extraction')) return 'Payload extraction';
+  if (value.startsWith('android package')) return 'Android package management';
   if (value.startsWith('device')) return 'Device operation';
   if (value.startsWith('system')) return 'System operation';
   if (value.startsWith('operation')) return 'Operation';
