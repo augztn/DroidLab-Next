@@ -455,11 +455,12 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
   @override
   Widget build(BuildContext context) {
     final devicesAsync = ref.watch(deviceListProvider);
+    final globalTarget = ref.watch(selectedTargetSerialProvider);
     final allDevices = (devicesAsync.valueOrNull?['devices'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>().toList();
     final fastbootDevices = allDevices.where((device) => device['transport'] == 'fastboot').toList();
     final serials = allDevices.map((device) => device['serial'] as String).toList();
-    final currentSelection = _selectedSerial ?? _serial.text.trim();
+    final currentSelection = globalTarget ?? _selectedSerial ?? _serial.text.trim();
     final selectedSerial = serials.contains(currentSelection)
         ? currentSelection
         : fastbootDevices.length == 1
@@ -489,10 +490,13 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
             return DropdownMenuItem(value: serial,
               child: Text('$serial ($model · $mode)', overflow: TextOverflow.ellipsis));
           }).toList(),
-          onChanged: _busy ? null : (value) => setState(() {
-            _selectedSerial = value;
-            _serial.text = value ?? '';
-          }),
+          onChanged: _busy ? null : (value) {
+            setState(() {
+              _selectedSerial = value;
+              _serial.text = value ?? '';
+            });
+            ref.read(selectedTargetSerialProvider.notifier).state = value;
+          },
         )),
         const SizedBox(width: 6),
         IconButton(tooltip: 'Refresh devices', onPressed: _busy ? null : () => ref.invalidate(deviceListProvider),
