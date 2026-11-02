@@ -279,6 +279,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
               ),
               child: Text(compact ? 'Settings' : 'Workstation Settings'),
             ),
+          ]),
         ),
         Expanded(child: Row(children: [
           AnimatedContainer(
