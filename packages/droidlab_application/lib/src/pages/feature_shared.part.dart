@@ -17,20 +17,32 @@ class _PageFrame extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Row(children: [
-        Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-            if (subtitle != null) ...[
-              const SizedBox(height: 3),
-              Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
+      Padding(
+        padding: const EdgeInsets.only(bottom: 18),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontSize: 28,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.7,
+              )),
+              if (subtitle != null) ...[
+                const SizedBox(height: 5),
+                Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 15,
+                )),
+              ],
             ],
-          ],
-        )),
-        ...actions,
-      ]),
-      const SizedBox(height: 10),
+          )),
+          const SizedBox(width: 16),
+          ...actions,
+        ]),
+      ),
+      Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
+      const SizedBox(height: 20),
       Expanded(child: child),
     ],
   );
