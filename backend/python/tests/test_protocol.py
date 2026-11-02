@@ -656,9 +656,9 @@ class ProtocolTests(unittest.TestCase):
         )
 
     def test_debloat_inventory_parses_valid_package_ids_and_system_paths(self):
-        output = "package:/system/app/Example/Example.apk=com.example.app\\npackage:com.example.user\\npackage:invalid package\\n"
-        installed = "package:com.example.app\\npackage:com.example.user\\n"
-        disabled = "package:com.example.user\\n"
+        output = "package:/system/app/Example/Example.apk=com.example.app\npackage:com.example.user\npackage:invalid package\n"
+        installed = "package:com.example.app\npackage:com.example.user\n"
+        disabled = "package:com.example.user\n"
         with patch.object(server, "tool_path", return_value="adb"):
             with patch.object(server, "require_adb"):
                 with patch.object(server, "run_streaming", side_effect=[
@@ -686,10 +686,10 @@ class ProtocolTests(unittest.TestCase):
         with patch.object(server, "tool_path", return_value="adb"):
             with patch.object(server, "require_adb"):
                 with patch.object(server, "run_capture", side_effect=[
-                    result("package:com.example.app\\n"),
+                    result("package:com.example.app\n"),
                     result(""),
                 ]) as capture:
-                    with patch.object(server, "run_streaming", return_value=result("Package com.example.app installed for user: 0\\n")) as run:
+                    with patch.object(server, "run_streaming", return_value=result("Package com.example.app installed for user: 0\n")) as run:
                         with patch.object(server, "response"):
                             value = server.execute("id", "debloat.package.apply", {
                                 **intent, "confirmed": True, "confirmation": intent,
