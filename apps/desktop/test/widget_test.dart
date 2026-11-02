@@ -33,10 +33,8 @@ void main() {
     expect(find.text('ADB Toolkit'), findsOneWidget);
     expect(find.text('Fastboot Toolkit'), findsOneWidget);
     expect(find.text('Logs & Diagnostics'), findsOneWidget);
-    expect(
-      find.text('Operation Console'),
-      findsOneWidget,
-    );
+    // The console panel was removed to give feature pages the full workspace height.
+    expect(find.text('Operation Console'), findsNothing);
   });
 
   testWidgets('sidebar navigation opens the Fastboot workflow', (tester) async {
