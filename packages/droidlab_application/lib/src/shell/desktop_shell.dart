@@ -224,8 +224,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       }
       return Scaffold(body: SafeArea(child: Column(children: [
         Container(
-          height: 72,
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          height: 64,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           decoration: BoxDecoration(
             color: colors.surface,
             border: Border(bottom: BorderSide(color: colors.outlineVariant)),
@@ -260,7 +260,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
         Expanded(child: Row(children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 160),
-            width: expanded ? 282 : 64,
+            width: expanded ? 260 : 64,
             decoration: BoxDecoration(
               color: colors.surface,
               border: Border(right: BorderSide(color: colors.outlineVariant)),
@@ -287,11 +287,11 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                 ]),
               ),
               Expanded(child: ListView(
-                padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 12),
                 children: [
                   for (final group in _groups) ...[
                     if (expanded) Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 15, 8, 7),
+                      padding: const EdgeInsets.fromLTRB(12, 18, 8, 8),
                       child: Text(
                         group.$1 == 'FIRMWARE' ? 'Firmware & OTA' :
                         group.$1 == 'OBSERVABILITY' ? 'Observability' :
@@ -365,22 +365,22 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
             ]),
           ),
           Expanded(child: Padding(
-            padding: EdgeInsets.fromLTRB(compact ? 14 : 29, compact ? 14 : 28, compact ? 14 : 29, 18),
+            padding: EdgeInsets.fromLTRB(compact ? 14 : 24, compact ? 16 : 24, compact ? 14 : 24, 16),
             child: widget.child,
           )),
         ])),
         if (_consoleVisible)
           Container(
-            height: compact ? 176 : 220,
+            height: compact ? 160 : 188,
             decoration: BoxDecoration(
               color: surfaces?.console ?? colors.surface,
               border: Border(top: BorderSide(color: colors.outlineVariant)),
             ),
             child: Column(children: [
               SizedBox(
-                height: 42,
+                height: 40,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: Row(children: [
                     Icon(Icons.terminal, color: colors.primary, size: 17),
                     const SizedBox(width: 10),
