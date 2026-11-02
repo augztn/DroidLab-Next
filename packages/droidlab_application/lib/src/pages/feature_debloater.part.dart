@@ -56,15 +56,15 @@ class _PackageIconBadge extends StatelessWidget {
                                                                                                  : (key.endsWith('.apk') ? Icons.android : Icons.memory_outlined,
                                                                 Theme.of(context).colorScheme.primary);
     return Container(
-      width: 40,
-      height: 40,
+      width: 34,
+      height: 34,
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         border: Border.all(color: color.withValues(alpha: 0.32)),
         borderRadius: BorderRadius.circular(9),
       ),
       alignment: Alignment.center,
-      child: Icon(icon, size: 20, color: color),
+      child: Icon(icon, size: 18, color: color),
     );
   }
 }
@@ -88,6 +88,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   Set<String> _disabled = {};
   final Set<String> _selectedPackages = {};
   int _loadGeneration = 0;
+  int _pageIndex = 0;
+  int _pageSize = 50;
   String? _error;
   String? _notice;
 
@@ -385,6 +387,10 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       final query = _query.trim().toLowerCase();
       return query.isEmpty || package.toLowerCase().contains(query);
     }).toList(growable: false);
+    final pageCount = visible.isEmpty ? 1 : (visible.length / _pageSize).ceil();
+    final safePageIndex = _pageIndex.clamp(0, pageCount - 1);
+    final pageStart = safePageIndex * _pageSize;
+    final pageItems = visible.skip(pageStart).take(_pageSize).toList(growable: false);
 
     return _PageFrame(
       title: 'Android Debloater Workspace',
@@ -393,18 +399,18 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         IconButton(onPressed: _busy || _serial == null ? null : _load, tooltip: 'Refresh packages', icon: const Icon(Icons.refresh)),
       ],
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Card(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), child: Wrap(
-          spacing: 12, runSpacing: 12, crossAxisAlignment: WrapCrossAlignment.center,
+        Card(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), child: Wrap(
+          spacing: 10, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            SizedBox(width: 280, child: DropdownButtonFormField<String>(
+            SizedBox(width: 250, child: DropdownButtonFormField<String>(
               initialValue: _serial,
-              decoration: const InputDecoration(labelText: 'Authorized ADB device', border: OutlineInputBorder()),
+              decoration: const InputDecoration(isDense: true, labelText: 'Authorized ADB device', border: OutlineInputBorder()),
               items: serials.map((value) => DropdownMenuItem(value: value, child: Text(value, overflow: TextOverflow.ellipsis))).toList(),
               onChanged: _busy ? null : (value) => setState(() { _loadGeneration++; _serial = value; _packages = const []; _disabled = {}; _recommendations = {}; _selectedPackages.clear(); }),
             )),
             SizedBox(width: 130, child: TextFormField(
               initialValue: '0', keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Android user ID', border: OutlineInputBorder()),
+              decoration: const InputDecoration(isDense: true, labelText: 'Android user ID', border: OutlineInputBorder()),
               onChanged: (value) {
                 final parsed = int.tryParse(value);
                 if (parsed != null && parsed >= 0 && parsed <= 2147483647 && !_busy) {
@@ -425,7 +431,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
           Row(children: [
             Expanded(child: TextField(
               decoration: const InputDecoration(isDense: true, prefixIcon: Icon(Icons.search), hintText: 'Search package IDs', border: OutlineInputBorder()),
-              onChanged: (value) => setState(() => _query = value),
+              onChanged: (value) => setState(() { _query = value; _pageIndex = 0; }),
             )),
             const SizedBox(width: 8),
             DropdownButton<String>(
@@ -435,7 +441,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                 DropdownMenuItem(value: 'user', child: Text('User apps')),
                 DropdownMenuItem(value: 'system', child: Text('System apps')),
               ],
-              onChanged: (value) => setState(() => _filter = value ?? 'all'),
+              onChanged: (value) => setState(() { _filter = value ?? 'all'; _pageIndex = 0; }),
             ),
           ]),
           const SizedBox(height: 4),
@@ -455,7 +461,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                   visualDensity: VisualDensity.compact,
                   label: Text(filter.$2),
                   selected: _riskFilter == filter.$1,
-                  onSelected: (_) => setState(() => _riskFilter = filter.$1),
+                  onSelected: (_) => setState(() { _riskFilter = filter.$1; _pageIndex = 0; }),
                 ),
             ]),
           ),
@@ -485,28 +491,28 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                   onPressed: _busy || _selectedPackages.isEmpty
                       ? null
                       : () => _applySelected('disable'),
-                  icon: const Icon(Icons.pause_circle_outline, size: 18),
+                  icon: const Icon(Icons.pause_circle_outline, size: 17),
                   label: const Text('Disable selected'),
                 ),
                 FilledButton.tonalIcon(
                   onPressed: _busy || _selectedPackages.isEmpty
                       ? null
                       : () => _applySelected('enable'),
-                  icon: const Icon(Icons.play_circle_outline, size: 18),
+                  icon: const Icon(Icons.play_circle_outline, size: 17),
                   label: const Text('Enable selected'),
                 ),
                 FilledButton.tonalIcon(
                   onPressed: _busy || _selectedPackages.isEmpty
                       ? null
                       : () => _applySelected('restore'),
-                  icon: const Icon(Icons.restore_rounded, size: 18),
+                  icon: const Icon(Icons.restore_rounded, size: 17),
                   label: const Text('Restore selected'),
                 ),
                 FilledButton.tonalIcon(
                   onPressed: _busy || _selectedPackages.isEmpty
                       ? null
                       : () => _applySelected('uninstall'),
-                  icon: const Icon(Icons.delete_outline, size: 18),
+                  icon: const Icon(Icons.delete_outline, size: 17),
                   label: const Text('Uninstall selected'),
                 ),
               ],
@@ -523,13 +529,13 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
               : _packages.isEmpty
                   ? const _EmptyPanel(icon: Icons.apps, title: 'No package inventory loaded', message: 'Load packages to inspect the selected Android user.')
                   : LayoutBuilder(builder: (context, constraints) {
-                const selectWidth = 48.0;
-                const packageWidth = 330.0;
-                const functionWidth = 280.0;
-                const riskWidth = 150.0;
-                const stateWidth = 130.0;
-                const guidanceWidth = 100.0;
-                const actionsWidth = 120.0;
+                const selectWidth = 40.0;
+                const packageWidth = 270.0;
+                const functionWidth = 205.0;
+                const riskWidth = 125.0;
+                const stateWidth = 105.0;
+                const guidanceWidth = 82.0;
+                const actionsWidth = 88.0;
                 const minTableWidth = selectWidth + packageWidth + functionWidth +
                     riskWidth + stateWidth + guidanceWidth + actionsWidth + 24;
                 final tableWidth = constraints.maxWidth < minTableWidth
@@ -556,10 +562,10 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                         ]),
                       ),
                       Expanded(child: ListView.separated(
-                        itemCount: visible.length,
+                        itemCount: pageItems.length,
                         separatorBuilder: (_, __) => Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
                         itemBuilder: (context, index) {
-                          final item = visible[index];
+                          final item = pageItems[index];
                           final package = item['package'] as String;
                           final system = item['system'] == true;
                           final disabled = _disabled.contains(package);
@@ -576,7 +582,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                   ? Theme.of(context).colorScheme.error
                                   : Theme.of(context).colorScheme.secondary;
                           return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
                               SizedBox(width: selectWidth, child: Checkbox(
                                 value: _selectedPackages.contains(package),
@@ -592,7 +598,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                               )),
                               SizedBox(width: packageWidth, child: Row(children: [
                                 _PackageIconBadge(identifier: package),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 9),
                                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   Text(app, maxLines: 1, overflow: TextOverflow.ellipsis,
                                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
@@ -656,7 +662,39 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                   ),
                 );
               })),
-        Align(alignment: Alignment.centerLeft, child: Text(visible.length.toString() + ' of ' + _packages.length.toString() + ' packages · ' + _disabled.length.toString() + ' disabled', style: Theme.of(context).textTheme.bodySmall)),
+        if (_packages.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(children: [
+              Expanded(child: Text(
+                '${visible.isEmpty ? 0 : pageStart + 1}–${(pageStart + pageItems.length)} of ${visible.length} packages · ${_disabled.length} disabled',
+                style: Theme.of(context).textTheme.bodySmall,
+              )),
+              const Text('Rows', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 6),
+              DropdownButton<int>(
+                value: _pageSize,
+                isDense: true,
+                underline: const SizedBox.shrink(),
+                items: const [25, 50, 100].map((size) =>
+                  DropdownMenuItem(value: size, child: Text('$size'))).toList(),
+                onChanged: (size) => setState(() { _pageSize = size ?? 50; _pageIndex = 0; }),
+              ),
+              IconButton(
+                tooltip: 'Previous page',
+                visualDensity: VisualDensity.compact,
+                onPressed: safePageIndex == 0 ? null : () => setState(() => _pageIndex--),
+                icon: const Icon(Icons.chevron_left, size: 19),
+              ),
+              Text('${safePageIndex + 1} / $pageCount', style: Theme.of(context).textTheme.bodySmall),
+              IconButton(
+                tooltip: 'Next page',
+                visualDensity: VisualDensity.compact,
+                onPressed: safePageIndex >= pageCount - 1 ? null : () => setState(() => _pageIndex++),
+                icon: const Icon(Icons.chevron_right, size: 19),
+              ),
+            ]),
+          ),
       ]),
     );
   }
