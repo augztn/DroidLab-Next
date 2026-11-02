@@ -372,7 +372,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
           spacing: 12, runSpacing: 12, crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             SizedBox(width: 280, child: DropdownButtonFormField<String>(
-              value: _serial,
+              initialValue: _serial,
               decoration: const InputDecoration(labelText: 'Authorized ADB device', border: OutlineInputBorder()),
               items: serials.map((value) => DropdownMenuItem(value: value, child: Text(value, overflow: TextOverflow.ellipsis))).toList(),
               onChanged: _busy ? null : (value) => setState(() { _loadGeneration++; _serial = value; _packages = const []; _disabled = {}; _recommendations = {}; _selectedPackages.clear(); }),
