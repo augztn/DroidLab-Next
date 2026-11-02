@@ -160,9 +160,41 @@ class LogsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final backend = ref.watch(backendReadyProvider);
     final diagnostics = ref.read(backendClientProvider).diagnostics;
+    final raw = diagnostics.join('\n');
+    final sanitized = redactDiagnosticText(raw);
+    Widget previewCard(String title, String subtitle, String value, {bool safe = false}) => Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 5),
+          Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          )),
+          const SizedBox(height: 14),
+          Expanded(child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).extension<DroidLabThemeSurfaces>()?.console ?? Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+            ),
+            child: SingleChildScrollView(child: SelectableText(
+              value.isEmpty ? 'No diagnostic lines are available yet.' : value,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                height: 1.55,
+                color: safe ? Theme.of(context).colorScheme.tertiary : Theme.of(context).colorScheme.onSurface,
+              ),
+            )),
+          )),
+        ]),
+      ),
+    );
     return _PageFrame(
-      title: 'Logs & Diagnostics',
-      subtitle: 'Diagnostics stay on this computer. Reports can contain device serials and command details; review before sharing.',
+      title: 'Logs, Logcat & Diagnostic Redactor',
+      subtitle: 'Centralized redaction strips serials, MACs, 15-digit IMEIs, bearer tokens, and host user paths before export',
       actions: [
         OutlinedButton.icon(
           onPressed: () => _openLogDirectory(context),
@@ -177,7 +209,7 @@ class LogsPage extends ConsumerWidget {
         OutlinedButton.icon(
           onPressed: () => _exportReport(context, ref),
           icon: const Icon(Icons.save_alt),
-          label: const Text('Export diagnostic report'),
+          label: const Text('Export report'),
         ),
       ],
       child: backend.when(
@@ -186,19 +218,20 @@ class LogsPage extends ConsumerWidget {
           message: error.toString(),
           retry: () => ref.invalidate(backendReadyProvider),
         ),
-        data: (_) => diagnostics.isEmpty
-            ? const _EmptyPanel(
-                icon: Icons.receipt_long,
-                title: 'No backend warnings',
-                message: 'Backend stderr diagnostics will appear here when available.',
-              )
-            : ListView.builder(
-                itemCount: diagnostics.length,
-                itemBuilder: (context, index) => SelectableText(
-                  diagnostics[index],
-                  style: const TextStyle(fontFamily: 'monospace'),
-                ),
-              ),
+        data: (_) {
+          if (MediaQuery.sizeOf(context).width < 950) {
+            return Column(children: [
+              Expanded(child: previewCard('Raw Diagnostics', 'Unredacted local backend diagnostics. Review before sharing.', raw)),
+              const SizedBox(height: 14),
+              Expanded(child: previewCard('Sanitized Export Preview', 'Redacted output for bug reports and issue attachments.', sanitized, safe: true)),
+            ]);
+          }
+          return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Expanded(child: previewCard('Raw Logcat / Diagnostics', 'Unredacted local diagnostic input. Review before sharing.', raw)),
+            const SizedBox(width: 24),
+            Expanded(child: previewCard('Sanitized Export Preview', 'Redacted output for bug reports and issue attachments.', sanitized, safe: true)),
+          ]);
+        },
       ),
     );
   }
