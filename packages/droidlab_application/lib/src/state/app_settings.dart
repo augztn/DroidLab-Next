@@ -93,6 +93,7 @@ class DroidLabSettingsStore {
                 ? DroidLabSettings.fromJson(recovered.cast<String, dynamic>())
                 : throw const FormatException('Backup did not contain a JSON object.');
         await backup.rename(_file.path);
+        _unreadableConfigPreserved = true;
         recoveryNotice = 'Settings were restored from the backup after an interrupted save.';
         return settings;
       } on FormatException catch (error) {
@@ -150,7 +151,7 @@ class DroidLabSettingsStore {
   Future<void> save(DroidLabSettings settings) async {
     if (recoveryNotice != null &&
         !_unreadableConfigPreserved &&
-        await _file.exists()) {
+        (await _file.exists() || await File('${_file.path}.bak').exists())) {
       throw FileSystemException(
         'Refusing to overwrite an unreadable settings file that could not be preserved.',
         _file.path,
