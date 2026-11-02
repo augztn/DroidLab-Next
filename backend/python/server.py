@@ -545,25 +545,26 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id < 0 or user_id > 2147483647:
             raise ValueError("user_id must be a non-negative Android user ID.")
         require_adb(serial, cancel_event=cancel)
-        command = [tool_path("adb"), "-s", serial, "shell", "pm", "list", "packages", "-f", "--user", str(user_id)]
-        result = run_streaming(command, timeout=60, cancel_event=cancel)
+        binary = tool_path("adb")
+        base = [binary, "-s", serial, "shell", "pm", "list", "packages"]
+        result = run_streaming([*base, "-u", "-f", "--user", str(user_id)], timeout=60, cancel_event=cancel)
         if result.returncode:
             raise RuntimeError(f"Package inventory failed ({result.returncode}): {result.stdout[-MAX_RETAINED_OUTPUT:]}")
-        disabled_result = run_streaming(
-            [tool_path("adb"), "-s", serial, "shell", "pm", "list", "packages", "-d", "--user", str(user_id)],
-            timeout=30,
-            cancel_event=cancel,
-        )
+        installed_result = run_streaming([*base, "-f", "--user", str(user_id)], timeout=45, cancel_event=cancel)
+        if installed_result.returncode:
+            raise RuntimeError(f"Could not inspect installed packages ({installed_result.returncode}): {installed_result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        disabled_result = run_streaming([*base, "-d", "--user", str(user_id)], timeout=30, cancel_event=cancel)
         if disabled_result.returncode:
-            raise RuntimeError(
-                f"Could not inspect disabled packages ({disabled_result.returncode}): "
-                f"{disabled_result.stdout[-MAX_RETAINED_OUTPUT:]}"
-            )
-        disabled = {
-            line.strip()[len("package:"):]
-            for line in disabled_result.stdout.splitlines()
-            if line.strip().startswith("package:")
-        }
+            raise RuntimeError(f"Could not inspect disabled packages ({disabled_result.returncode}): {disabled_result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        def package_lines(output: str) -> set[str]:
+            return {line.strip()[len("package:"):] for line in output.splitlines()
+                    if line.strip().startswith("package:")}
+        installed = package_lines(installed_result.stdout)
+        disabled = package_lines(disabled_result.stdout)
+        system_prefixes = (
+            "/system/", "/system_ext/", "/product/", "/vendor/", "/odm/",
+            "/apex/", "/oem/", "/system_dlkm/", "/vendor_dlkm/", "/odm_dlkm/",
+        )
         packages = {}
         for line in result.stdout.splitlines():
             value = line.strip()
@@ -576,10 +577,9 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
                 continue
             if package not in packages:
                 packages[package] = {
-                    "package": package,
-                    "apk_path": path if separator else "",
-                    "system": path.startswith(("/system/", "/product/", "/vendor/", "/apex/")),
-                    "disabled": package in disabled,
+                    "package": package, "apk_path": path if separator else "",
+                    "system": path.startswith(system_prefixes),
+                    "installed": package in installed, "disabled": package in disabled,
                 }
         return {"serial": serial, "user_id": user_id, "packages": [packages[key] for key in sorted(packages, key=str.casefold)]}
     if operation == "debloat.package.state":
@@ -608,9 +608,25 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         intent = {"operation": "debloat.package.apply", "serial": serial, "package": package, "action": action, "user_id": user_id}
         require_confirmation(args, "Android package state change", intent)
         require_adb(serial, cancel_event=cancel)
-        inventory = run_capture([tool_path("adb"), "-s", serial, "shell", "pm", "list", "packages", "--user", str(user_id)], 30, cancel)
+        inventory_args = ["-u"] if action == "restore" else []
+        inventory = run_capture(
+            [tool_path("adb"), "-s", serial, "shell", "pm", "list", "packages", *inventory_args, "--user", str(user_id)],
+            30, cancel,
+        )
         if inventory.returncode or not any(line.strip() == "package:" + package for line in inventory.stdout.splitlines()):
-            raise RuntimeError("The selected package is not installed for this user. Refresh the package list; no change was applied.")
+            message = ("The package is not known to this Android system image; it cannot be restored with install-existing."
+                       if action == "restore" else
+                       "The selected package is not installed for this user. Refresh the package list; no change was applied.")
+            raise RuntimeError(message)
+        if action == "restore":
+            installed = run_capture(
+                [tool_path("adb"), "-s", serial, "shell", "pm", "list", "packages", "--user", str(user_id)],
+                30, cancel,
+            )
+            if installed.returncode:
+                raise RuntimeError("Could not verify package installation state; no change was applied.")
+            if any(line.strip() == "package:" + package for line in installed.stdout.splitlines()):
+                raise RuntimeError("The package is already installed for this user; use Enable if it is disabled.")
         commands = {
             "disable": ["shell", "pm", "disable-user", "--user", str(user_id), package],
             "uninstall": ["shell", "pm", "uninstall", "--user", str(user_id), package],

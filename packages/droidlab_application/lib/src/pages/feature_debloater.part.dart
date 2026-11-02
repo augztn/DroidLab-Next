@@ -219,10 +219,19 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     required List<String> packages,
     required String action,
   }) async {
-    final label = action == 'disable' ? 'Disable' : 'Uninstall for user';
-    final explanation = action == 'uninstall'
-        ? 'Each selected package will be uninstalled for Android user $_userId. This does not remove APKs from read-only system partitions. Some dependent features may stop working.'
-        : 'Each selected package will be disabled for Android user $_userId. Dependent system features may stop working.';
+    final label = switch (action) {
+      'disable' => 'Disable',
+      'enable' => 'Enable',
+      'restore' => 'Restore for user',
+      _ => 'Uninstall for user',
+    };
+    final explanation = switch (action) {
+      'uninstall' => 'Each selected package will be uninstalled for Android user $_userId. This does not remove APKs from read-only system partitions.',
+      'disable' => 'Each selected package will be disabled for Android user $_userId.',
+      'enable' => 'Each selected disabled package will be enabled for Android user $_userId.',
+      'restore' => 'Android will reinstall each selected package for this user using the copy already present in the system image. This cannot restore an APK removed from the system image.',
+      _ => 'Unsupported package action.',
+    };
     return await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -295,11 +304,15 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     final skipped = <String>[];
     final failed = <String, String>{};
     try {
-      // Dispatch one package at a time. The backend independently validates
-      // the device, package presence and exact confirmation for every change.
+      var cancelled = false;
+      // Stop at the first explicit cancellation; never dispatch later mutations.
       for (final package in packages) {
         if (!mounted) return;
-        if (action == 'disable' && _disabled.contains(package)) {
+        final item = _packages.where((value) => value['package'] == package).firstOrNull;
+        final installed = item?['installed'] != false;
+        if ((action == 'disable' && _disabled.contains(package)) ||
+            (action == 'enable' && !_disabled.contains(package)) ||
+            (action == 'restore' && installed)) {
           skipped.add(package);
           continue;
         }
@@ -307,13 +320,19 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
           await _applyPackage(package, action);
           succeeded.add(package);
         } catch (error) {
+          if (error is BackendException && error.code == 'cancelled') {
+            failed[package] = error.toString();
+            cancelled = true;
+            break;
+          }
           failed[package] = error.toString();
         }
       }
       if (mounted) {
         setState(() {
           _selectedPackages.removeAll([...succeeded, ...skipped]);
-          final summary = '${succeeded.length} succeeded, ${skipped.length} already disabled, ${failed.length} failed.';
+          final summary = '${succeeded.length} succeeded, ${skipped.length} skipped, ${failed.length} failed'
+              '${cancelled ? ' · stopped after cancellation' : ''}.';
           if (failed.isEmpty) {
             _notice = summary;
           } else {
@@ -524,6 +543,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                           final package = item['package'] as String;
                           final system = item['system'] == true;
                           final disabled = _disabled.contains(package);
+                          final installed = item['installed'] != false;
                           final guidance = _guidance[package] ?? const <String, dynamic>{};
                           final app = guidance['app']?.toString() ?? package;
                           final function = guidance['function']?.toString() ??
@@ -571,7 +591,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                               )),
                               SizedBox(width: riskWidth, child: Text(risk, maxLines: 2, overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(color: riskColor))),
-                              SizedBox(width: stateWidth, child: Text(disabled ? 'disabled' : 'enabled',
+                              SizedBox(width: stateWidth, child: Text(
+                                !installed ? 'not installed' : disabled ? 'disabled' : 'enabled',
                                 maxLines: 1, overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'))),
                               SizedBox(width: guidanceWidth, child: TextButton(
@@ -579,16 +600,31 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                 child: const Text('Explain'),
                               )),
                               SizedBox(width: actionsWidth, child: Row(children: [
-                                IconButton(
-                                  tooltip: 'Disable package',
-                                  visualDensity: VisualDensity.compact,
-                                  onPressed: _busy || disabled ? null : () => _apply(item, 'disable'),
-                                  icon: const Icon(Icons.pause_circle_outline, size: 18),
-                                ),
+                                if (!installed)
+                                  IconButton(
+                                    tooltip: 'Restore for this user',
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: _busy ? null : () => _apply(item, 'restore'),
+                                    icon: const Icon(Icons.restore_rounded, size: 18),
+                                  )
+                                else if (disabled)
+                                  IconButton(
+                                    tooltip: 'Enable package',
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: _busy ? null : () => _apply(item, 'enable'),
+                                    icon: const Icon(Icons.play_circle_outline, size: 18),
+                                  )
+                                else
+                                  IconButton(
+                                    tooltip: 'Disable package',
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: _busy ? null : () => _apply(item, 'disable'),
+                                    icon: const Icon(Icons.pause_circle_outline, size: 18),
+                                  ),
                                 IconButton(
                                   tooltip: 'Uninstall for user',
                                   visualDensity: VisualDensity.compact,
-                                  onPressed: _busy ? null : () => _apply(item, 'uninstall'),
+                                  onPressed: _busy || !installed ? null : () => _apply(item, 'uninstall'),
                                   icon: const Icon(Icons.delete_outline, size: 18),
                                 ),
                               ])),
