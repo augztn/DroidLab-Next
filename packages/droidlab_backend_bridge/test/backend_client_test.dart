@@ -13,7 +13,8 @@ void main() {
   BackendClient createClient({String mode = 'normal'}) {
     return BackendClient(BackendConfig(
       executable: Platform.isWindows ? 'python' : 'python3',
-      arguments: ['-u', mode],
+      arguments: ['-u'],
+      environment: {'DROIDLAB_TEST_MODE': mode},
       scriptPath: fixturePath,
       startupTimeout: const Duration(seconds: 5),
     ));
