@@ -14,6 +14,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _fastboot = TextEditingController();
   final _payloadDumper = TextEditingController();
   String _theme = 'cyberpunk_glass';
+  String _themeMode = 'dark';
   bool _loaded = false;
   bool _saving = false;
   bool _installingPlatformTools = false;
@@ -31,6 +32,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _payloadDumper.text = settings.payloadDumperPath;
       setState(() {
         _theme = settings.theme;
+        _themeMode = settings.themeMode;
         _loaded = true;
         _status = ref.read(droidLabSettingsStoreProvider).recoveryNotice ?? '';
       });
@@ -66,6 +68,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     try {
       final settings = DroidLabSettings(
         theme: _theme,
+        themeMode: _themeMode,
         pythonPath: _python.text.trim(),
         backendPath: _backend.text.trim(),
         adbPath: _adb.text.trim(),
@@ -201,6 +204,38 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
+  Widget _themeChoice(BuildContext context, String value, String title, String token, IconData icon) {
+    final selected = _theme == value;
+    final colors = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: () => setState(() => _theme = value),
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        constraints: const BoxConstraints(minHeight: 94),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected ? colors.primary.withValues(alpha: 0.09) : colors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: selected ? colors.primary : colors.outlineVariant, width: selected ? 1.4 : 1),
+        ),
+        child: Row(children: [
+          Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
+            color: selected ? colors.primary : colors.onSurfaceVariant, size: 20),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 5),
+            Text(token, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant, fontFamily: 'monospace')),
+          ])),
+        ]),
+      ),
+    );
+  }
+
   Widget _toolField(String label, TextEditingController controller, String hint) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -229,22 +264,56 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final appearance = Card(child: Padding(
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Appearance & Theme Identity',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 5),
-        Text('Choose the surface palette used across the workstation.',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Appearance & Theme Identity',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 5),
+            Text('Choose a color palette and surface appearance for DroidLab.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ])),
+          const SizedBox(width: 12),
+          OutlinedButton.icon(
+            onPressed: _saving || !_loaded ? null : () async {
+              final next = _themeMode == 'dark' ? 'light' : 'dark';
+              setState(() => _themeMode = next);
+              try {
+                final current = await ref.read(droidLabSettingsProvider.future);
+                await ref.read(droidLabSettingsProvider.notifier).saveSettings(current.copyWith(themeMode: next));
+                if (mounted) setState(() => _status = 'Appearance updated.');
+              } catch (error) {
+                if (mounted) setState(() {
+                  _themeMode = next == 'dark' ? 'light' : 'dark';
+                  _status = 'Could not update appearance: $error';
+                });
+              }
+            },
+            icon: Icon(_themeMode == 'dark' ? Icons.light_mode_outlined : Icons.dark_mode_outlined, size: 17),
+            label: Text(_themeMode == 'dark' ? 'Switch to Light Surface' : 'Switch to Dark Surface'),
+          ),
+        ]),
         const SizedBox(height: 18),
-        DropdownButtonFormField<String>(
-          initialValue: _theme,
-          decoration: const InputDecoration(labelText: 'Color theme'),
-          items: const [
-            DropdownMenuItem(value: 'cyberpunk_glass', child: Text('Cyberpunk Glass')),
-            DropdownMenuItem(value: 'standard_dark', child: Text('Standard Dark')),
-            DropdownMenuItem(value: 'oled_black', child: Text('OLED Black')),
-          ],
-          onChanged: (value) => setState(() => _theme = value ?? _theme),
-        ),
+        LayoutBuilder(builder: (context, constraints) {
+          final compact = constraints.maxWidth < 560;
+          final themes = const [
+            ('cyberpunk_glass', 'Cyberpunk Glass', 'cyberpunk_glass', Icons.auto_awesome_outlined),
+            ('standard_dark', 'Standard Dark', 'standard_dark', Icons.contrast),
+            ('oled_black', 'OLED Black', 'oled_black', Icons.dark_mode_outlined),
+          ];
+          return compact
+            ? Column(children: [
+                for (final item in themes) Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _themeChoice(context, item.$1, item.$2, item.$3, item.$4),
+                ),
+              ])
+            : Row(children: [
+                for (var i = 0; i < themes.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 12),
+                  Expanded(child: _themeChoice(context, themes[i].$1, themes[i].$2, themes[i].$3, themes[i].$4)),
+                ],
+              ]);
+        }),
       ]),
     ));
     final tools = Card(child: Padding(
