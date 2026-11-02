@@ -257,7 +257,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
 
   @override
   Widget build(BuildContext context) => _PageFrame(
-    title: 'Firmware & Payload',
+    title: 'Firmware & OTA Payload Extractor',
     subtitle: 'Inspect OTA ZIP and payload BIN contents, review partition metadata, and extract verified image artifacts without overwriting existing files.',
     child: DropTarget(
       onDragDone: _drop,
@@ -321,8 +321,11 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
           ),
         ]),
         const SizedBox(height: 12),
-        Text(_status),
+        Text(_status, style: Theme.of(context).textTheme.bodySmall),
+        ]))),
+        const SizedBox(height: 14),
         if (_parts.isNotEmpty) ...[
+          Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
           Row(children: [
             Text(
               _parts.length.toString() + ' partitions · ' +
@@ -372,6 +375,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
                     },
                   ),
           ),
+          ]))),
         ],
         const SizedBox(height: 12),
         Text('ACTIVITY LOG', style: Theme.of(context).textTheme.labelLarge),
