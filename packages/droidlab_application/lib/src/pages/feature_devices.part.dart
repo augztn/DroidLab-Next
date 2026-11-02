@@ -83,7 +83,7 @@ class _DeviceManagerPageState extends ConsumerState<DeviceManagerPage> {
             ]);
           }
 
-          final preferredSerial = _selectedSerial ?? globalTarget;
+          final preferredSerial = globalTarget ?? _selectedSerial;
           final selected = list.firstWhere(
             (device) => device['serial'] == preferredSerial,
             orElse: () => list.first,
