@@ -242,33 +242,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                 )),
               ]),
             ),
-            Expanded(
-              child: Center(
-                child: compact
-                    ? const SizedBox.shrink()
-                    : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          for (final item in const [
-                            ('Dashboard', '/dashboard'),
-                            ('Devices', '/devices'),
-                            ('Payload', '/firmware'),
-                            ('Debloater', '/debloater'),
-                          ])
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              child: InkWell(
-                                onTap: () => context.go(item.$2),
-                                child: Text(item.$1, style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                  color: widget.currentLocation == item.$2 ? colors.primary : colors.onSurfaceVariant,
-                                  fontWeight: widget.currentLocation == item.$2 ? FontWeight.w600 : FontWeight.w500,
-                                )),
-                              ),
-                            ),
-                        ]),
-                      ),
-              ),
-            ),
+            const Spacer(),
             FilledButton(
               onPressed: () => context.go('/settings'),
               style: FilledButton.styleFrom(
