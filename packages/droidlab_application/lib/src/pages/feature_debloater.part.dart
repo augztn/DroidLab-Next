@@ -281,6 +281,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       final system = item['system'] == true;
       final guidance = _guidance[package];
       final risk = (guidance?['risk'] as String? ?? 'Not listed').toLowerCase();
+      if (_riskFilter == 'recommended' && !_recommendations.contains(package)) return false;
       if (_riskFilter == 'low' && !risk.startsWith('low')) return false;
       if (_riskFilter == 'conditional' && !risk.startsWith('conditional')) return false;
       if (_riskFilter == 'review' && !(risk.contains('review') || risk.contains('unclear') || risk.contains('not listed'))) return false;
@@ -349,6 +350,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
             child: Wrap(spacing: 6, runSpacing: 0, children: [
               for (final filter in const [
                 ('all', 'All Risks'),
+                ('recommended', 'Recommended'),
                 ('low', 'Low Risk'),
                 ('conditional', 'Conditional'),
                 ('review', 'Review First'),
