@@ -8,6 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/backend_device_repository.dart';
 import 'app_settings.dart';
 
+/// Explicit workstation target shared by the shell and device tool pages.
+final selectedTargetSerialProvider = StateProvider<String?>((ref) => null);
+
 final backendClientProvider = Provider<BackendClient>((ref) {
   // Only process-launch settings invalidate this provider. Theme and device
   // tool-path edits must not tear down an otherwise healthy backend process.
