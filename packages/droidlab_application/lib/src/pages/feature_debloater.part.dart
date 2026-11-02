@@ -17,6 +17,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   bool _busy = false;
   List<Map<String, dynamic>> _packages = const [];
   Set<String> _disabled = {};
+  final Set<String> _selectedPackages = {};
+  static const int _maxBulkSelection = 50;
   int _loadGeneration = 0;
   String? _error;
 
@@ -52,6 +54,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       setState(() {
         _packages = packages;
         _disabled = disabled;
+        _selectedPackages.removeWhere((package) =>
+          !packages.any((item) => item['package'] == package));
         _recommendations = recommendationPackages;
         _guidance = guidanceByPackage;
       });
@@ -119,29 +123,14 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     );
   }
 
-  Future<void> _apply(Map<String, dynamic> item, String action) async {
+  Future<void> _applyPackage(String package, String action) async {
     final serial = _serial;
-    if (serial == null) return;
-    final package = item['package'] as String;
-    final label = action == 'disable' ? 'Disable' : 'Uninstall for user';
-    final explanation = action == 'uninstall'
-        ? 'This uninstalls the package for Android user ' + _userId.toString() + '. It does not remove the APK from a read-only system partition. Some dependent features may stop working.'
-        : 'This disables the package for Android user ' + _userId.toString() + '. Dependent system features may stop working.';
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(label + ' package?'),
-        content: SelectableText(package + '\n\nTarget: ' + serial + ' · user ' + _userId.toString() + '\n\n' + explanation + '\n\nReview package purpose and keep a recovery plan before continuing.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(label)),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    setState(() { _busy = true; _error = null; });
-    try {
-      await trackOperation(ref, operation: 'Android package ' + action, target: serial, action: () async {
+    if (serial == null) throw StateError('Select an authorized ADB device.');
+    await trackOperation(
+      ref,
+      operation: 'Android package $action',
+      target: serial,
+      action: () async {
         final intent = {
           'operation': 'debloat.package.apply',
           'serial': serial,
@@ -149,15 +138,132 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
           'action': action,
           'user_id': _userId,
         };
-        return ref.read(backendClientProvider).request('debloat.package.apply', {
-          ...intent, 'confirmed': true, 'confirmation': intent,
-        });
-      });
-      await _load();
+        return ref.read(backendClientProvider).request(
+          'debloat.package.apply',
+          {...intent, 'confirmed': true, 'confirmation': intent},
+        );
+      },
+    );
+  }
+
+  Future<bool> _confirmPackageAction({
+    required List<String> packages,
+    required String action,
+  }) async {
+    final label = action == 'disable' ? 'Disable' : 'Uninstall for user';
+    final explanation = action == 'uninstall'
+        ? 'Each selected package will be uninstalled for Android user $_userId. This does not remove APKs from read-only system partitions. Some dependent features may stop working.'
+        : 'Each selected package will be disabled for Android user $_userId. Dependent system features may stop working.';
+    return await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('$label ${packages.length} packages?'),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Target: ${_serial ?? 'No device'} · user $_userId'),
+                const SizedBox(height: 8),
+                Text(explanation),
+                const SizedBox(height: 12),
+                const Text('Every package will be checked individually. The batch is not transactional: if one operation fails, the remaining packages will still be attempted.'),
+                const SizedBox(height: 12),
+                Text('Selected packages', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 6),
+                for (final package in packages)
+                  SelectableText(package, style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text('$label selected'),
+          ),
+        ],
+      ),
+    ) == true;
+  }
+
+  Future<void> _apply(Map<String, dynamic> item, String action) async {
+    if (_busy) return;
+    final package = item['package'] as String;
+    final confirmed = await _confirmPackageAction(
+      packages: [package],
+      action: action,
+    );
+    if (!confirmed || !mounted) return;
+    setState(() { _busy = true; _error = null; });
+    try {
+      await _applyPackage(package, action);
+      if (mounted) setState(() => _selectedPackages.remove(package));
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+    if (mounted) await _load();
+  }
+
+  Future<void> _applySelected(String action) async {
+    if (_busy || _serial == null || _selectedPackages.isEmpty) return;
+    final packages = _selectedPackages.toList()..sort();
+    if (packages.length > _maxBulkSelection) {
+      setState(() => _error = 'Select no more than $_maxBulkSelection packages per batch.');
+      return;
+    }
+    final confirmed = await _confirmPackageAction(
+      packages: packages,
+      action: action,
+    );
+    if (!confirmed || !mounted) return;
+    setState(() { _busy = true; _error = null; });
+    final succeeded = <String>[];
+    final failed = <String, String>{};
+    try {
+      // Dispatch one package at a time. The backend independently validates
+      // the device, package presence and exact confirmation for every change.
+      for (final package in packages) {
+        if (!mounted) return;
+        try {
+          await _applyPackage(package, action);
+          succeeded.add(package);
+        } catch (error) {
+          failed[package] = error.toString();
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _selectedPackages.removeAll(succeeded);
+          _error = failed.isEmpty
+              ? '${succeeded.length} packages ${action == 'disable' ? 'disabled' : 'uninstalled for this user'}.'
+              : '${succeeded.length} succeeded; ${failed.length} failed. First failure: ${failed.entries.first.key}: ${failed.entries.first.value}';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (mounted) await _load();
+  }
+
+  void _selectVisible(List<Map<String, dynamic>> visible) {
+    final packages = visible
+        .map((item) => item['package'] as String)
+        .where((package) => !_selectedPackages.contains(package))
+        .take(_maxBulkSelection - _selectedPackages.length);
+    setState(() => _selectedPackages.addAll(packages));
+    if (_selectedPackages.length >= _maxBulkSelection && visible.any(
+      (item) => !_selectedPackages.contains(item['package']),
+    )) {
+      setState(() => _error = 'Batch selection is limited to $_maxBulkSelection packages.');
     }
   }
 
@@ -203,7 +309,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
               value: _serial,
               decoration: const InputDecoration(labelText: 'Authorized ADB device', border: OutlineInputBorder()),
               items: serials.map((value) => DropdownMenuItem(value: value, child: Text(value, overflow: TextOverflow.ellipsis))).toList(),
-              onChanged: _busy ? null : (value) => setState(() { _loadGeneration++; _serial = value; _packages = const []; _disabled = {}; _recommendations = {}; }),
+              onChanged: _busy ? null : (value) => setState(() { _loadGeneration++; _serial = value; _packages = const []; _disabled = {}; _recommendations = {}; _selectedPackages.clear(); }),
             )),
             SizedBox(width: 130, child: TextFormField(
               initialValue: '0', keyboardType: TextInputType.number,
@@ -252,6 +358,45 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
             ]),
           ),
         ]))),
+        if (_packages.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text('${_selectedPackages.length} selected',
+                    style: Theme.of(context).textTheme.labelLarge),
+                TextButton.icon(
+                  onPressed: _busy || visible.isEmpty ? null : () => _selectVisible(visible),
+                  icon: const Icon(Icons.select_all, size: 18),
+                  label: const Text('Select visible'),
+                ),
+                TextButton(
+                  onPressed: _busy || _selectedPackages.isEmpty
+                      ? null
+                      : () => setState(_selectedPackages.clear),
+                  child: const Text('Clear selection'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: _busy || _selectedPackages.isEmpty
+                      ? null
+                      : () => _applySelected('disable'),
+                  icon: const Icon(Icons.pause_circle_outline, size: 18),
+                  label: const Text('Disable selected'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: _busy || _selectedPackages.isEmpty
+                      ? null
+                      : () => _applySelected('uninstall'),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Uninstall selected'),
+                ),
+              ],
+            ),
+          ),
+        ],
         if (_error != null) Padding(padding: const EdgeInsets.all(8), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
         const SizedBox(height: 8),
         Expanded(child: _busy
@@ -272,7 +417,24 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                           visualDensity: VisualDensity.compact,
                           minVerticalPadding: 2,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                          leading: Icon(system ? Icons.android : Icons.apps, size: 20),
+                          leading: Checkbox(
+                            value: _selectedPackages.contains(package),
+                            onChanged: _busy
+                                ? null
+                                : (selected) => setState(() {
+                                    if (selected == true) {
+                                      if (_selectedPackages.length >= _maxBulkSelection) {
+                                        _error = 'Batch selection is limited to $_maxBulkSelection packages.';
+                                      } else {
+                                        _selectedPackages.add(package);
+                                        _error = null;
+                                      }
+                                    } else {
+                                      _selectedPackages.remove(package);
+                                      _error = null;
+                                    }
+                                  }),
+                          ),
                           title: SelectableText(package),
                           subtitle: Text((system ? 'System package' : 'User package') + ' · ' + (disabled ? 'Disabled' : 'Enabled') + ' · ' + (_guidance[package]?['risk'] as String? ?? 'Not listed')),
                           onTap: () => _showGuidance(item),
