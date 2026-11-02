@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter/material.dart';
-import 'package:droidlab_design_system/droidlab_design_system.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../state/backend_providers.dart';
