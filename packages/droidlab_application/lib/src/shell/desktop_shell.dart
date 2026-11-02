@@ -97,7 +97,6 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     });
   }
 
-  @override
   String get _operationLogPath {
     final home = Platform.environment['USERPROFILE'] ??
         Platform.environment['HOME'] ?? Directory.current.path;
