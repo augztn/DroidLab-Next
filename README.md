@@ -10,7 +10,7 @@ DroidLab is a cross-platform desktop engineering workstation for Android device 
 - Python backend: headless process execution, fresh device preflight, payload extraction and guarded device operations.
 - Design system: centralized dark theme tokens.
 
-The original Tkinter implementation remains in [DroidLab-Next](https://github.com/augztn/DroidLab-Next) as the behavioral reference. Development takes place on `hardening/backend-modularization` and is proposed to `main` through pull request #6.
+The original Tkinter implementation remains in [DroidLab-Next](https://github.com/augztn/DroidLab-Next) as a behavioral reference. Develop changes on a focused feature branch and propose them to `main` through a pull request. The active implementation branch and pull request can change over time; use the repository's Branches and Pull requests pages for current links.
 
 ## Development
 
