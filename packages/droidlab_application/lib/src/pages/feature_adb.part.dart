@@ -773,6 +773,8 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   @override
   Widget build(BuildContext context) {
     final devicesAsync = ref.watch(deviceListProvider);
+    final globalTarget = ref.watch(selectedTargetSerialProvider);
+    if (globalTarget != null && _serial.text != globalTarget) _serial.text = globalTarget;
     final discoveredDevices = (devicesAsync.valueOrNull?['devices'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .toList();
@@ -808,7 +810,10 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
               child: Text('$serial (${model} · $transport)',
                 overflow: TextOverflow.ellipsis));
           }).toList(),
-          onChanged: _busy ? null : (value) => setState(() => _serial.text = value ?? ''),
+          onChanged: _busy ? null : (value) {
+            setState(() => _serial.text = value ?? '');
+            ref.read(selectedTargetSerialProvider.notifier).state = value;
+          },
         )),
         const SizedBox(width: 6),
         IconButton(
