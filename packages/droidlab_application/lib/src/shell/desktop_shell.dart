@@ -8,41 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../state/backend_providers.dart';
 
-class _DroidLabMark extends StatelessWidget {
-  const _DroidLabMark({this.size = 38});
-  final double size;
-  @override
-  Widget build(BuildContext context) => SizedBox.square(
-    dimension: size,
-    child: CustomPaint(painter: _DroidLabMarkPainter()),
-  );
-}
-
-class _DroidLabMarkPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.save();
-    canvas.scale(size.width / 64);
-    final cyan = Paint()..color = const Color(0xFF38BDF8)..style = PaintingStyle.stroke..strokeWidth = 3.2..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round;
-    final green = Paint()..color = const Color(0xFF34D399)..style = PaintingStyle.stroke..strokeWidth = 3.2..strokeCap = StrokeCap.round;
-    canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(5, 5, 54, 54), const Radius.circular(12)), cyan);
-    canvas.drawLine(const Offset(23, 20), const Offset(18, 13), green);
-    canvas.drawLine(const Offset(41, 20), const Offset(46, 13), green);
-    final head = Path()..moveTo(17, 32)..arcToPoint(const Offset(47, 32), radius: const Radius.circular(15), clockwise: false);
-    canvas.drawPath(head, cyan);
-    canvas.drawLine(const Offset(17, 32), const Offset(47, 32), cyan);
-    final eye = Paint()..color = const Color(0xFF34D399);
-    canvas.drawCircle(const Offset(25, 27), 2.2, eye);
-    canvas.drawCircle(const Offset(39, 27), 2.2, eye);
-    final prompt = Path()..moveTo(19, 39)..lineTo(25, 44)..lineTo(19, 49);
-    canvas.drawPath(prompt, cyan);
-    canvas.drawLine(const Offset(30, 49), const Offset(43, 49), cyan);
-    canvas.restore();
-  }
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
 class DesktopShell extends ConsumerStatefulWidget {
   const DesktopShell({required this.child, required this.currentLocation, super.key});
   final Widget child;
@@ -270,7 +235,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
               borderRadius: BorderRadius.circular(8),
               onTap: () => context.go('/dashboard'),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const _DroidLabMark(size: 38),
+                Image.asset('assets/branding/droidlab_app_icon.png', width: 38, height: 38, fit: BoxFit.contain),
                 const SizedBox(width: 10),
                 Text('DroidLab', style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w700, letterSpacing: -0.5,
