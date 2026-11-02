@@ -17,60 +17,33 @@ class _PageFrame extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final compact = constraints.maxWidth < 820;
-      final pageIcon = switch (title) {
-        _ when title.startsWith('Dashboard') => Icons.grid_view_rounded,
-        _ when title.startsWith('Device Manager') => Icons.devices_rounded,
-        _ when title.startsWith('Firmware') || title.startsWith('Payload') => Icons.folder_open_rounded,
-        _ when title.startsWith('ADB') => Icons.terminal_rounded,
-        _ when title.startsWith('Fastboot') => Icons.memory_rounded,
-        _ when title.startsWith('Android Debloater') => Icons.cleaning_services_rounded,
-        _ when title.startsWith('Logs') => Icons.receipt_long_rounded,
-        _ when title.startsWith('Operation History') => Icons.history_rounded,
-        _ when title.startsWith('Workstation Settings') => Icons.settings_outlined,
-        _ when title.startsWith('About') => Icons.info_outline_rounded,
-        _ => Icons.tune_rounded,
-      };
-      final heading = Row(
+      final heading = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: compact ? 40 : 46,
-            height: compact ? 40 : 46,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.11),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(pageIcon, color: Theme.of(context).colorScheme.primary, size: compact ? 20 : 23),
-          ),
-          const SizedBox(width: 14),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, maxLines: compact ? 2 : 1, overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontSize: compact ? 22 : 27,
-                  height: 1.16,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.65,
-                )),
-              if (subtitle != null) ...[
-                const SizedBox(height: 6),
-                Text(subtitle!, maxLines: compact ? 3 : 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    height: 1.45,
-                  )),
-              ],
-            ],
-          )),
+          Text(title, maxLines: compact ? 2 : 1, overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontSize: compact ? 22 : 26,
+              height: 1.18,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.75,
+            )),
+          if (subtitle != null) ...[
+            const SizedBox(height: 5),
+            Text(subtitle!, maxLines: compact ? 3 : 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 13.5,
+                height: 1.4,
+              )),
+          ],
         ],
       );
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.only(bottom: 19),
+            padding: const EdgeInsets.only(bottom: 17),
             child: compact
               ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   heading,
@@ -92,7 +65,7 @@ class _PageFrame extends StatelessWidget {
                 ]),
           ),
           Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
-          const SizedBox(height: 19),
+          const SizedBox(height: 17),
           Expanded(child: child),
         ],
       );
