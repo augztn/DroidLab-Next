@@ -63,6 +63,9 @@ jobs:
       - name: Application package tests
         working-directory: packages/droidlab_application
         run: flutter test
+      - name: Backend bridge lifecycle tests
+        working-directory: packages/droidlab_backend_bridge
+        run: flutter test
       - name: Build desktop release
         working-directory: apps/desktop
         run: flutter build ${{ matrix.platform }} --release
