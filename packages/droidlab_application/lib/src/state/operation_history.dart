@@ -181,6 +181,10 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
 
   Future<void> record(OperationRecord record) async {
     await _loaded;
+    if (state.hasError) {
+      persistenceError = 'History could not be loaded; writes are blocked to preserve the existing files.';
+      return;
+    }
     final safeRecord = _sanitizeRecord(record);
     final current = state.valueOrNull ?? const <OperationRecord>[];
     final records = <OperationRecord>[safeRecord, ...current]
@@ -197,6 +201,10 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
 
   Future<void> clear() async {
     await _loaded;
+    if (state.hasError) {
+      persistenceError = 'History could not be loaded; clear is blocked to preserve the existing files.';
+      return;
+    }
     state = const AsyncData([]);
     _writeTail = _writeTail.catchError((_) {}).then((_) async {
       final file = await _historyFile();
