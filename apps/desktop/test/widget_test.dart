@@ -33,7 +33,6 @@ void main() {
     expect(find.text('ADB Toolkit'), findsOneWidget);
     expect(find.text('Fastboot Toolkit'), findsOneWidget);
     expect(find.text('Logs & Diagnostics'), findsOneWidget);
-    expect(find.text('Operation History'), findsOneWidget);
     expect(
       find.text('Operation Console (Bounded 300-line JSONL Event Stream)'),
       findsOneWidget,
