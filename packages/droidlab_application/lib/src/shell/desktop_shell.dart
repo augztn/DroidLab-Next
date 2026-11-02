@@ -91,6 +91,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
           if (_consoleLines.length > 300) {
             _consoleLines.removeRange(0, _consoleLines.length - 300);
           }
+          ref.read(operationConsoleLinesProvider.notifier).state = List.unmodifiable(_consoleLines);
         });
       });
     });
@@ -401,7 +402,10 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Colors.white),
                     )),
                     TextButton.icon(
-                      onPressed: () => setState(_consoleLines.clear),
+                      onPressed: () => setState(() {
+                        _consoleLines.clear();
+                        ref.read(operationConsoleLinesProvider.notifier).state = const [];
+                      }),
                       icon: const Icon(Icons.delete_outline, size: 16),
                       label: const Text('Clear'),
                       style: TextButton.styleFrom(foregroundColor: colors.onSurfaceVariant),
