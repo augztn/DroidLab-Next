@@ -14,37 +14,58 @@ class _PageFrame extends StatelessWidget {
   final List<Widget> actions;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Padding(
-        padding: const EdgeInsets.only(bottom: 18),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.7,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 760;
+      final heading = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, maxLines: compact ? 2 : 1, overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontSize: compact ? 22 : 26,
+              height: 1.15,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.55,
+            )),
+          if (subtitle != null) ...[
+            const SizedBox(height: 6),
+            Text(subtitle!, maxLines: compact ? 3 : 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.4,
               )),
-              if (subtitle != null) ...[
-                const SizedBox(height: 5),
-                Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 15,
-                )),
-              ],
-            ],
-          )),
-          const SizedBox(width: 16),
-          ...actions,
-        ]),
-      ),
-      Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
-      const SizedBox(height: 20),
-      Expanded(child: child),
-    ],
+          ],
+        ],
+      );
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: compact
+              ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  heading,
+                  if (actions.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Align(alignment: Alignment.centerLeft,
+                      child: Wrap(spacing: 8, runSpacing: 8, children: actions)),
+                  ],
+                ])
+              : Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                  Expanded(child: heading),
+                  if (actions.isNotEmpty) ...[
+                    const SizedBox(width: 16),
+                    Wrap(spacing: 8, runSpacing: 8, children: actions),
+                  ],
+                ]),
+          ),
+          Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
+          const SizedBox(height: 18),
+          Expanded(child: child),
+        ],
+      );
+    },
   );
 }
 
