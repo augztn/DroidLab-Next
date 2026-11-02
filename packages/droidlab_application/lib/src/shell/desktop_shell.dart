@@ -314,15 +314,22 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                         padding: const EdgeInsets.symmetric(vertical: 2),
                         child: Tooltip(
                           message: item.$1,
-                          child: ListTile(
-                            selected: widget.currentLocation == item.$2,
-                            leading: Icon(item.$3, size: 19),
-                            title: expanded ? Text(item.$1, maxLines: 1, overflow: TextOverflow.ellipsis) : null,
-                            contentPadding: EdgeInsets.symmetric(horizontal: expanded ? 12 : 0),
-                            dense: true,
-                            minLeadingWidth: 22,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-                            onTap: () => context.go(item.$2),
+                          child: Material(
+                            color: colors.surface,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: ListTile(
+                              selected: widget.currentLocation == item.$2,
+                              leading: Icon(item.$3, size: 19),
+                              title: expanded ? Text(item.$1, maxLines: 1, overflow: TextOverflow.ellipsis) : null,
+                              contentPadding: EdgeInsets.symmetric(horizontal: expanded ? 12 : 0),
+                              dense: true,
+                              minLeadingWidth: 22,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+                              onTap: () => context.go(item.$2),
+                            ),
                           ),
                         ),
                       ),
