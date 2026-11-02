@@ -9,7 +9,6 @@ void main() {
     final router = container.read(appRouterProvider);
     expect(router.routeInformationProvider.value.uri.path, '/dashboard');
   });
-}
 
   test('device discovery selects ADB route when only authorized ADB is present', () {
     expect(
@@ -47,3 +46,4 @@ void main() {
       isNull,
     );
   });
+}
