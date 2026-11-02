@@ -35,7 +35,7 @@ _ACTIVE: dict[str, threading.Event] = {}
 _WORKER_SLOTS = threading.BoundedSemaphore(MAX_ACTIVE_REQUESTS)
 _DEVICE_LOCKS: dict[str, threading.Lock] = {}
 _DEVICE_LOCKS_LOCK = threading.Lock()
-_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active"}
+_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active", "debloat.package.apply"}
 
 def emit(message: dict[str, Any]) -> None:
     envelope = {"version": PROTOCOL_VERSION, "timestamp": time.time(), **message}
@@ -522,17 +522,79 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         else:
             raise RuntimeError("Unsupported device transport.")
         return {"serial": serial, "transport": device.get("transport"), "state": device.get("state"), "metadata": values}
-    if operation == "adb.device_info":
+    if operation == "debloat.packages.list":
         serial = args.get("serial")
+        user_id = args.get("user_id", 0)
+        if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id < 0 or user_id > 2147483647:
+            raise ValueError("user_id must be a non-negative Android user ID.")
         require_adb(serial, cancel_event=cancel)
-        keys = ["ro.product.manufacturer", "ro.product.model", "ro.product.device",
-            "ro.build.version.release", "ro.build.version.sdk", "ro.boot.slot_suffix"]
-        result = run_streaming([tool_path("adb"), "-s", serial, "shell", "getprop"],
+        command = [tool_path("adb"), "-s", serial, "shell", "pm", "list", "packages", "-f", "--user", str(user_id)]
+        result = run_streaming(command, timeout=60, cancel_event=cancel)
+        if result.returncode:
+            raise RuntimeError(f"Package inventory failed ({result.returncode}): {result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        packages = {}
+        for line in result.stdout.splitlines():
+            value = line.strip()
+            if not value.startswith("package:"):
+                continue
+            body = value[len("package:"):]
+            path, separator, package = body.rpartition("=")
+            package = package if separator else body
+            if not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
+                continue
+            if package not in packages:
+                packages[package] = {"package": package, "apk_path": path if separator else "", "system": path.startswith(("/system/", "/product/", "/vendor/", "/apex/"))}
+        return {"serial": serial, "user_id": user_id, "packages": [packages[key] for key in sorted(packages, key=str.casefold)]}
+    if operation == "debloat.package.state":
+        serial, package = args.get("serial"), args.get("package")
+        user_id = args.get("user_id", 0)
+        if not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
+            raise ValueError("Invalid Android package name.")
+        if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id < 0 or user_id > 2147483647:
+            raise ValueError("user_id must be a non-negative Android user ID.")
+        require_adb(serial, cancel_event=cancel)
+        result = run_streaming([tool_path("adb"), "-s", serial, "shell", "pm", "list", "packages", "-d", "--user", str(user_id)],
             timeout=30, cancel_event=cancel)
         if result.returncode:
-            raise RuntimeError(f"getprop failed: {result.stdout[-MAX_RETAINED_OUTPUT:]}")
-        properties = parse_getprop_output(result.stdout)
-        return {"serial": serial, "properties": {key: properties.get(key, "") for key in keys}}
+            raise RuntimeError(f"Could not inspect disabled packages: {result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        disabled = any(line.strip() == "package:" + package for line in result.stdout.splitlines())
+        return {"serial": serial, "package": package, "user_id": user_id, "state": "disabled" if disabled else "enabled"}
+    if operation == "debloat.package.apply":
+        serial, package, action = args.get("serial"), args.get("package"), args.get("action")
+        user_id = args.get("user_id", 0)
+        if not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
+            raise ValueError("Invalid Android package name.")
+        if action not in {"disable", "uninstall", "enable", "restore"}:
+            raise ValueError("Unsupported package action.")
+        if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id < 0 or user_id > 2147483647:
+            raise ValueError("user_id must be a non-negative Android user ID.")
+        intent = {"operation": "debloat.package.apply", "serial": serial, "package": package, "action": action, "user_id": user_id}
+        require_confirmation(args, "Android package state change", intent)
+        require_adb(serial, cancel_event=cancel)
+        inventory = run_capture([tool_path("adb"), "-s", serial, "shell", "pm", "list", "packages", "--user", str(user_id)], 30, cancel)
+        if inventory.returncode or not any(line.strip() == "package:" + package for line in inventory.stdout.splitlines()):
+            raise RuntimeError("The selected package is not installed for this user. Refresh the package list; no change was applied.")
+        commands = {
+            "disable": ["shell", "pm", "disable-user", "--user", str(user_id), package],
+            "uninstall": ["shell", "pm", "uninstall", "--user", str(user_id), package],
+            "enable": ["shell", "pm", "enable", "--user", str(user_id), package],
+            "restore": ["shell", "cmd", "package", "install-existing", "--user", str(user_id), package],
+        }
+        command = [tool_path("adb"), "-s", serial, *commands[action]]
+        response(request_id, "preflight", target=serial, command=command, destructive=action in {"disable", "uninstall"})
+        result = run_streaming(command, timeout=90, cancel_event=cancel,
+            on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
+        if result.returncode:
+            raise RuntimeError(f"Package {action} failed ({result.returncode}): {result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        output = result.stdout.strip()
+        accepted = (
+            (action == "uninstall" and "success" in output.casefold()) or
+            (action in {"disable", "enable"} and ("new state:" in output.casefold() or "enabled" in output.casefold() or "disabled" in output.casefold())) or
+            (action == "restore" and ("success" in output.casefold() or "installed" in output.casefold()))
+        )
+        if not accepted:
+            raise RuntimeError(f"Package manager did not confirm {action}: {output or 'empty response'}")
+        return {"serial": serial, "package": package, "action": action, "user_id": user_id, "output": output}
     if operation == "adb.logcat.start":
         serial, filters = args.get("serial"), args.get("filters", [])
         require_adb(serial, cancel_event=cancel)
