@@ -1,7 +1,13 @@
 part of 'feature_pages.dart';
 
-class LogsPage extends ConsumerWidget {
+class LogsPage extends ConsumerStatefulWidget {
   const LogsPage({super.key});
+  @override
+  ConsumerState<LogsPage> createState() => _LogsPageState();
+}
+
+class _LogsPageState extends ConsumerState<LogsPage> {
+  String _filter = '';
 
   Future<void> _openLogDirectory(BuildContext context) async {
     final home = Platform.environment['HOME'] ??
@@ -30,6 +36,34 @@ class LogsPage extends ConsumerWidget {
     }
   }
 
+
+  Future<void> _downloadConsoleHistory(BuildContext context) async {
+    final location = await getSaveLocation(
+      suggestedName: 'droidlab-operation-console.json',
+      acceptedTypeGroups: const [XTypeGroup(label: 'JSON files', extensions: ['json'])],
+    );
+    if (location == null) return;
+    try {
+      final lines = ref.read(operationConsoleLinesProvider);
+      final payload = {
+        'schema_version': 1,
+        'application': 'DroidLab',
+        'exported_at': DateTime.now().toUtc().toIso8601String(),
+        'entry_count': lines.length,
+        'entries': lines,
+      };
+      final file = File(location.path);
+      await file.parent.create(recursive: true);
+      await file.writeAsString(const JsonEncoder.withIndent('  ').convert(payload), flush: true);
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Console history exported to ${file.path}')),
+      );
+    } catch (error) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not export console history: $error')),
+      );
+    }
+  }
 
   Future<void> _saveLogs(BuildContext context, WidgetRef ref) async {
     final location = await getSaveLocation(
@@ -157,11 +191,17 @@ class LogsPage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final ref = this.ref;
+    final consoleLines = ref.watch(operationConsoleLinesProvider);
+    final visibleConsoleLines = consoleLines.where((line) => _filter.isEmpty || line.toLowerCase().contains(_filter.toLowerCase())).toList(growable: false);
     final backend = ref.watch(backendReadyProvider);
     final diagnostics = ref.read(backendClientProvider).diagnostics;
     final raw = diagnostics.join('\n');
-    final sanitized = redactDiagnosticText(raw);
+    final filteredRaw = visibleConsoleLines.isEmpty && consoleLines.isEmpty
+        ? diagnostics.where((line) => _filter.isEmpty || line.toLowerCase().contains(_filter.toLowerCase())).join('\\n')
+        : [...visibleConsoleLines, ...diagnostics.where((line) => _filter.isEmpty || line.toLowerCase().contains(_filter.toLowerCase()))].join('\\n');
+    final sanitized = redactDiagnosticText(filteredRaw);
     Widget previewCard(String title, String subtitle, String value, {bool safe = false}) => Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -180,7 +220,7 @@ class LogsPage extends ConsumerWidget {
               border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
             ),
             child: SingleChildScrollView(child: SelectableText(
-              value.isEmpty ? 'No diagnostic lines are available yet.' : value,
+              value.isEmpty ? 'No matching log lines are available.' : value,
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 12,
@@ -202,6 +242,11 @@ class LogsPage extends ConsumerWidget {
           label: const Text('Open logs folder'),
         ),
         OutlinedButton.icon(
+          onPressed: () => _downloadConsoleHistory(context),
+          icon: const Icon(Icons.download),
+          label: const Text('Download Logs'),
+        ),
+        OutlinedButton.icon(
           onPressed: () => _saveLogs(context, ref),
           icon: const Icon(Icons.save_alt),
           label: const Text('Save logs'),
@@ -212,7 +257,24 @@ class LogsPage extends ConsumerWidget {
           label: const Text('Export report'),
         ),
       ],
-      child: backend.when(
+      child: Column(children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: TextField(
+            onChanged: (value) => setState(() => _filter = value),
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search),
+              hintText: 'Filter active log stream by keyword…',
+              suffixIcon: _filter.isEmpty ? null : IconButton(
+                tooltip: 'Clear filter',
+                onPressed: () => setState(() => _filter = ''),
+                icon: const Icon(Icons.close),
+              ),
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ),
+        Expanded(child: backend.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => _ErrorPanel(
           message: error.toString(),
@@ -221,18 +283,19 @@ class LogsPage extends ConsumerWidget {
         data: (_) {
           if (MediaQuery.sizeOf(context).width < 950) {
             return Column(children: [
-              Expanded(child: previewCard('Raw Diagnostics', 'Unredacted local backend diagnostics. Review before sharing.', raw)),
+              Expanded(child: previewCard('Active Operation Console & Diagnostics', 'Live console events and local backend diagnostics. Review before sharing.', filteredRaw)),
               const SizedBox(height: 14),
               Expanded(child: previewCard('Sanitized Export Preview', 'Redacted output for bug reports and issue attachments.', sanitized, safe: true)),
             ]);
           }
           return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Expanded(child: previewCard('Raw Logcat / Diagnostics', 'Unredacted local diagnostic input. Review before sharing.', raw)),
+            Expanded(child: previewCard('Active Operation Console & Diagnostics', 'Live console events and local backend diagnostics. Review before sharing.', filteredRaw)),
             const SizedBox(width: 24),
             Expanded(child: previewCard('Sanitized Export Preview', 'Redacted output for bug reports and issue attachments.', sanitized, safe: true)),
           ]);
         },
-      ),
+        )),
+      ]),
     );
   }
 }
