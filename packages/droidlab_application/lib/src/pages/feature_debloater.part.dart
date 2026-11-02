@@ -278,10 +278,10 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       final system = item['system'] == true;
       final guidance = _guidance[package];
       final risk = (guidance?['risk'] as String? ?? 'Not listed').toLowerCase();
-      if (_riskFilter == 'recommended' && !_recommendations.contains(package)) return false;
-      if (_riskFilter == 'advanced' && !risk.contains('advanced')) return false;
+      if (_riskFilter == 'low' && !risk.startsWith('low')) return false;
+      if (_riskFilter == 'conditional' && !risk.startsWith('conditional')) return false;
       if (_riskFilter == 'review' && !(risk.contains('review') || risk.contains('unclear') || risk.contains('not listed'))) return false;
-      if (_riskFilter == 'keep' && !(risk.contains('critical') || risk.startsWith('high') || risk.contains('keep'))) return false;
+      if (_riskFilter == 'critical' && !(risk.contains('critical') || risk.startsWith('high') || risk.contains('keep'))) return false;
       if (_filter == 'system' && !system) return false;
       if (_filter == 'user' && system) return false;
       final query = _query.trim().toLowerCase();
@@ -289,7 +289,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     }).toList(growable: false);
 
     return _PageFrame(
-      title: 'Android Debloater',
+      title: 'Android Debloater Workspace',
       subtitle: 'Inspect installed packages. Every package change requires explicit confirmation.',
       actions: [
         IconButton(onPressed: _busy || _serial == null ? null : _load, tooltip: 'Refresh packages', icon: const Icon(Icons.refresh)),
@@ -344,10 +344,20 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
           Align(
             alignment: Alignment.centerLeft,
             child: Wrap(spacing: 6, runSpacing: 0, children: [
-              FilterChip(materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact, label: const Text('Recommended'), selected: _riskFilter == 'recommended', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'recommended' ? 'all' : 'recommended')),
-              FilterChip(materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact, label: const Text('Advanced'), selected: _riskFilter == 'advanced', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'advanced' ? 'all' : 'advanced')),
-              FilterChip(materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact, label: const Text('Review first'), selected: _riskFilter == 'review', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'review' ? 'all' : 'review')),
-              FilterChip(materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact, label: const Text('Keep'), selected: _riskFilter == 'keep', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'keep' ? 'all' : 'keep')),
+              for (final filter in const [
+                ('all', 'All Risks'),
+                ('low', 'Low Risk'),
+                ('conditional', 'Conditional'),
+                ('review', 'Review First'),
+                ('critical', 'Critical'),
+              ])
+                FilterChip(
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  label: Text(filter.$2),
+                  selected: _riskFilter == filter.$1,
+                  onSelected: (_) => setState(() => _riskFilter = filter.$1),
+                ),
             ]),
           ),
         ]))),
@@ -398,42 +408,83 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
               ? const _EmptyPanel(icon: Icons.usb_off, title: 'Select an authorized device', message: 'Connect a phone, enable USB debugging, authorize it, then refresh devices.')
               : _packages.isEmpty
                   ? const _EmptyPanel(icon: Icons.apps, title: 'No package inventory loaded', message: 'Load packages to inspect the selected Android user.')
-                  : ListView.separated(
-                      itemCount: visible.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 4),
-                      itemBuilder: (context, index) {
-                        final item = visible[index];
-                        final package = item['package'] as String;
-                        final system = item['system'] == true;
-                        final disabled = _disabled.contains(package);
-                        return Card(child: ListTile(
-                          visualDensity: VisualDensity.compact,
-                          minVerticalPadding: 2,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                          leading: Checkbox(
-                            value: _selectedPackages.contains(package),
-                            onChanged: _busy
-                                ? null
-                                : (selected) => setState(() {
-                                    if (selected == true) {
-                                      _selectedPackages.add(package);
-                                      _error = null;
-                                    } else {
-                                      _selectedPackages.remove(package);
-                                      _error = null;
-                                    }
-                                  }),
-                          ),
-                          title: SelectableText(package),
-                          subtitle: Text((system ? 'System package' : 'User package') + ' · ' + (disabled ? 'Disabled' : 'Enabled') + ' · ' + (_guidance[package]?['risk'] as String? ?? 'Not listed')),
-                          onTap: () => _showGuidance(item),
-                          trailing: Wrap(spacing: 4, children: [
-                            TextButton(onPressed: _busy || disabled ? null : () => _apply(item, 'disable'), child: const Text('Disable')),
-                            TextButton(onPressed: _busy ? null : () => _apply(item, 'uninstall'), child: const Text('Uninstall')),
-                          ]),
-                        ));
-                      },
-                    )),
+                  : Column(children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                        ),
+                        child: const Row(children: [
+                          SizedBox(width: 42, child: Text('Select')),
+                          Expanded(flex: 4, child: Text('Package Identifier / Label')),
+                          Expanded(flex: 5, child: Text('OEM / Function')),
+                          Expanded(flex: 2, child: Text('Advisory Risk')),
+                          SizedBox(width: 88, child: Text('User State')),
+                          SizedBox(width: 84, child: Text('Guidance')),
+                        ]),
+                      ),
+                      Expanded(child: ListView.separated(
+                        itemCount: visible.length,
+                        separatorBuilder: (_, __) => Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
+                        itemBuilder: (context, index) {
+                          final item = visible[index];
+                          final package = item['package'] as String;
+                          final system = item['system'] == true;
+                          final disabled = _disabled.contains(package);
+                          final guidance = _guidance[package] ?? const <String, dynamic>{};
+                          final app = guidance['app']?.toString() ?? package;
+                          final function = guidance['function']?.toString() ??
+                              (system ? 'System package · review dependencies' : 'Installed user application');
+                          final risk = guidance['risk']?.toString() ?? 'Not listed';
+                          final riskLower = risk.toLowerCase();
+                          final riskColor = riskLower.startsWith('low')
+                              ? Theme.of(context).colorScheme.tertiary
+                              : riskLower.startsWith('critical') || riskLower.startsWith('high')
+                                  ? Theme.of(context).colorScheme.error
+                                  : Theme.of(context).colorScheme.secondary;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                            child: Row(children: [
+                              SizedBox(width: 42, child: Checkbox(
+                                value: _selectedPackages.contains(package),
+                                onChanged: _busy ? null : (selected) => setState(() {
+                                  if (selected == true) {
+                                    _selectedPackages.add(package);
+                                    _error = null;
+                                  } else {
+                                    _selectedPackages.remove(package);
+                                    _error = null;
+                                  }
+                                }),
+                              )),
+                              Expanded(flex: 4, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(app, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+                                const SizedBox(height: 3),
+                                SelectableText(package, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  fontFamily: 'monospace',
+                                )),
+                              ])),
+                              Expanded(flex: 5, child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                child: Text(function, maxLines: 2, overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall),
+                              )),
+                              Expanded(flex: 2, child: Text(risk, maxLines: 2, overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: riskColor))),
+                              SizedBox(width: 88, child: Text(disabled ? 'disabled' : 'enabled',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'))),
+                              SizedBox(width: 84, child: TextButton(
+                                onPressed: () => _showGuidance(item),
+                                child: const Text('Explain'),
+                              )),
+                            ]),
+                          );
+                        },
+                      )),
+                    ])),
         Align(alignment: Alignment.centerLeft, child: Text(visible.length.toString() + ' of ' + _packages.length.toString() + ' packages · ' + _disabled.length.toString() + ' disabled', style: Theme.of(context).textTheme.bodySmall)),
       ]),
     );
