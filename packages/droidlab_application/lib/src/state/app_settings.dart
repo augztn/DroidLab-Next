@@ -83,6 +83,28 @@ class DroidLabSettingsStore {
   Future<DroidLabSettings> load() async {
     recoveryNotice = null;
     _unreadableConfigPreserved = false;
+    final backup = File('${_file.path}.bak');
+    if (!await _file.exists() && await backup.exists()) {
+      try {
+        final recovered = jsonDecode(await backup.readAsString());
+        final settings = recovered is Map<String, dynamic>
+            ? DroidLabSettings.fromJson(recovered)
+            : recovered is Map
+                ? DroidLabSettings.fromJson(recovered.cast<String, dynamic>())
+                : throw const FormatException('Backup did not contain a JSON object.');
+        await backup.rename(_file.path);
+        recoveryNotice = 'Settings were restored from the backup after an interrupted save.';
+        return settings;
+      } on FormatException catch (error) {
+        recoveryNotice = 'The settings backup is invalid and was preserved at ${backup.path}: ${error.message}';
+        _unreadableConfigPreserved = false;
+        return _defaultSettings();
+      } on FileSystemException catch (error) {
+        recoveryNotice = 'The settings backup could not be restored: ${error.message}';
+        _unreadableConfigPreserved = false;
+        return _defaultSettings();
+      }
+    }
     try {
       final value = jsonDecode(await _file.readAsString());
       if (value is Map<String, dynamic>) return DroidLabSettings.fromJson(value);
@@ -99,14 +121,16 @@ class DroidLabSettingsStore {
       // replacing the only copy when the user next saves settings.
       await _preserveCorruptConfig(error.message);
     }
-    return DroidLabSettings(
-      pythonPath: Platform.environment['DROIDLAB_PYTHON'] ?? '',
-      backendPath: Platform.environment['DROIDLAB_BACKEND_SCRIPT'] ?? '',
-      adbPath: Platform.environment['DROIDLAB_ADB_PATH'] ?? '',
-      fastbootPath: Platform.environment['DROIDLAB_FASTBOOT_PATH'] ?? '',
-      payloadDumperPath: Platform.environment['DROIDLAB_PAYLOAD_DUMPER_GO_PATH'] ?? '',
-    );
+    return _defaultSettings();
   }
+
+  DroidLabSettings _defaultSettings() => DroidLabSettings(
+        pythonPath: Platform.environment['DROIDLAB_PYTHON'] ?? '',
+        backendPath: Platform.environment['DROIDLAB_BACKEND_SCRIPT'] ?? '',
+        adbPath: Platform.environment['DROIDLAB_ADB_PATH'] ?? '',
+        fastbootPath: Platform.environment['DROIDLAB_FASTBOOT_PATH'] ?? '',
+        payloadDumperPath: Platform.environment['DROIDLAB_PAYLOAD_DUMPER_GO_PATH'] ?? '',
+      );
 
   Future<void> _preserveCorruptConfig(String reason) async {
     try {

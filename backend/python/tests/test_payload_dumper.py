@@ -21,6 +21,14 @@ class PayloadDumperTests(unittest.TestCase):
   output=self.root/"images";output.mkdir();dest=output/"boot.img";dest.write_bytes(b"keep")
   with self.assertRaises(payload_dumper.BackendError):payload_dumper.extract(str(self.source),str(output),["boot"])
   self.assertEqual(dest.read_bytes(),b"keep")
+ def test_extract_falls_back_when_output_filesystem_rejects_hard_links(self):
+  output=self.root/"images"
+  with patch("droidlab.core.file_transfer.os.link",side_effect=OSError(__import__("errno").EOPNOTSUPP,"unsupported")):
+   result=payload_dumper.extract(str(self.source),str(output),["boot"])
+  self.assertEqual((output/"boot.img").read_bytes(),b"hello")
+  self.assertEqual(result[0]["size_bytes"],5)
+  self.assertEqual(list(self.root.glob(".droidlab-stage-*")),[])
+
  def test_invalid_partition_is_rejected(self):
   with self.assertRaises(payload_dumper.BackendError):payload_dumper.extract(str(self.source),str(self.root/"images"),["../userdata"])
 

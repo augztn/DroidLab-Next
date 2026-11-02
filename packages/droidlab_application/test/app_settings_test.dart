@@ -20,6 +20,49 @@ void main() {
     expect(settings.fastbootPath, isEmpty);
   });
 
+  test('recovers settings backup after interrupted atomic save', () async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-settings-recovery-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final file = File(temporary.path + '/config.json');
+    final backup = File('${file.path}.bak');
+    final staleTemporary = File('${file.path}.tmp');
+    await backup.writeAsString(
+      '{"schema_version":1,"theme":"oled_black","adb_path":"/recovered/adb"}',
+    );
+    await staleTemporary.writeAsString('incomplete write');
+
+    final store = DroidLabSettingsStore(file: file);
+    final settings = await store.load();
+
+    expect(settings.theme, 'oled_black');
+    expect(settings.adbPath, '/recovered/adb');
+    expect(store.recoveryNotice, contains('restored from the backup'));
+    expect(await file.exists(), isTrue);
+    expect(await backup.exists(), isFalse);
+    expect(await staleTemporary.exists(), isTrue);
+    expect((await DroidLabSettingsStore(file: file).load()).adbPath, '/recovered/adb');
+  });
+
+  test('preserves invalid backup rather than replacing it with defaults', () async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-invalid-backup-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final file = File(temporary.path + '/config.json');
+    final backup = File('${file.path}.bak');
+    await backup.writeAsString('{invalid');
+
+    final store = DroidLabSettingsStore(file: file);
+    final settings = await store.load();
+
+    expect(settings.theme, 'cyberpunk_glass');
+    expect(store.recoveryNotice, contains('backup is invalid'));
+    expect(await backup.readAsString(), '{invalid');
+    await expectLater(
+      store.save(const DroidLabSettings(theme: 'oled_black')),
+      throwsA(isA<FileSystemException>()),
+    );
+    expect(await backup.readAsString(), '{invalid');
+  });
+
   test('persists theme and executable overrides in legacy config location', () async {
     final temporary = await Directory.systemTemp.createTemp('droidlab-settings-');
     addTearDown(() => temporary.delete(recursive: true));
