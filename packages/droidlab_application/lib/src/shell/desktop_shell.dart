@@ -22,6 +22,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   StreamSubscription<BackendEvent>? _events;
   BackendClient? _eventClient;
   Timer? _deviceRefreshTimer;
+  Timer? _consoleFlushTimer;
+  final List<String> _pendingConsoleLines = [];
   String? _pendingDeviceToolRoute;
   Future<void> _logWriteQueue = Future<void>.value();
   IOSink? _operationLogSink;
@@ -37,7 +39,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   @override
   void initState() {
     super.initState();
-    _deviceRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _deviceRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted && ref.read(backendReadyProvider).hasValue) {
         ref.invalidate(deviceListProvider);
       }
@@ -74,12 +76,20 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
               ? '[preflight details omitted]'
               : '[operation accepted]';
       unawaited(_appendOperationLog('$timestamp $persistedEvent'));
-      final timestamped = '$timestamp $line';
-      setState(() {
-        _consoleLines.add(timestamped);
-        if (_consoleLines.length > 300) {
-          _consoleLines.removeRange(0, _consoleLines.length - 300);
-        }
+      _pendingConsoleLines.add('$timestamp $line');
+      // Coalesce bursts of ADB/logcat output into one UI update. ADB can emit
+      // hundreds of lines per second; rebuilding the entire desktop shell for
+      // every line creates avoidable frame work.
+      _consoleFlushTimer ??= Timer(const Duration(milliseconds: 100), () {
+        _consoleFlushTimer = null;
+        if (!mounted || _pendingConsoleLines.isEmpty) return;
+        setState(() {
+          _consoleLines.addAll(_pendingConsoleLines);
+          _pendingConsoleLines.clear();
+          if (_consoleLines.length > 300) {
+            _consoleLines.removeRange(0, _consoleLines.length - 300);
+          }
+        });
       });
     });
   }
@@ -134,6 +144,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   @override
   void dispose() {
     _deviceRefreshTimer?.cancel();
+    _consoleFlushTimer?.cancel();
+    _pendingConsoleLines.clear();
     unawaited(_events?.cancel() ?? Future<void>.value());
     unawaited(_closeOperationLog());
     super.dispose();
@@ -197,11 +209,11 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
         loading: () => 'Backend starting',
       );
       return Scaffold(body: SafeArea(child: Column(children: [
-        Container(height: 62, padding: const EdgeInsets.symmetric(horizontal: 16),
+        Container(height: 56, padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(color: colors.surface, border: Border(bottom: BorderSide(color: colors.outlineVariant))),
           child: Row(children: [
             IconButton(tooltip: 'Toggle navigation', onPressed: () => setState(() => _expanded = !_expanded), icon: const Icon(Icons.menu)),
-            Container(width: 34,height: 34,alignment: Alignment.center,decoration: BoxDecoration(color: colors.primary,borderRadius: BorderRadius.circular(9)),child: const Text('DL',style: TextStyle(fontWeight: FontWeight.bold,color: Colors.white))),
+            Container(width: 32,height: 32,alignment: Alignment.center,decoration: BoxDecoration(color: colors.primary,borderRadius: BorderRadius.circular(9)),child: const Text('DL',style: TextStyle(fontWeight: FontWeight.bold,color: Colors.white))),
             const SizedBox(width: 12),
             Text('DroidLab',style: Theme.of(context).textTheme.titleLarge),
             if (!compact) ...[const SizedBox(width: 12),Text('ANDROID ENGINEERING WORKSTATION',style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 1))],
@@ -226,7 +238,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
           ]),
         ),
         Expanded(child: Row(children: [
-          AnimatedContainer(duration: const Duration(milliseconds: 160),width: expanded ? 232 : 68,color: colors.surface,
+          AnimatedContainer(duration: const Duration(milliseconds: 160),width: expanded ? 216 : 60,color: colors.surface,
             child: ListView(padding: const EdgeInsets.symmetric(vertical: 14),children: [
               for (final group in _groups) ...[
                 if (expanded) Padding(padding: const EdgeInsets.fromLTRB(16,14,8,8),child: Text(group.$1,style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant,letterSpacing: 1))),
@@ -288,7 +300,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
           Expanded(child: Padding(padding: EdgeInsets.all(compact ? 12 : 20),child: widget.child)),
         ])),
         if (_consoleVisible)
-          Container(height: 132,decoration: BoxDecoration(color: surfaces?.console ?? colors.surface,border: Border(top: BorderSide(color: colors.outlineVariant))),
+          Container(height: 112,decoration: BoxDecoration(color: surfaces?.console ?? colors.surface,border: Border(top: BorderSide(color: colors.outlineVariant))),
             child: Column(children: [
               ListTile(dense: true,leading: Icon(Icons.terminal,color: colors.primary),title: const Text('OPERATION CONSOLE'),trailing: Row(mainAxisSize: MainAxisSize.min,children: [
                 IconButton(tooltip: 'Clear console',onPressed: () => setState(_consoleLines.clear),icon: const Icon(Icons.clear_all)),
