@@ -580,6 +580,11 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
             child: const Text('Set Active Slot B'),
           )),
         ]),
+        const SizedBox(height: 8),
+        OutlinedButton(
+          onPressed: _busy || !fastbootTarget ? null : () => _setActiveSlot('other'),
+          child: const Text('Switch to other slot'),
+        ),
       ],
     );
     final erasePanel = panel(
@@ -587,6 +592,10 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       'Destructive partition erase requires exact partition confirmation.',
       [
         Wrap(spacing: 8, runSpacing: 8, children: [
+          OutlinedButton(
+            onPressed: _busy || !fastbootTarget ? null : () => _mutate('fastboot.erase'),
+            child: const Text('Erase selected partition'),
+          ),
           OutlinedButton(
             onPressed: _busy || !fastbootTarget ? null : () { _partition.text = 'cache'; _mutate('fastboot.erase'); },
             child: const Text('Erase cache'),
