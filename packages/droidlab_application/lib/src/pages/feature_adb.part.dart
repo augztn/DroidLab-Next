@@ -805,7 +805,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
             final transport = device['transport'] as String? ?? 'unknown';
             final model = device['model'] as String? ?? '';
             return DropdownMenuItem(value: serial,
-              child: Text('$serial (${model.isEmpty ? transport : '$model · $transport'})',
+              child: Text('$serial (${model} · $transport)',
                 overflow: TextOverflow.ellipsis));
           }).toList(),
           onChanged: _busy ? null : (value) => setState(() => _serial.text = value ?? ''),
