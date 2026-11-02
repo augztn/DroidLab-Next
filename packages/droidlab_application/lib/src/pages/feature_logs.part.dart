@@ -50,7 +50,7 @@ class _LogsPageState extends ConsumerState<LogsPage> {
         'application': 'DroidLab',
         'exported_at': DateTime.now().toUtc().toIso8601String(),
         'entry_count': lines.length,
-        'entries': lines,
+        'entries': lines.map(redactDiagnosticText).toList(growable: false),
       };
       final file = File(location.path);
       await file.parent.create(recursive: true);
@@ -197,9 +197,8 @@ class _LogsPageState extends ConsumerState<LogsPage> {
     final visibleConsoleLines = consoleLines.where((line) => _filter.isEmpty || line.toLowerCase().contains(_filter.toLowerCase())).toList(growable: false);
     final backend = ref.watch(backendReadyProvider);
     final diagnostics = ref.read(backendClientProvider).diagnostics;
-    final raw = diagnostics.join('\n');
     final filteredRaw = visibleConsoleLines.isEmpty && consoleLines.isEmpty
-        ? diagnostics.where((line) => _filter.isEmpty || line.toLowerCase().contains(_filter.toLowerCase())).join('\\n')
+        ? diagnostics.where((line) => _filter.isEmpty || line.toLowerCase().contains(_filter.toLowerCase())).join('\n')
         : [...visibleConsoleLines, ...diagnostics.where((line) => _filter.isEmpty || line.toLowerCase().contains(_filter.toLowerCase()))].join('\\n');
     final sanitized = redactDiagnosticText(filteredRaw);
     Widget previewCard(String title, String subtitle, String value, {bool safe = false}) => Card(
