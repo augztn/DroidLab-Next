@@ -388,7 +388,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       return query.isEmpty || package.toLowerCase().contains(query);
     }).toList(growable: false);
     final pageCount = visible.isEmpty ? 1 : (visible.length / _pageSize).ceil();
-    final safePageIndex = _pageIndex.clamp(0, pageCount - 1);
+    final safePageIndex = _pageIndex.clamp(0, pageCount - 1).toInt();
     final pageStart = safePageIndex * _pageSize;
     final pageItems = visible.skip(pageStart).take(_pageSize).toList(growable: false);
 
