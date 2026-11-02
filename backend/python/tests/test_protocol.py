@@ -682,5 +682,57 @@ class ProtocolTests(unittest.TestCase):
         self.assertIn("debloat.package.apply", server._MUTATING)
 
 
+
+class DebloatCatalogTests(unittest.TestCase):
+    def test_catalog_has_explanations_and_unique_package_ids(self):
+        from droidlab.core.debloat_catalog import load_catalog
+        entries, recommendations = load_catalog()
+        self.assertGreaterEqual(len(entries), 150)
+        self.assertIn("com.android.systemui", entries)
+        self.assertIn("com.google.android.gms", entries)
+        self.assertIn("org.lineageos.aperture", recommendations)
+        for package, entry in entries.items():
+            with self.subTest(package=package):
+                self.assertTrue(entry.app.strip())
+                self.assertTrue(entry.function.strip())
+                self.assertTrue(entry.risk.strip())
+                self.assertTrue(entry.impact.strip())
+
+    def test_core_packages_are_not_recommended_for_removal(self):
+        from droidlab.core.debloat_catalog import lookup_guidance
+        for package in (
+            "com.android.systemui",
+            "com.android.settings",
+            "com.android.providers.telephony",
+            "com.google.android.gms",
+            "com.android.phone",
+        ):
+            value = lookup_guidance(package)
+            risk = value["risk"].casefold()
+            self.assertTrue("critical" in risk or "high" in risk or "keep" in risk)
+            self.assertNotIn("low — optional", value["recommendation"].casefold())
+
+    def test_unlisted_package_is_not_silently_marked_safe(self):
+        from droidlab.core.debloat_catalog import lookup_guidance
+        value = lookup_guidance("com.example.unknown")
+        self.assertFalse(value["listed"])
+        self.assertIn("not listed", value["risk"].casefold())
+        self.assertIn("not mean safe", value["impact"].casefold())
+
+    def test_catalog_protocol_returns_explainable_entries(self):
+        value = server.execute("id", "debloat.catalog.list", {}, threading.Event())
+        self.assertEqual(value["schema_version"], 1)
+        self.assertGreaterEqual(len(value["entries"]), 150)
+        self.assertTrue({"package", "app", "function", "risk", "impact"}.issubset(value["entries"][0]))
+
+    def test_guidance_protocol_returns_exact_package(self):
+        value = server.execute("id", "debloat.package.guidance", {"package": "com.android.systemui"}, threading.Event())
+        self.assertEqual(value["package"], "com.android.systemui")
+        self.assertIn("Critical", value["risk"])
+
+    def test_guidance_protocol_rejects_invalid_package(self):
+        with self.assertRaises(ValueError):
+            server.execute("id", "debloat.package.guidance", {"package": "com.example;reboot"}, threading.Event())
+
 if __name__ == "__main__":
     unittest.main()
