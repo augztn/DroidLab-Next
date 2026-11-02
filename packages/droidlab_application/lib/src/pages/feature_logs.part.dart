@@ -199,7 +199,7 @@ class _LogsPageState extends ConsumerState<LogsPage> {
     final diagnostics = ref.read(backendClientProvider).diagnostics;
     final filteredRaw = visibleConsoleLines.isEmpty && consoleLines.isEmpty
         ? diagnostics.where((line) => _filter.isEmpty || line.toLowerCase().contains(_filter.toLowerCase())).join('\n')
-        : [...visibleConsoleLines, ...diagnostics.where((line) => _filter.isEmpty || line.toLowerCase().contains(_filter.toLowerCase()))].join('\\n');
+        : [...visibleConsoleLines, ...diagnostics.where((line) => _filter.isEmpty || line.toLowerCase().contains(_filter.toLowerCase()))].join('\n');
     final sanitized = redactDiagnosticText(filteredRaw);
     Widget previewCard(String title, String subtitle, String value, {bool safe = false}) => Card(
       child: Padding(
