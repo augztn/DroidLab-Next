@@ -59,7 +59,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           const SizedBox(height: 16),
           if (_batteryError != null) Text(_batteryError!, style: TextStyle(color: colors.onSurfaceVariant))
           else ...[
-            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(_level == null ? '—' : '\${_level}%', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)), const Spacer(), Text(_temperature == null ? 'Temperature —' : 'Temperature \${_temperature!.toStringAsFixed(1)} °C', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant))]),
+            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(_level == null ? '—' : _level.toString() + '%', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)), const Spacer(), Text(_temperature == null ? 'Temperature —' : 'Temperature ' + _temperature!.toStringAsFixed(1) + ' °C', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant))]),
             const SizedBox(height: 12),
             ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: _level == null ? null : _level! / 100, minHeight: 12, backgroundColor: colors.surfaceContainerHighest)),
             const SizedBox(height: 8),
@@ -68,7 +68,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         ]))),
         const SizedBox(height: 16),
         Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Icon(Icons.monitor_heart_outlined, color: colors.primary), const SizedBox(width: 10), Expanded(child: Text('System Resource Monitor', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))), Text(_updated == null ? 'Waiting for sample' : 'Updated \${_updated!.toLocal().toIso8601String().substring(11, 19)}', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant))]),
+          Row(children: [Icon(Icons.monitor_heart_outlined, color: colors.primary), const SizedBox(width: 10), Expanded(child: Text('System Resource Monitor', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))), Text(_updated == null ? 'Waiting for sample' : 'Updated ' + _updated!.toLocal().toIso8601String().substring(11, 19), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant))]),
           const SizedBox(height: 6),
           Text('Top CPU-intensive processes · adb shell top -n 1 -m 5 · Auto-refresh every 5 seconds', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
           const SizedBox(height: 12),
