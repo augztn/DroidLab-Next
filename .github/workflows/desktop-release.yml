@@ -43,7 +43,7 @@ jobs:
         run: flutter create --project-name droidlab_desktop --platforms=linux,windows,macos .
       - name: Apply official DroidLab native icons
         run: |
-          python -m pip install --disable-pip-version-check pillow
+          python -m pip install --disable-pip-version-check 'Pillow==11.3.0'
           python scripts/apply_app_icons.py
       - name: Resolve dependencies
         working-directory: apps/desktop
