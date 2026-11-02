@@ -13,13 +13,13 @@ class OperationHistoryPage extends ConsumerWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Operation History', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 6),
-          Text('Locally persisted device and firmware operation outcomes.', style: Theme.of(context).textTheme.bodyMedium),
+          Text('Operation History', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 3),
+          Text('Locally persisted device and firmware operation outcomes.', style: Theme.of(context).textTheme.bodySmall),
         ])),
         TextButton.icon(onPressed: () => unawaited(controller.clear()), icon: const Icon(Icons.delete_outline), label: const Text('Clear history')),
       ]),
-      const SizedBox(height: 18),
+      const SizedBox(height: 10),
       if (controller.persistenceError != null)
         Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(
           'History persistence warning: ${controller.persistenceError}',
@@ -32,7 +32,7 @@ class OperationHistoryPage extends ConsumerWidget {
           ? const Center(child: Text('No operations have been recorded yet.'))
           : ListView.separated(
               itemCount: records.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 6),
+              separatorBuilder: (_, __) => const SizedBox(height: 4),
               itemBuilder: (context, index) {
                 final item = records[index];
                 final color = switch (item.status) {
@@ -41,6 +41,8 @@ class OperationHistoryPage extends ConsumerWidget {
                   _ => Theme.of(context).colorScheme.error,
                 };
                 return Card(child: ListTile(
+                  visualDensity: VisualDensity.compact,
+                  minVerticalPadding: 2,
                   leading: Icon(
                     item.status == 'completed' ? Icons.check_circle_outline :
                     item.status == 'cancelled' ? Icons.pause_circle_outline : Icons.error_outline,
