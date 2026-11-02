@@ -5,6 +5,80 @@ import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('restores a valid backup when the primary history is corrupt', () async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-history-recovery-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final file = File('${temporary.path}/operation_history.json');
+    final backup = File('${file.path}.bak');
+    await file.writeAsString('{corrupt');
+    await backup.writeAsString(jsonEncode({
+      'schema_version': 1,
+      'records': [
+        {
+          'id': 'recovered',
+          'timestamp': '2026-11-01T12:00:00.000Z',
+          'operation': 'ADB shell private command',
+          'target': 'PRIVATE-SERIAL',
+          'status': 'completed',
+          'summary': 'private output',
+        },
+      ],
+    }));
+
+    final notifier = OperationHistoryNotifier(
+      supportDirectory: () async => temporary,
+    );
+    addTearDown(notifier.dispose);
+    await notifier.record(OperationRecord(
+      id: 'new',
+      timestamp: DateTime.utc(2026, 11, 2),
+      operation: 'Device refresh',
+      target: 'serial',
+      status: 'completed',
+      summary: 'done',
+    ));
+
+    expect(notifier.state.requireValue.map((record) => record.id),
+        containsAll(['recovered', 'new']));
+    expect(await backup.exists(), isFalse);
+    final corruptFiles = temporary.listSync().whereType<File>()
+        .where((candidate) => candidate.path.contains('.corrupt.'));
+    expect(corruptFiles, hasLength(1));
+    expect(await corruptFiles.single.readAsString(), '{corrupt');
+  });
+
+  test('preserves an invalid backup when primary history is corrupt', () async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-history-invalid-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final file = File('${temporary.path}/operation_history.json');
+    final backup = File('${file.path}.bak');
+    await file.writeAsString('{primary-corrupt');
+    await backup.writeAsString('{backup-corrupt');
+
+    final notifier = OperationHistoryNotifier(
+      supportDirectory: () async => temporary,
+    );
+    addTearDown(notifier.dispose);
+    await notifier.record(OperationRecord(
+      id: 'new',
+      timestamp: DateTime.utc(2026, 11, 2),
+      operation: 'Device refresh',
+      target: 'serial',
+      status: 'completed',
+      summary: 'done',
+    ));
+
+    expect(await file.readAsString(), '{primary-corrupt');
+    expect(await backup.readAsString(), '{backup-corrupt');
+    expect(notifier.persistenceError,
+        'History could not be loaded; writes are blocked to preserve the existing files.');
+    await notifier.clear();
+    expect(await file.readAsString(), '{primary-corrupt');
+    expect(await backup.readAsString(), '{backup-corrupt');
+    expect(notifier.persistenceError,
+        'History could not be loaded; clear is blocked to preserve the existing files.');
+  });
+
   test('history labels use an allowlist and omit dynamic arguments', () {
     expect(historyOperationLabel('Advanced ADB: shell cat /private/token.txt'), 'Advanced ADB');
     expect(historyOperationLabel('Fastboot flash boot'), 'Fastboot flash');

@@ -243,15 +243,62 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
 
   Future<void> _recoverHistoryFile(File file) async {
     final backup = File('${file.path}.bak');
-    final temporary = File('${file.path}.tmp');
-    if (!await file.exists() && await backup.exists()) {
-      await backup.rename(file.path);
-    } else if (await file.exists() && await backup.exists()) {
+    if (!await backup.exists()) return;
+
+    final primaryValid = await _isValidHistoryFile(file);
+    if (primaryValid) {
       await backup.delete();
+      return;
     }
-    if (await temporary.exists()) await temporary.delete();
+
+    if (!await _isValidHistoryFile(backup)) {
+      // Keep both files untouched and block writes. With no primary, treating
+      // this as an empty history would let the next write erase the backup.
+      throw const FormatException(
+        'The operation history backup is invalid and was preserved.',
+      );
+    }
+
+    if (await file.exists()) {
+      final corrupt = File(
+        '${file.path}.corrupt.${DateTime.now().toUtc().microsecondsSinceEpoch}',
+      );
+      await file.rename(corrupt.path);
+    }
+    await backup.rename(file.path);
   }
-}
+
+  Future<bool> _isValidHistoryFile(File candidate) async {
+    if (!await candidate.exists()) return false;
+    try {
+      final decoded = jsonDecode(await candidate.readAsString());
+      final List<dynamic> records;
+      if (decoded is List<dynamic>) {
+        records = decoded;
+      } else if (decoded is Map<String, dynamic> &&
+          decoded['schema_version'] == _schemaVersion &&
+          decoded['records'] is List<dynamic>) {
+        records = decoded['records'] as List<dynamic>;
+      } else {
+        return false;
+      }
+      for (final value in records) {
+        if (value is! Map<String, dynamic> ||
+            value['id'] is! String ||
+            value['timestamp'] is! String ||
+            value['operation'] is! String ||
+            value['status'] is! String ||
+            (value['target'] != null && value['target'] is! String) ||
+            (value['summary'] != null && value['summary'] is! String)) {
+          return false;
+        }
+        DateTime.parse(value['timestamp'] as String);
+      }
+      return true;
+    } on Object {
+      return false;
+    }
+  }}
 
 final operationHistoryProvider = StateNotifierProvider<
     OperationHistoryNotifier, AsyncValue<List<OperationRecord>>>(
