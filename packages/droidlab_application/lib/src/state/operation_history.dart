@@ -107,10 +107,13 @@ class OperationRecord {
 }
 
 class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRecord>>> {
-  OperationHistoryNotifier() : super(const AsyncLoading()) {
+  OperationHistoryNotifier({Future<Directory> Function()? supportDirectory})
+      : _supportDirectory = supportDirectory,
+        super(const AsyncLoading()) {
     _loaded = _load();
   }
 
+  final Future<Directory> Function()? _supportDirectory;
   late final Future<void> _loaded;
   static const _maximumRecords = 500;
   static const _schemaVersion = 1;
@@ -118,7 +121,7 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
   String? persistenceError;
 
   Future<File> _historyFile() async {
-    final directory = await getApplicationSupportDirectory();
+    final directory = await (_supportDirectory?.call() ?? getApplicationSupportDirectory());
     return File('${directory.path}${Platform.pathSeparator}operation_history.json');
   }
 

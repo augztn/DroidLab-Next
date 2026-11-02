@@ -39,7 +39,7 @@ void main() {
       summary: 'done',
     ));
 
-    expect(notifier.state.requireValue.map((record) => record.id),
+    expect(notifier.state.valueOrNull!.map((record) => record.id),
         containsAll(['recovered', 'new']));
     expect(await backup.exists(), isFalse);
     final corruptFiles = temporary.listSync().whereType<File>()
