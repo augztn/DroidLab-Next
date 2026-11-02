@@ -21,11 +21,6 @@ class _DeviceManagerPageState extends ConsumerState<DeviceManagerPage> {
     return raw is Map<String, dynamic> ? raw : const {};
   }
 
-  String _displayValue(Map<String, dynamic> values, String key, [String fallback = '—']) {
-    final value = values[key];
-    return value == null || value.toString().isEmpty ? fallback : value.toString();
-  }
-
   Widget _property(BuildContext context, String label, String value) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 9),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
