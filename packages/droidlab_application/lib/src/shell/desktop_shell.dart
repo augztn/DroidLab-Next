@@ -280,7 +280,12 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
             ),
             child: Column(children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+                padding: EdgeInsets.fromLTRB(
+                  compact ? 4 : 16,
+                  14,
+                  compact ? 4 : 12,
+                  10,
+                ),
                 child: Row(children: [
                   if (expanded) Expanded(child: Text(
                     'Target: ${targetSerial ?? 'Unselected'}',
