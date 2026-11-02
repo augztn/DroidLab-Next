@@ -83,6 +83,16 @@ class _DeviceManagerPageState extends ConsumerState<DeviceManagerPage> {
             ]);
           }
 
+          if (globalTarget == null && list.length == 1) {
+            final onlySerial = list.single['serial']?.toString();
+            if (onlySerial != null) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted && ref.read(selectedTargetSerialProvider) == null) {
+                  ref.read(selectedTargetSerialProvider.notifier).state = onlySerial;
+                }
+              });
+            }
+          }
           final preferredSerial = globalTarget ?? _selectedSerial;
           final selected = list.firstWhere(
             (device) => device['serial'] == preferredSerial,
