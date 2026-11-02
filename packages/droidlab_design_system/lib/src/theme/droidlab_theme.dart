@@ -98,7 +98,7 @@ abstract final class DroidLabTheme {
       headlineLarge: base.headlineLarge?.copyWith(color: text, fontWeight: FontWeight.w700, letterSpacing: -0.8),
       headlineMedium: base.headlineMedium?.copyWith(color: text, fontWeight: FontWeight.w700, letterSpacing: -0.6),
       headlineSmall: base.headlineSmall?.copyWith(color: text, fontWeight: FontWeight.w700, letterSpacing: -0.5),
-      titleLarge: base.titleLarge?.copyWith(color: text, fontWeight: FontWeight.w650, letterSpacing: -0.35),
+      titleLarge: base.titleLarge?.copyWith(color: text, fontWeight: FontWeight.w600, letterSpacing: -0.35),
       titleMedium: base.titleMedium?.copyWith(color: text, fontWeight: FontWeight.w600, letterSpacing: -0.15),
       titleSmall: base.titleSmall?.copyWith(color: text, fontWeight: FontWeight.w600),
       bodyLarge: base.bodyLarge?.copyWith(color: text, height: 1.42, fontSize: 15),
