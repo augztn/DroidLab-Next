@@ -88,6 +88,22 @@ final deviceListProvider =
   return result.data;
 });
 
+
+/// Returns the device-tool route only when discovery identifies one transport
+/// unambiguously. Mixed ADB/Fastboot sessions and empty scans never force
+/// navigation.
+String? preferredDeviceToolLocation(Map<String, dynamic> data) {
+  final devices = (data['devices'] as List<dynamic>? ?? const [])
+      .whereType<Map<String, dynamic>>();
+  final hasAdb = devices.any((device) =>
+      device['transport'] == 'adb' && device['state'] == 'device');
+  final hasFastboot = devices.any((device) =>
+      device['transport'] == 'fastboot' &&
+      (device['state'] == 'fastboot' || device['state'] == 'fastbootd'));
+  if (hasAdb == hasFastboot) return null;
+  return hasAdb ? '/adb' : '/fastboot';
+}
+
 /// Typed device-discovery boundary used by features migrating off raw JSON.
 final deviceRepositoryProvider = Provider<DeviceRepository>((ref) {
   return BackendDeviceRepository(ref.watch(backendClientProvider));
