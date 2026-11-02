@@ -13,6 +13,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   String _filter = 'all';
   String _riskFilter = 'all';
   Map<String, Map<String, dynamic>> _guidance = const {};
+  Set<String> _recommendations = {};
   bool _busy = false;
   List<Map<String, dynamic>> _packages = const [];
   Set<String> _disabled = {};
@@ -32,7 +33,6 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
           .where((item) => item['package'] is String)
           .map((item) => item['package'] as String)
           .toSet();
-      final catalog = <String, Map<String, dynamic>>{};
       final inventory = await client.request('debloat.packages.list', {'serial': serial, 'user_id': _userId});
       final packages = (inventory.data['packages'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>().toList(growable: false);
@@ -44,15 +44,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       setState(() {
         _packages = packages;
         _disabled = disabled;
-        _guidance = {
-          for (final package in packages)
-            if (recommendationPackages.contains(package['package']))
-              package['package'] as String: {
-                'package': package['package'],
-                'risk': 'Recommended — review first',
-                'recommendation': 'Recommended — review first',
-              },
-        };
+        _recommendations = recommendationPackages;
+        _guidance = {};
       });
     } catch (error) {
       if (mounted && generation == _loadGeneration) setState(() => _error = error.toString());
@@ -178,7 +171,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       final system = item['system'] == true;
       final guidance = _guidance[package];
       final risk = (guidance?['risk'] as String? ?? 'Not listed').toLowerCase();
-      if (_riskFilter == 'recommended' && guidance == null) return false;
+      if (_riskFilter == 'recommended' && !_recommendations.contains(package)) return false;
       if (_riskFilter == 'advanced' && !risk.contains('advanced')) return false;
       if (_riskFilter == 'review' && !(risk.contains('review') || risk.contains('unclear') || risk.contains('not listed'))) return false;
       if (_riskFilter == 'keep' && !(risk.contains('critical') || risk.startsWith('high') || risk.contains('keep'))) return false;
@@ -202,7 +195,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
               value: _serial,
               decoration: const InputDecoration(labelText: 'Authorized ADB device', border: OutlineInputBorder()),
               items: serials.map((value) => DropdownMenuItem(value: value, child: Text(value, overflow: TextOverflow.ellipsis))).toList(),
-              onChanged: _busy ? null : (value) => setState(() { _loadGeneration++; _serial = value; _packages = const []; _disabled = {}; }),
+              onChanged: _busy ? null : (value) => setState(() { _loadGeneration++; _serial = value; _packages = const []; _disabled = {}; _recommendations = {}; }),
             )),
             SizedBox(width: 130, child: TextFormField(
               initialValue: '0', keyboardType: TextInputType.number,
@@ -210,7 +203,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
               onChanged: (value) {
                 final parsed = int.tryParse(value);
                 if (parsed != null && parsed >= 0 && parsed <= 2147483647 && !_busy) {
-                  setState(() { _loadGeneration++; _userId = parsed; _packages = const []; _disabled = {}; });
+                  setState(() { _loadGeneration++; _userId = parsed; _packages = const []; _disabled = {}; _recommendations = {}; });
                 }
               },
             )),
