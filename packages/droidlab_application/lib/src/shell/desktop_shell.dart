@@ -250,55 +250,6 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
             ],
           ),
         ),
-        Container(
-          height: 50,
-          padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 24),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            border: Border(bottom: BorderSide(color: colors.outlineVariant)),
-          ),
-          child: Row(children: [
-            for (final tab in <(String, String)>[
-              ('Dashboard', '/dashboard'),
-              ('Devices', '/devices'),
-              ('Payload', '/firmware'),
-              ('Debloater', '/debloater'),
-            ])
-              Padding(
-                padding: const EdgeInsets.only(right: 22),
-                child: InkWell(
-                  onTap: () => context.go(tab.$2),
-                  borderRadius: BorderRadius.circular(7),
-                  child: SizedBox(
-                    height: 50,
-                    child: Center(
-                      child: Text(tab.$1,
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: widget.currentLocation == tab.$2 ||
-                                  (tab.$2 == '/firmware' && widget.currentLocation == '/payload')
-                              ? colors.primary
-                              : colors.onSurfaceVariant,
-                          fontWeight: widget.currentLocation == tab.$2 ? FontWeight.w700 : FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            const Spacer(),
-            if (!compact)
-              FilledButton(
-                onPressed: () => context.go('/settings'),
-                child: const Text('Workstation Settings'),
-              )
-            else
-              IconButton(
-                tooltip: 'Workstation Settings',
-                onPressed: () => context.go('/settings'),
-                icon: const Icon(Icons.settings_outlined),
-              ),
-          ]),
-        ),
         Expanded(child: Row(children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 160),
