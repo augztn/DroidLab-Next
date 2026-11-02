@@ -96,6 +96,8 @@ def lookup_guidance(package: str) -> dict[str, Any]:
         value["recommendation_note"] = rec[1] if rec else entry.impact
         return value
     if rec is not None:
+        # A standalone recommendation entry still needs to display its own
+        # function/risk rather than borrowing a guessed description.
         return {
             "package": package,
             "app": "",
