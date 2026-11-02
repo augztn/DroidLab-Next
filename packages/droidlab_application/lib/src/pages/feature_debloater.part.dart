@@ -46,7 +46,7 @@ class _PackageIconBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(9),
       ),
       alignment: Alignment.center,
-      child: Icon(icon, size: 17, color: color),
+      child: Icon(icon, size: 20, color: color),
     );
   }
 }
@@ -350,7 +350,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         IconButton(onPressed: _busy || _serial == null ? null : _load, tooltip: 'Refresh packages', icon: const Icon(Icons.refresh)),
       ],
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Card(child: Padding(padding: const EdgeInsets.all(10), child: Wrap(
+        Card(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), child: Wrap(
           spacing: 12, runSpacing: 12, crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             SizedBox(width: 280, child: DropdownButtonFormField<String>(
@@ -372,8 +372,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
             FilledButton.icon(onPressed: _serial == null || _busy ? null : _load, icon: const Icon(Icons.list), label: const Text('Load packages')),
           ],
         ))),
-        const SizedBox(height: 10),
-        Card(child: Padding(padding: const EdgeInsets.all(9), child: Column(children: [
+        const SizedBox(height: 6),
+        Card(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), child: Column(children: [
           Row(children: [
             const Icon(Icons.warning_amber_rounded), const SizedBox(width: 8),
             Expanded(child: Text('System-app changes can break Android features. Uninstall for user does not remove the system image APK. Package guidance is device-dependent; no package is automatically marked safe.', style: Theme.of(context).textTheme.bodySmall)),
@@ -458,7 +458,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         ],
         if (_error != null) Padding(padding: const EdgeInsets.all(8), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
         if (_notice != null) Padding(padding: const EdgeInsets.all(8), child: Text(_notice!, style: TextStyle(color: Theme.of(context).colorScheme.tertiary))),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         Expanded(child: _busy
           ? const Center(child: CircularProgressIndicator())
           : _serial == null
@@ -466,8 +466,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
               : _packages.isEmpty
                   ? const _EmptyPanel(icon: Icons.apps, title: 'No package inventory loaded', message: 'Load packages to inspect the selected Android user.')
                   : LayoutBuilder(builder: (context, constraints) {
-                const selectWidth = 56.0;
-                const packageWidth = 310.0;
+                const selectWidth = 48.0;
+                const packageWidth = 330.0;
                 const functionWidth = 280.0;
                 const riskWidth = 150.0;
                 const stateWidth = 130.0;
@@ -483,7 +483,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                     width: tableWidth,
                     child: Column(children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                         decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.surfaceContainerHighest,
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
@@ -518,7 +518,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                   ? Theme.of(context).colorScheme.error
                                   : Theme.of(context).colorScheme.secondary;
                           return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                             child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
                               SizedBox(width: selectWidth, child: Checkbox(
                                 value: _selectedPackages.contains(package),
@@ -534,11 +534,11 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                               )),
                               SizedBox(width: packageWidth, child: Row(children: [
                                 _PackageIconBadge(identifier: package),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 12),
                                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   Text(app, maxLines: 1, overflow: TextOverflow.ellipsis,
                                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
-                                  const SizedBox(height: 3),
+                                  const SizedBox(height: 2),
                                   SelectableText(package, maxLines: 1,
                                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                       color: Theme.of(context).colorScheme.onSurfaceVariant,
