@@ -53,6 +53,8 @@ abstract final class DroidLabTheme {
 
     return ThemeData(
       useMaterial3: true,
+      visualDensity: VisualDensity.compact,
+      listTileTheme: const ListTileThemeData(dense: true, minVerticalPadding: 4),
       brightness: Brightness.light,
       colorScheme: scheme,
       scaffoldBackgroundColor: background,
@@ -66,6 +68,7 @@ abstract final class DroidLabTheme {
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
+        isDense: true,
         filled: true,
         fillColor: input,
         border: OutlineInputBorder(
@@ -157,6 +160,8 @@ abstract final class DroidLabTheme {
 
     return ThemeData(
       useMaterial3: true,
+      visualDensity: VisualDensity.compact,
+      listTileTheme: const ListTileThemeData(dense: true, minVerticalPadding: 4),
       brightness: Brightness.dark,
       colorScheme: scheme,
       scaffoldBackgroundColor: colors.background,
@@ -170,6 +175,7 @@ abstract final class DroidLabTheme {
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
+        isDense: true,
         filled: true,
         fillColor: colors.input,
         border: OutlineInputBorder(
