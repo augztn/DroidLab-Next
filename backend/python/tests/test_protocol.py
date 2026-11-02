@@ -655,10 +655,6 @@ class ProtocolTests(unittest.TestCase):
             ["adb.exe", "-s", "SERIAL", "install", "-r", r"C:\Users\me\My Phone\app.apk"],
         )
 
-if __name__ == "__main__":
-    unittest.main()
-
-
     def test_debloat_inventory_parses_valid_package_ids_and_system_paths(self):
         output = "package:/system/app/Example/Example.apk=com.example.app\npackage:com.example.user\npackage:invalid package\n"
         with patch.object(server, "tool_path", return_value="adb"):
@@ -684,3 +680,7 @@ if __name__ == "__main__":
 
     def test_debloat_operation_is_serialized_per_device(self):
         self.assertIn("debloat.package.apply", server._MUTATING)
+
+
+if __name__ == "__main__":
+    unittest.main()
