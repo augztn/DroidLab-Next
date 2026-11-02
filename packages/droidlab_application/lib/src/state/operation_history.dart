@@ -125,6 +125,7 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
   Future<void> _load() async {
     try {
       final file = await _historyFile();
+      await _recoverHistoryFile(file);
       if (!await file.exists()) {
         state = const AsyncData([]);
         return;
@@ -210,6 +211,7 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
     final file = await _historyFile();
     await file.parent.create(recursive: true);
     final temporary = File('${file.path}.tmp');
+    final backup = File('${file.path}.bak');
     await temporary.writeAsString(
       jsonEncode({
         'schema_version': _schemaVersion,
@@ -217,12 +219,37 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
       }),
       flush: true,
     );
+
+    var movedOriginal = false;
     try {
+      // Windows cannot rename over an existing file. Preserve the old copy
+      // until the new file is installed, and roll back on publication failure.
+      if (await backup.exists()) await backup.delete();
+      if (await file.exists()) {
+        await file.rename(backup.path);
+        movedOriginal = true;
+      }
       await temporary.rename(file.path);
-    } on FileSystemException {
-      if (await file.exists()) await file.delete();
-      await temporary.rename(file.path);
+      if (movedOriginal && await backup.exists()) await backup.delete();
+    } on Object {
+      if (movedOriginal && !await file.exists() && await backup.exists()) {
+        await backup.rename(file.path);
+      }
+      rethrow;
+    } finally {
+      if (await temporary.exists()) await temporary.delete();
     }
+  }
+
+  Future<void> _recoverHistoryFile(File file) async {
+    final backup = File('${file.path}.bak');
+    final temporary = File('${file.path}.tmp');
+    if (!await file.exists() && await backup.exists()) {
+      await backup.rename(file.path);
+    } else if (await file.exists() && await backup.exists()) {
+      await backup.delete();
+    }
+    if (await temporary.exists()) await temporary.delete();
   }
 }
 
