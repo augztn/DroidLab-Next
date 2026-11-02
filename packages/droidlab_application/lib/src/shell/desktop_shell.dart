@@ -232,11 +232,15 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
           ),
           child: Row(children: [
             InkWell(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(8),
               onTap: () => context.go('/dashboard'),
-              child: Text('DroidLab', style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700, letterSpacing: -0.5,
-              )),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const _DroidLabMark(size: 38),
+                const SizedBox(width: 10),
+                Text('DroidLab', style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700, letterSpacing: -0.5,
+                )),
+              ]),
             ),
             const Spacer(),
             if (!compact) ...[
