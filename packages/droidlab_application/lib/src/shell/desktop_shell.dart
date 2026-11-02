@@ -219,11 +219,6 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
         error: (_, __) => 'Device scan error',
         loading: () => 'Scanning',
       );
-      final backendLabel = backend.when(
-        data: (_) => 'Backend online',
-        error: (_, __) => 'Backend unavailable',
-        loading: () => 'Backend starting',
-      );
       return Scaffold(body: SafeArea(child: Column(children: [
         Container(
           height: 72,
