@@ -20,12 +20,13 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   final Set<String> _selectedPackages = {};
   int _loadGeneration = 0;
   String? _error;
+  String? _notice;
 
   Future<void> _load() async {
     final serial = _serial;
     if (serial == null || _busy) return;
     final generation = ++_loadGeneration;
-    setState(() { _busy = true; _error = null; });
+    setState(() { _busy = true; _error = null; _notice = null; });
     try {
       final client = ref.read(backendClientProvider);
       final catalogResult = await client.request('debloat.catalog.list', const {});
@@ -244,9 +245,11 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         setState(() {
           _selectedPackages.removeAll([...succeeded, ...skipped]);
           final summary = '${succeeded.length} succeeded, ${skipped.length} already disabled, ${failed.length} failed.';
-          _error = failed.isEmpty
-              ? summary
-              : '$summary First failure: ${failed.entries.first.key}: ${failed.entries.first.value}';
+          if (failed.isEmpty) {
+            _notice = summary;
+          } else {
+            _error = '$summary First failure: ${failed.entries.first.key}: ${failed.entries.first.value}';
+          }
         });
       }
     } finally {
@@ -401,6 +404,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
           ),
         ],
         if (_error != null) Padding(padding: const EdgeInsets.all(8), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
+        if (_notice != null) Padding(padding: const EdgeInsets.all(8), child: Text(_notice!, style: TextStyle(color: Theme.of(context).colorScheme.tertiary))),
         const SizedBox(height: 8),
         Expanded(child: _busy
           ? const Center(child: CircularProgressIndicator())
@@ -422,6 +426,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                           Expanded(flex: 2, child: Text('Advisory Risk')),
                           SizedBox(width: 88, child: Text('User State')),
                           SizedBox(width: 84, child: Text('Guidance')),
+                          SizedBox(width: 132, child: Text('Actions')),
                         ]),
                       ),
                       Expanded(child: ListView.separated(
@@ -480,6 +485,20 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                 onPressed: () => _showGuidance(item),
                                 child: const Text('Explain'),
                               )),
+                              SizedBox(width: 132, child: Wrap(spacing: 0, children: [
+                                IconButton(
+                                  tooltip: 'Disable package',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: _busy || disabled ? null : () => _apply(item, 'disable'),
+                                  icon: const Icon(Icons.pause_circle_outline, size: 18),
+                                ),
+                                IconButton(
+                                  tooltip: 'Uninstall for user',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: _busy ? null : () => _apply(item, 'uninstall'),
+                                  icon: const Icon(Icons.delete_outline, size: 18),
+                                ),
+                              ])),
                             ]),
                           );
                         },
