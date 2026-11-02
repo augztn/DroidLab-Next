@@ -564,18 +564,6 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             for line in disabled_result.stdout.splitlines()
             if line.strip().startswith("package:")
         }
-        disabled_result = run_streaming(
-            [tool_path("adb"), "-s", serial, "shell", "pm", "list", "packages", "-d", "--user", str(user_id)],
-            timeout=30,
-            cancel_event=cancel,
-        )
-        if disabled_result.returncode:
-            raise RuntimeError("Could not inspect disabled packages: " + disabled_result.stdout[-MAX_RETAINED_OUTPUT:])
-        disabled = {
-            line.strip()[len("package:"):]
-            for line in disabled_result.stdout.splitlines()
-            if line.strip().startswith("package:")
-        }
         packages = {}
         for line in result.stdout.splitlines():
             value = line.strip()
@@ -584,7 +572,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             body = value[len("package:"):]
             path, separator, package = body.rpartition("=")
             package = package if separator else body
-            if not re.fullmatch(r"[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+", package):
+            if not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
                 continue
             if package not in packages:
                 packages[package] = {
