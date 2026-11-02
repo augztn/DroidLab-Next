@@ -221,7 +221,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
           ),
           if (_consoleExpanded)
             SizedBox(
-              height: 220,
+              height: (MediaQuery.sizeOf(context).height * 0.17).clamp(112.0, 160.0),
               child: DecoratedBox(
                 decoration: BoxDecoration(color: colors.surfaceContainerLowest, border: Border(top: border)),
                 child: ListView.builder(
@@ -451,12 +451,25 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
               ),
             ]),
           ),
-          Expanded(child: Padding(
-            padding: EdgeInsets.fromLTRB(constraints.maxWidth < 620 ? 12 : compact ? 16 : 28, constraints.maxWidth < 620 ? 14 : compact ? 18 : 28, constraints.maxWidth < 620 ? 12 : compact ? 16 : 28, 18),
-            child: widget.child,
-          )),
+          Expanded(
+            child: Column(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      constraints.maxWidth < 620 ? 12 : compact ? 16 : 28,
+                      constraints.maxWidth < 620 ? 14 : compact ? 18 : 28,
+                      constraints.maxWidth < 620 ? 12 : compact ? 16 : 28,
+                      18,
+                    ),
+                    child: widget.child,
+                  ),
+                ),
+                _buildOperationConsole(context, colors),
+              ],
+            ),
+          ),
         ])),
-        _buildOperationConsole(context, colors),
       ])));
     });
   }
