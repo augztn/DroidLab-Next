@@ -468,7 +468,8 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     if (selectedSerial != null && selectedSerial != _serial.text && !_busy) {
       _serial.text = selectedSerial;
     }
-    final selectedDevice = allDevices.where((device) => device['serial'] == selectedSerial).firstOrNull;
+    final matchingDevices = allDevices.where((device) => device['serial'] == selectedSerial).toList();
+    final selectedDevice = matchingDevices.isEmpty ? null : matchingDevices.first;
     final fastbootTarget = selectedDevice != null &&
         selectedDevice['transport'] == 'fastboot' &&
         selectedDevice['state'] == 'fastboot';
