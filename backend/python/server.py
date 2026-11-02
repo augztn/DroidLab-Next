@@ -536,7 +536,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         }
     if operation == "debloat.package.guidance":
         package = args.get("package")
-        if not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+", package):
+        if not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
             raise ValueError("Invalid Android package name.")
         return lookup_guidance(package)
     if operation == "debloat.packages.list":
