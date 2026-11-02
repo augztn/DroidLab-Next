@@ -115,7 +115,7 @@ abstract final class DroidLabTheme {
       scaffoldBackgroundColor: background, dividerColor: border,
       listTileTheme: ListTileThemeData(
         dense: true, minVerticalPadding: 7, horizontalTitleGap: 12,
-        selectedColor: primary, selectedTileColor: primary.withOpacity(0.12),
+        selectedColor: primary, selectedTileColor: primary.withValues(alpha: 0.12),
         iconColor: muted,
       ),
       cardTheme: CardThemeData(
@@ -128,7 +128,7 @@ abstract final class DroidLabTheme {
       inputDecorationTheme: InputDecorationTheme(
         isDense: true, filled: true, fillColor: input,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        hintStyle: TextStyle(color: muted.withOpacity(0.85), fontSize: 14),
+        hintStyle: TextStyle(color: muted.withValues(alpha: 0.85), fontSize: 14),
         labelStyle: TextStyle(color: muted, fontSize: 13),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: border)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: border)),
