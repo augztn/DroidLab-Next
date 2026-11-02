@@ -41,6 +41,7 @@ class _DeviceManagerPageState extends ConsumerState<DeviceManagerPage> {
   @override
   Widget build(BuildContext context) {
     final devices = ref.watch(deviceListProvider);
+    final globalTarget = ref.watch(selectedTargetSerialProvider);
     return _PageFrame(
       title: 'Device Manager & Transport State',
       subtitle: 'Distinguishes ADB, Recovery, Sideload, Bootloader Fastboot, and Userspace Fastbootd',
@@ -82,8 +83,9 @@ class _DeviceManagerPageState extends ConsumerState<DeviceManagerPage> {
             ]);
           }
 
+          final preferredSerial = _selectedSerial ?? globalTarget;
           final selected = list.firstWhere(
-            (device) => device['serial'] == _selectedSerial,
+            (device) => device['serial'] == preferredSerial,
             orElse: () => list.first,
           );
           final serial = selected['serial']?.toString() ?? '';
@@ -99,7 +101,7 @@ class _DeviceManagerPageState extends ConsumerState<DeviceManagerPage> {
             final state = device['state']?.toString() ?? 'unknown';
             final model = device['model']?.toString() ??
                 device['product']?.toString() ?? 'Android device';
-            final active = targetSerial == serial;
+            final active = targetSerial == preferredSerial;
             final product = device['product']?.toString();
             final mode = device['mode']?.toString();
             final version = device['android_version']?.toString();
@@ -137,8 +139,10 @@ class _DeviceManagerPageState extends ConsumerState<DeviceManagerPage> {
                     if (active)
                       FilledButton.tonal(onPressed: null, child: const Text('Active Target'))
                     else
-                      OutlinedButton(onPressed: () => setState(() => _selectedSerial = targetSerial),
-                        child: const Text('Select Target')),
+                      OutlinedButton(onPressed: () {
+                        setState(() => _selectedSerial = targetSerial);
+                        ref.read(selectedTargetSerialProvider.notifier).state = targetSerial;
+                      }, child: const Text('Select Target')),
                     const SizedBox(width: 8),
                     OutlinedButton(
                       onPressed: () => context.go(
