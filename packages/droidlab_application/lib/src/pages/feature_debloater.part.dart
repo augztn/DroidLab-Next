@@ -1,5 +1,56 @@
 part of 'feature_pages.dart';
 
+class _PackageIconBadge extends StatelessWidget {
+  const _PackageIconBadge({required this.identifier});
+  final String identifier;
+
+  @override
+  Widget build(BuildContext context) {
+    final key = identifier.toLowerCase();
+    final (icon, color) = key.contains('magisk')
+        ? (Icons.shield_outlined, const Color(0xFF35C98A))
+        : key.contains('lawnchair') || key.contains('systemui')
+            ? (Icons.grid_view_rounded, const Color(0xFFA78BFA))
+            : key.contains('termux') || key.contains('adbd')
+                ? (Icons.terminal_rounded, const Color(0xFFF5A524))
+                : key.contains('assistantscreen') || key.contains('breeno')
+                    ? (Icons.auto_awesome_outlined, const Color(0xFF38BDF8))
+                    : key.contains('themestore')
+                        ? (Icons.palette_outlined, const Color(0xFFF472B6))
+                        : key.contains('googleassistant')
+                            ? (Icons.mic_none_rounded, const Color(0xFF60A5FA))
+                            : key.contains('gearhead') || key.contains('auto')
+                                ? (Icons.directions_car_outlined, const Color(0xFF38BDF8))
+                                : key.contains('oshare')
+                                    ? (Icons.share_outlined, const Color(0xFF34D399))
+                                    : key.contains('aod')
+                                        ? (Icons.schedule_outlined, const Color(0xFFC084FC))
+                                        : key.contains('opencapability') || key.contains('surfaceflinger') || key.contains('composer')
+                                            ? (Icons.layers_outlined, const Color(0xFFFBBF24))
+                                            : key.contains('soter')
+                                                ? (Icons.fingerprint, const Color(0xFFFB923C))
+                                                : key.contains('phonemanager') || key.contains('system_server')
+                                                    ? (Icons.tune_rounded, const Color(0xFFF87171))
+                                                    : key.contains('securitykeyboard')
+                                                        ? (Icons.key_outlined, const Color(0xFFFB7185))
+                                                        : key.contains('qualcomm') || key.contains('uim')
+                                                            ? (Icons.radio_outlined, const Color(0xFF818CF8))
+                                                            : (key.endsWith('.apk') ? Icons.android : Icons.memory_outlined,
+                                                                Theme.of(context).colorScheme.primary);
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, size: 17, color: color),
+    );
+  }
+}
+
 class DebloaterPage extends ConsumerStatefulWidget {
   const DebloaterPage({super.key});
   @override
@@ -414,7 +465,23 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
               ? const _EmptyPanel(icon: Icons.usb_off, title: 'Select an authorized device', message: 'Connect a phone, enable USB debugging, authorize it, then refresh devices.')
               : _packages.isEmpty
                   ? const _EmptyPanel(icon: Icons.apps, title: 'No package inventory loaded', message: 'Load packages to inspect the selected Android user.')
-                  : Column(children: [
+                  : LayoutBuilder(builder: (context, constraints) {
+                const selectWidth = 56.0;
+                const packageWidth = 310.0;
+                const functionWidth = 280.0;
+                const riskWidth = 150.0;
+                const stateWidth = 130.0;
+                const guidanceWidth = 100.0;
+                const actionsWidth = 120.0;
+                const minTableWidth = selectWidth + packageWidth + functionWidth +
+                    riskWidth + stateWidth + guidanceWidth + actionsWidth;
+                final tableWidth = constraints.maxWidth < minTableWidth
+                    ? minTableWidth : constraints.maxWidth;
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: Column(children: [
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         decoration: BoxDecoration(
@@ -422,13 +489,13 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
                         ),
                         child: const Row(children: [
-                          SizedBox(width: 42, child: Text('Select')),
-                          Expanded(flex: 4, child: Text('Package Identifier / Label')),
-                          Expanded(flex: 5, child: Text('OEM / Function')),
-                          Expanded(flex: 2, child: Text('Advisory Risk')),
-                          SizedBox(width: 88, child: Text('User State')),
-                          SizedBox(width: 84, child: Text('Guidance')),
-                          SizedBox(width: 132, child: Text('Actions')),
+                          SizedBox(width: selectWidth, child: Text('Select', maxLines: 1, softWrap: false)),
+                          SizedBox(width: packageWidth, child: Text('Package Identifier / Label', maxLines: 1, softWrap: false)),
+                          SizedBox(width: functionWidth, child: Text('OEM / Function', maxLines: 1, softWrap: false)),
+                          SizedBox(width: riskWidth, child: Text('Advisory Risk', maxLines: 1, softWrap: false)),
+                          SizedBox(width: stateWidth, child: Text('User State', maxLines: 1, softWrap: false)),
+                          SizedBox(width: guidanceWidth, child: Text('Guidance', maxLines: 1, softWrap: false)),
+                          SizedBox(width: actionsWidth, child: Text('Actions', maxLines: 1, softWrap: false)),
                         ]),
                       ),
                       Expanded(child: ListView.separated(
@@ -452,8 +519,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                   : Theme.of(context).colorScheme.secondary;
                           return Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                            child: Row(children: [
-                              SizedBox(width: 42, child: Checkbox(
+                            child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                              SizedBox(width: selectWidth, child: Checkbox(
                                 value: _selectedPackages.contains(package),
                                 onChanged: _busy ? null : (selected) => setState(() {
                                   if (selected == true) {
@@ -465,29 +532,35 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                   }
                                 }),
                               )),
-                              Expanded(flex: 4, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(app, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
-                                const SizedBox(height: 3),
-                                SelectableText(package, style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                  fontFamily: 'monospace',
-                                )),
+                              SizedBox(width: packageWidth, child: Row(children: [
+                                _PackageIconBadge(identifier: package),
+                                const SizedBox(width: 10),
+                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text(app, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 3),
+                                  SelectableText(package, maxLines: 1,
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      fontFamily: 'monospace',
+                                    )),
+                                ])),
                               ])),
-                              Expanded(flex: 5, child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                              SizedBox(width: functionWidth, child: Padding(
+                                padding: const EdgeInsets.only(right: 16),
                                 child: Text(function, maxLines: 2, overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.bodySmall),
                               )),
-                              Expanded(flex: 2, child: Text(risk, maxLines: 2, overflow: TextOverflow.ellipsis,
+                              SizedBox(width: riskWidth, child: Text(risk, maxLines: 2, overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(color: riskColor))),
-                              SizedBox(width: 88, child: Text(disabled ? 'disabled' : 'enabled',
+                              SizedBox(width: stateWidth, child: Text(disabled ? 'disabled' : 'enabled',
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'))),
-                              SizedBox(width: 84, child: TextButton(
+                              SizedBox(width: guidanceWidth, child: TextButton(
                                 onPressed: () => _showGuidance(item),
                                 child: const Text('Explain'),
                               )),
-                              SizedBox(width: 132, child: Wrap(spacing: 0, children: [
+                              SizedBox(width: actionsWidth, child: Row(children: [
                                 IconButton(
                                   tooltip: 'Disable package',
                                   visualDensity: VisualDensity.compact,
@@ -505,7 +578,10 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                           );
                         },
                       )),
-                    ])),
+                    ]),
+                  ),
+                );
+              }),
         Align(alignment: Alignment.centerLeft, child: Text(visible.length.toString() + ' of ' + _packages.length.toString() + ' packages · ' + _disabled.length.toString() + ' disabled', style: Theme.of(context).textTheme.bodySmall)),
       ]),
     );
