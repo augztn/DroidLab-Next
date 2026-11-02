@@ -9,3 +9,7 @@ environment:
 dependencies:
   droidlab_domain:
     path: ../droidlab_domain
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
