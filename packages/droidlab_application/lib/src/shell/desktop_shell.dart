@@ -211,14 +211,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       final expanded = _expanded && !compact;
       final colors = Theme.of(context).colorScheme;
       final surfaces = Theme.of(context).extension<DroidLabThemeSurfaces>();
-      final deviceLabel = devices.when(
-        data: (data) {
-          final count = (data['devices'] as List<dynamic>? ?? const []).length;
-          return count == 0 ? 'No device' : '$count device${count == 1 ? '' : 's'}';
-        },
-        error: (_, __) => 'Device scan error',
-        loading: () => 'Scanning',
-      );
+      final targetSerial = ref.watch(selectedTargetSerialProvider);
       return Scaffold(body: SafeArea(child: Column(children: [
         Container(
           height: 72,
@@ -281,7 +274,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                 padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
                 child: Row(children: [
                   if (expanded) Expanded(child: Text(
-                    'Target: $deviceLabel',
+                    'Target: ${targetSerial ?? 'Unselected'}',
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(color: colors.onSurfaceVariant),
                   )),
