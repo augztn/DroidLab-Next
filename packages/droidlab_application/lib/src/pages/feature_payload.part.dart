@@ -256,38 +256,42 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   }
 
   @override
-  Widget build(BuildContext context) => _PageFrame(
-    title: 'Firmware & OTA Payload Extractor',
-    subtitle: 'Inspect OTA ZIP and payload BIN contents, review partition metadata, and extract verified image artifacts without overwriting existing files.',
-    child: DropTarget(
-      onDragDone: _drop,
-      child: ListView(children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Expanded(child: _TextField(controller: _source, label: 'OTA ZIP or payload BIN path')),
-          const SizedBox(width: 8),
-          OutlinedButton(onPressed: _browseSource, child: const Text('Browse…')),
-        ]),
-        const SizedBox(height: 10),
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Expanded(child: _TextField(controller: _output, label: 'Output directory')),
-          const SizedBox(width: 8),
-          OutlinedButton(onPressed: _browseOutput, child: const Text('Choose…')),
-          const SizedBox(width: 6),
-          OutlinedButton(onPressed: _openOutput, child: const Text('Open folder')),
-        ]),
-        const SizedBox(height: 10),
+  Widget build(BuildContext context) {
+    final sourcePanel = Card(child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        LayoutBuilder(builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 1000;
+          final source = Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Expanded(child: _TextField(controller: _source, label: 'OTA ZIP or payload.bin source path')),
+            const SizedBox(width: 8),
+            OutlinedButton(onPressed: _browseSource, child: const Text('Browse…')),
+          ]);
+          final output = Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Expanded(child: _TextField(controller: _output, label: 'Non-overwriting publication directory')),
+            const SizedBox(width: 8),
+            OutlinedButton(onPressed: _browseOutput, child: const Text('Choose…')),
+            const SizedBox(width: 6),
+            OutlinedButton(onPressed: _openOutput, child: const Text('Open folder')),
+          ]);
+          return wide
+            ? Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Expanded(child: source),
+                const SizedBox(width: 16),
+                Expanded(child: output),
+              ])
+            : Column(children: [source, const SizedBox(height: 10), output]);
+        }),
+        const SizedBox(height: 12),
         Row(children: [
           Expanded(child: DropdownButtonFormField<String>(
             initialValue: _selectedMount,
             isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Mounted removable drive',
-              border: OutlineInputBorder(),
-            ),
+            decoration: const InputDecoration(labelText: 'Mounted removable drive'),
             hint: const Text('Select mounted storage'),
             items: _mountedLocations.map((item) => DropdownMenuItem<String>(
               value: item.path,
-              child: Text(item.label + ' · ' + item.path, overflow: TextOverflow.ellipsis),
+              child: Text('${item.label} · ${item.path}', overflow: TextOverflow.ellipsis),
             )).toList(),
             onChanged: (value) => setState(() => _selectedMount = value),
           )),
@@ -301,12 +305,13 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
             onPressed: _selectedMount == null ? null : _useMountedOutput,
             child: const Text('Use for output'),
           ),
+          const SizedBox(width: 6),
           OutlinedButton(
             onPressed: _selectedMount == null ? null : _browseMountedInput,
             child: const Text('Browse drive'),
           ),
         ]),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         Wrap(spacing: 8, runSpacing: 8, children: [
           FilledButton(onPressed: _busy ? null : _inspect, child: const Text('Inspect payload')),
           FilledButton.icon(
@@ -315,78 +320,84 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
             label: const Text('Extract selected (or all if none selected)'),
           ),
           FilterChip(
-            label: const Text('SHA-256 fingerprints'),
+            label: const Text('Compute SHA-256 digest'),
             selected: _sha,
             onSelected: (value) => setState(() => _sha = value),
           ),
         ]),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         Text(_status, style: Theme.of(context).textTheme.bodySmall),
-        ]))),
-        const SizedBox(height: 14),
-        if (_parts.isNotEmpty) ...[
-          Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
-          Row(children: [
-            Text(
-              _parts.length.toString() + ' partitions · ' +
-              _selected.length.toString() + ' selected · ' +
-              _parts.where((part) => _selected.contains(part['name']))
-                .fold<int>(0, (sum, part) => sum + ((part['size_bytes'] as num?)?.toInt() ?? 0)).toString() + ' B selected',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: () => setState(() => _selected.addAll(_parts.map((p) => p['name'] as String))),
-              child: const Text('Select all'),
-            ),
-            TextButton(
-              onPressed: () => setState(_selected.clear),
-              child: const Text('Select none'),
-            ),
-          ]),
-          _TextField(
-            controller: _partitionFilter,
-            label: 'Filter partitions',
-            hint: 'Search by partition name',
-            onChanged: (_) => setState(() {}),
-          ),
-          SizedBox(
-            height: 360,
-            child: _visibleParts.isEmpty
-                ? const Center(child: Text('No partitions match this filter.'))
-                : ListView.builder(
-                    itemCount: _visibleParts.length,
-                    itemBuilder: (context, index) {
-                      final part = _visibleParts[index];
-                      final name = part['name'] as String;
-                      return CheckboxListTile(
-                        dense: true,
-                        value: _selected.contains(name),
-                        title: Text(name),
-                        subtitle: Text(part['size_bytes'].toString() + ' bytes'),
-                        onChanged: (value) => setState(() {
-                          if (value == true) {
-                            _selected.add(name);
-                          } else {
-                            _selected.remove(name);
-                          }
-                        }),
-                      );
-                    },
-                  ),
-          ),
-          ]))),
-        ],
-        const SizedBox(height: 12),
-        Text('ACTIVITY LOG', style: Theme.of(context).textTheme.labelLarge),
-        const SizedBox(height: 6),
+      ]),
+    ));
+    final partitionPanel = Card(child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Expanded(child: Text(
+            '${_parts.length} partitions · ${_selected.length} selected',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          )),
+          TextButton(onPressed: () => setState(() => _selected.addAll(_parts.map((p) => p['name'] as String))),
+            child: const Text('Select all')),
+          TextButton(onPressed: () => setState(_selected.clear), child: const Text('Select none')),
+        ]),
+        const SizedBox(height: 8),
+        _TextField(controller: _partitionFilter, label: 'Filter partitions', hint: 'boot, vbmeta, system…',
+          onChanged: (_) => setState(() {})),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 360,
+          child: _visibleParts.isEmpty
+            ? const Center(child: Text('No partitions match this filter.'))
+            : ListView.separated(
+                itemCount: _visibleParts.length,
+                separatorBuilder: (_, __) => Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
+                itemBuilder: (context, index) {
+                  final part = _visibleParts[index];
+                  final name = part['name'] as String;
+                  return CheckboxListTile(
+                    dense: true,
+                    value: _selected.contains(name),
+                    title: Text(name, style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w600)),
+                    subtitle: Text('${part['size_bytes']} bytes'),
+                    onChanged: _busy ? null : (value) => setState(() {
+                      if (value == true) {
+                        _selected.add(name);
+                      } else {
+                        _selected.remove(name);
+                      }
+                    }),
+                  );
+                },
+              ),
+        ),
+      ]),
+    ));
+    final activityPanel = Card(child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('Activity Log', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
         _OutputPanel(output: _activityLines.isEmpty ? _status : _activityLines.join('\n')),
         if (_busy) ...[
+          const SizedBox(height: 10),
           LinearProgressIndicator(value: _progress),
-          if (_progress != null)
-            Text('Extraction progress: ${(_progress! * 100).round()}%'),
+          if (_progress != null) Text('Extraction progress: ${(_progress! * 100).round()}%'),
         ],
       ]),
-    ),
-  );
+    ));
+    return _PageFrame(
+      title: 'Firmware & OTA Payload Extractor',
+      subtitle: 'Isolated staging directory · Rejects empty/symlink artifacts · Atomic non-overwriting publication',
+      child: DropTarget(
+        onDragDone: _drop,
+        child: ListView(children: [
+          sourcePanel,
+          if (_parts.isNotEmpty) ...[const SizedBox(height: 14), partitionPanel],
+          const SizedBox(height: 14),
+          activityPanel,
+        ]),
+      ),
+    );
+  }
 }
