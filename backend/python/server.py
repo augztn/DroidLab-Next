@@ -532,6 +532,21 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         result = run_streaming(command, timeout=60, cancel_event=cancel)
         if result.returncode:
             raise RuntimeError(f"Package inventory failed ({result.returncode}): {result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        disabled_result = run_streaming(
+            [tool_path("adb"), "-s", serial, "shell", "pm", "list", "packages", "-d", "--user", str(user_id)],
+            timeout=30,
+            cancel_event=cancel,
+        )
+        if disabled_result.returncode:
+            raise RuntimeError(
+                f"Could not inspect disabled packages ({disabled_result.returncode}): "
+                f"{disabled_result.stdout[-MAX_RETAINED_OUTPUT:]}"
+            )
+        disabled = {
+            line.strip()[len("package:"):]
+            for line in disabled_result.stdout.splitlines()
+            if line.strip().startswith("package:")
+        }
         packages = {}
         for line in result.stdout.splitlines():
             value = line.strip()
@@ -540,10 +555,15 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             body = value[len("package:"):]
             path, separator, package = body.rpartition("=")
             package = package if separator else body
-            if not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
+            if not re.fullmatch(r"[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+", package):
                 continue
             if package not in packages:
-                packages[package] = {"package": package, "apk_path": path if separator else "", "system": path.startswith(("/system/", "/product/", "/vendor/", "/apex/"))}
+                packages[package] = {
+                    "package": package,
+                    "apk_path": path if separator else "",
+                    "system": path.startswith(("/system/", "/product/", "/vendor/", "/apex/")),
+                    "disabled": package in disabled,
+                }
         return {"serial": serial, "user_id": user_id, "packages": [packages[key] for key in sorted(packages, key=str.casefold)]}
     if operation == "debloat.package.state":
         serial, package = args.get("serial"), args.get("package")
