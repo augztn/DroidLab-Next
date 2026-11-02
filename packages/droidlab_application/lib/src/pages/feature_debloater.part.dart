@@ -474,7 +474,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                 const guidanceWidth = 100.0;
                 const actionsWidth = 120.0;
                 const minTableWidth = selectWidth + packageWidth + functionWidth +
-                    riskWidth + stateWidth + guidanceWidth + actionsWidth;
+                    riskWidth + stateWidth + guidanceWidth + actionsWidth + 24;
                 final tableWidth = constraints.maxWidth < minTableWidth
                     ? minTableWidth : constraints.maxWidth;
                 return SingleChildScrollView(
