@@ -21,14 +21,9 @@ def archive_bytes(platform_name="darwin"):
     suffix = ".exe" if platform_name == "win32" else ""
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as bundle:
-        for name, content in (
-            ("platform-tools/", ""),
-            (f"platform-tools/adb{suffix}", b"adb-stub"),
-            (f"platform-tools/fastboot{suffix}", b"fastboot-stub"),
-        ):
-            entry = zipfile.ZipInfo(name, date_time=(2020, 1, 1, 0, 0, 0))
-            entry.compress_type = zipfile.ZIP_DEFLATED
-            bundle.writestr(entry, content)
+        bundle.writestr("platform-tools/", "")
+        bundle.writestr(f"platform-tools/adb{suffix}", b"adb-stub")
+        bundle.writestr(f"platform-tools/fastboot{suffix}", b"fastboot-stub")
     return output.getvalue()
 
 

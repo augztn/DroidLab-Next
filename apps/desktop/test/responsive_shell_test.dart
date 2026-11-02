@@ -23,7 +23,7 @@ void main() {
     expect(find.text('ANDROID ENGINEERING WORKSTATION'), findsNothing);
   });
 
-  testWidgets('workspace does not reserve space for the removed console', (tester) async {
+  testWidgets('operation console can be collapsed and restored', (tester) async {
     tester.view.physicalSize = const Size(1440, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -37,8 +37,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Operation Console'), findsNothing);
-    expect(find.byTooltip('Hide console'), findsNothing);
-    expect(find.byTooltip('Show console'), findsNothing);
+    expect(find.textContaining('Operation Console (Bounded'), findsOneWidget);
+    expect(find.byTooltip('Hide console'), findsOneWidget);
+    await tester.tap(find.byTooltip('Hide console'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Show console'), findsOneWidget);
+    await tester.tap(find.byTooltip('Show console'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Hide console'), findsOneWidget);
   });
 }

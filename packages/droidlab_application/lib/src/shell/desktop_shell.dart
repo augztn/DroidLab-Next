@@ -16,6 +16,7 @@ class DesktopShell extends ConsumerStatefulWidget {
 
 class _DesktopShellState extends ConsumerState<DesktopShell> {
   bool _expanded = true;
+  bool _consoleExpanded = true;
   final List<String> _consoleLines = [];
   StreamSubscription<BackendEvent>? _events;
   BackendClient? _eventClient;
@@ -175,6 +176,72 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     } finally {
       _operationLogSink = null;
     }
+  }
+
+
+  Widget _buildOperationConsole(BuildContext context, ColorScheme colors) {
+    final border = BorderSide(color: colors.outlineVariant);
+    return Container(
+      decoration: BoxDecoration(color: colors.surface, border: Border(top: border)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 42,
+            child: Row(children: [
+              const SizedBox(width: 14),
+              Icon(Icons.terminal, size: 17, color: colors.primary),
+              const SizedBox(width: 10),
+              Expanded(child: Text(
+                'Operation Console (Bounded 300-line JSONL Event Stream)',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+              )),
+              IconButton(
+                tooltip: 'Clear console',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => setState(() {
+                  _consoleLines.clear();
+                  _pendingConsoleLines.clear();
+                  ref.read(operationConsoleLinesProvider.notifier).state = const [];
+                }),
+                icon: const Icon(Icons.delete_outline, size: 17),
+              ),
+              TextButton.icon(
+                tooltip: _consoleExpanded ? 'Hide console' : 'Show console',
+                onPressed: () => setState(() => _consoleExpanded = !_consoleExpanded),
+                icon: Icon(_consoleExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up, size: 18),
+                label: Text(_consoleExpanded ? 'Hide' : 'Show'),
+              ),
+              const SizedBox(width: 8),
+            ]),
+          ),
+          if (_consoleExpanded)
+            SizedBox(
+              height: 220,
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: colors.surfaceContainerLowest, border: Border(top: border)),
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  itemCount: _consoleLines.length,
+                  itemBuilder: (context, index) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: SelectableText(
+                      _consoleLines[index],
+                      maxLines: 2,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontFamily: 'monospace',
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -387,7 +454,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
             child: widget.child,
           )),
         ])),
-
+        _buildOperationConsole(context, colors),
       ])));
     });
   }
