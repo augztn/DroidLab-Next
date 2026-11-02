@@ -72,11 +72,17 @@ void main() {
   test('dispose during startup rejects startup and closes process', () async {
     final client = createClient(mode: 'delayed_start');
     final startup = client.start();
+    // Subscribe before disposal completes the startup future with an error;
+    // otherwise the test runner correctly reports an unhandled async error.
+    final startupFailure = expectLater(
+      startup,
+      throwsA(isA<BackendException>()),
+    );
     await Future<void>.delayed(const Duration(milliseconds: 30));
 
     await client.dispose();
 
-    await expectLater(startup, throwsA(isA<BackendException>()));
+    await startupFailure;
     expect(client.isRunning, isFalse);
     await expectLater(client.start(), throwsA(isA<BackendException>()));
   });
@@ -86,13 +92,15 @@ void main() {
     await client.start();
     final eventsDone = expectLater(client.events, emitsDone);
     final operation = await client.startOperation('pending', const {});
-
-    await client.dispose();
-
-    await expectLater(
+    // Attach the error matcher before dispose() completes the pending future.
+    final operationFailure = expectLater(
       operation.result,
       throwsA(isA<BackendException>()),
     );
+
+    await client.dispose();
+
+    await operationFailure;
     await eventsDone;
     expect(client.isRunning, isFalse);
   });
