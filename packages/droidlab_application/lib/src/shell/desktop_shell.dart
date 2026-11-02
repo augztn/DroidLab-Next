@@ -223,8 +223,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       }
       return Scaffold(body: SafeArea(child: Column(children: [
         Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          height: 68,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           decoration: BoxDecoration(
             color: colors.surface,
             border: Border(bottom: BorderSide(color: colors.outlineVariant)),
@@ -259,7 +259,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
         Expanded(child: Row(children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 160),
-            width: expanded ? 260 : 64,
+            width: expanded ? 276 : 66,
             decoration: BoxDecoration(
               color: colors.surface,
               border: Border(right: BorderSide(color: colors.outlineVariant)),
@@ -286,11 +286,11 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                 ]),
               ),
               Expanded(child: ListView(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 12),
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 14),
                 children: [
                   for (final group in _groups) ...[
                     if (expanded) Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 18, 8, 8),
+                      padding: const EdgeInsets.fromLTRB(13, 20, 8, 9),
                       child: Text(
                         group.$1 == 'FIRMWARE' ? 'Firmware & OTA' :
                         group.$1 == 'OBSERVABILITY' ? 'Observability' :
@@ -302,7 +302,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                     ),
                     for (final item in group.$2)
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        padding: const EdgeInsets.symmetric(vertical: 3),
                         child: Tooltip(
                           message: item.$1,
                           child: Material(
@@ -316,8 +316,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                               leading: Icon(item.$3, size: 19),
                               title: expanded ? Text(item.$1, maxLines: 1, overflow: TextOverflow.ellipsis) : null,
                               contentPadding: EdgeInsets.symmetric(horizontal: expanded ? 12 : 0),
-                              dense: true,
-                              minLeadingWidth: 22,
+                              dense: false,
+                              minLeadingWidth: 24,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
                               onTap: () => context.go(item.$2),
                             ),
@@ -364,7 +364,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
             ]),
           ),
           Expanded(child: Padding(
-            padding: EdgeInsets.fromLTRB(compact ? 14 : 24, compact ? 16 : 24, compact ? 14 : 24, 16),
+            padding: EdgeInsets.fromLTRB(compact ? 16 : 28, compact ? 18 : 28, compact ? 16 : 28, 18),
             child: widget.child,
           )),
         ])),

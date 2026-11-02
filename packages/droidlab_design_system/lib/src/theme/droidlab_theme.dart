@@ -121,13 +121,13 @@ abstract final class DroidLabTheme {
       cardTheme: CardThemeData(
         color: surface, elevation: 0, margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           side: BorderSide(color: border),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
-        isDense: true, filled: true, fillColor: input,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        isDense: false, filled: true, fillColor: input,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 16),
         hintStyle: TextStyle(color: muted.withValues(alpha: 0.85), fontSize: 14),
         labelStyle: TextStyle(color: muted, fontSize: 13),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: border)),
@@ -137,7 +137,7 @@ abstract final class DroidLabTheme {
         focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: BorderSide(color: error, width: 1.4)),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(
-        backgroundColor: button, foregroundColor: text, minimumSize: const Size(0, 40),
+        backgroundColor: button, foregroundColor: text, minimumSize: const Size(0, 42),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
         shape: buttonShape, textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       )),
@@ -152,7 +152,7 @@ abstract final class DroidLabTheme {
         textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       )),
       textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(
-        foregroundColor: primary, minimumSize: const Size(0, 38),
+        foregroundColor: primary, minimumSize: const Size(38, 40),
         textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       )),
       iconButtonTheme: IconButtonThemeData(style: IconButton.styleFrom(
