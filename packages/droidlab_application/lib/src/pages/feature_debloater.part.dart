@@ -28,6 +28,14 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     try {
       final client = ref.read(backendClientProvider);
       final catalogResult = await client.request('debloat.catalog.list', const {});
+      final catalogEntries = catalogResult.data['entries'] as List<dynamic>? ?? const [];
+      final guidanceByPackage = <String, Map<String, dynamic>>{};
+      for (final value in catalogEntries.whereType<Map<String, dynamic>>()) {
+        final package = value['package'];
+        if (package is String && package.isNotEmpty) {
+          guidanceByPackage[package] = value;
+        }
+      }
       final recommendationPackages = (catalogResult.data['recommendations'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
           .where((item) => item['package'] is String)
@@ -45,7 +53,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         _packages = packages;
         _disabled = disabled;
         _recommendations = recommendationPackages;
-        _guidance = {};
+        _guidance = guidanceByPackage;
       });
     } catch (error) {
       if (mounted && generation == _loadGeneration) setState(() => _error = error.toString());
@@ -188,7 +196,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         IconButton(onPressed: _busy || _serial == null ? null : _load, tooltip: 'Refresh packages', icon: const Icon(Icons.refresh)),
       ],
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Card(child: Padding(padding: const EdgeInsets.all(16), child: Wrap(
+        Card(child: Padding(padding: const EdgeInsets.all(10), child: Wrap(
           spacing: 12, runSpacing: 12, crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             SizedBox(width: 280, child: DropdownButtonFormField<String>(
@@ -211,14 +219,15 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
           ],
         ))),
         const SizedBox(height: 10),
-        Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(children: [
+        Card(child: Padding(padding: const EdgeInsets.all(9), child: Column(children: [
           const Row(children: [
             Icon(Icons.warning_amber_rounded), SizedBox(width: 8),
-            Expanded(child: Text('System-app changes can break Android features. Uninstall for user does not remove the system image APK. Package guidance is device-dependent; no package is automatically marked safe.')),
+            Expanded(child: Text('System-app changes can break Android features. Uninstall for user does not remove the system image APK. Package guidance is device-dependent; no package is automatically marked safe.', style: Theme.of(context).textTheme.bodySmall)),
           ]),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Row(children: [
             Expanded(child: TextField(
+              dense: true,
               decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search package IDs', border: OutlineInputBorder()),
               onChanged: (value) => setState(() => _query = value),
             )),
@@ -233,14 +242,14 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
               onChanged: (value) => setState(() => _filter = value ?? 'all'),
             ),
           ]),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Align(
             alignment: Alignment.centerLeft,
-            child: Wrap(spacing: 8, children: [
-              FilterChip(label: const Text('Recommended'), selected: _riskFilter == 'recommended', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'recommended' ? 'all' : 'recommended')),
-              FilterChip(label: const Text('Advanced'), selected: _riskFilter == 'advanced', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'advanced' ? 'all' : 'advanced')),
-              FilterChip(label: const Text('Review first'), selected: _riskFilter == 'review', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'review' ? 'all' : 'review')),
-              FilterChip(label: const Text('Keep'), selected: _riskFilter == 'keep', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'keep' ? 'all' : 'keep')),
+            child: Wrap(spacing: 6, runSpacing: 0, children: [
+              FilterChip(materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact, label: const Text('Recommended'), selected: _riskFilter == 'recommended', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'recommended' ? 'all' : 'recommended')),
+              FilterChip(materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact, label: const Text('Advanced'), selected: _riskFilter == 'advanced', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'advanced' ? 'all' : 'advanced')),
+              FilterChip(materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact, label: const Text('Review first'), selected: _riskFilter == 'review', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'review' ? 'all' : 'review')),
+              FilterChip(materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact, label: const Text('Keep'), selected: _riskFilter == 'keep', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'keep' ? 'all' : 'keep')),
             ]),
           ),
         ]))),
@@ -261,7 +270,10 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                         final system = item['system'] == true;
                         final disabled = _disabled.contains(package);
                         return Card(child: ListTile(
-                          leading: Icon(system ? Icons.android : Icons.apps),
+                          visualDensity: VisualDensity.compact,
+                          minVerticalPadding: 2,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                          leading: Icon(system ? Icons.android : Icons.apps, size: 20),
                           title: SelectableText(package),
                           subtitle: Text((system ? 'System package' : 'User package') + ' · ' + (disabled ? 'Disabled' : 'Enabled') + ' · ' + (_guidance[package]?['risk'] as String? ?? 'Not listed')),
                           onTap: () => _showGuidance(item),
