@@ -175,7 +175,7 @@ class LogsPage extends ConsumerWidget {
           Expanded(child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Theme.of(context).extension<DroidLabThemeSurfaces>()?.console ?? Theme.of(context).colorScheme.surfaceContainerHighest,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(9),
               border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
             ),
