@@ -67,8 +67,22 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       final processLines = lines.where((line) => RegExp(r'^\s*\d+\s+').hasMatch(line)).take(5).toList();
       final displayLines = processLines.isNotEmpty ? processLines : lines.take(14).toList();
       if (mounted) setState(() { _serial = serial; _level = level?.clamp(0, 100); _temperature = temp == null ? null : temp / 10; _batteryError = level == null ? 'Battery data was not present in the device response.' : null; _top = displayLines; _resourceError = displayLines.isEmpty ? 'No process data returned by Android.' : null; _updated = DateTime.now(); });
-    } catch (error) { if (mounted) setState(() { _batteryError = 'Could not query device metrics: $error'; _resourceError = 'Resource monitor unavailable.'; }); }
-    finally { _polling = false; }
+    } catch (error) {
+      final message = error.toString();
+      // A closed backend stdin means the managed Python process exited while
+      // the client still held its Process handle. Recreate the client on the
+      // next poll instead of leaving both dashboard widgets permanently stale.
+      if (message.contains('Could not write to backend stdin') ||
+          message.contains('Backend process exited unexpectedly')) {
+        ref.invalidate(backendClientProvider);
+        ref.invalidate(backendReadyProvider);
+        ref.invalidate(deviceListProvider);
+      }
+      if (mounted) setState(() {
+        _batteryError = 'Could not query device metrics: $message';
+        _resourceError = 'Resource monitor unavailable: $message';
+      });
+    } finally { _polling = false; }
   }
   @override Widget build(BuildContext context) {
     final backend = ref.watch(backendReadyProvider);
