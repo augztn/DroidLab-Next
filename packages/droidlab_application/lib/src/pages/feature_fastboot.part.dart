@@ -511,19 +511,44 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           icon: const Icon(Icons.refresh)),
       ]),
     );
-    Widget panel(String title, String subtitle, List<Widget> children) => Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 5),
-          Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          const SizedBox(height: 16),
-          ...children,
-        ]),
-      ),
-    );
+    Widget panel(String title, String subtitle, List<Widget> children) {
+      final icon = switch (title) {
+        'Guarded Partition Flash (fastboot.flash)' => Icons.system_update_alt_rounded,
+        'A/B Active Slot Switcher (fastboot.set_active)' => Icons.swap_horiz_rounded,
+        'Guarded Erase & Factory Wipe' => Icons.delete_sweep_outlined,
+        'Mode-Aware Fastboot Reboot' => Icons.restart_alt_rounded,
+        _ => Icons.terminal_rounded,
+      };
+      return Card(
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(21),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.11),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(icon, size: 21, color: Theme.of(context).colorScheme.primary),
+              ),
+              const SizedBox(width: 13),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700, letterSpacing: -0.2)),
+                const SizedBox(height: 4),
+                Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.45)),
+              ])),
+            ]),
+            const SizedBox(height: 19),
+            ...children,
+          ]),
+        ),
+      );
+    }
     final flashPanel = panel(
       'Guarded Partition Flash (fastboot.flash)',
       'Validates the partition allowlist, unlocked bootloader state, and fresh transport scan before dispatch.',
@@ -681,12 +706,76 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           const SizedBox(height: 14),
           advancedPanel,
         ]);
+        final deviceLabel = selectedDevice == null
+            ? 'No target selected'
+            : (selectedDevice['model']?.toString().trim().isNotEmpty == true
+                ? selectedDevice['model'].toString()
+                : selectedDevice['product']?.toString() ?? 'Android device');
+        final transportLabel = selectedDevice == null
+            ? 'Waiting for a device'
+            : '${selectedDevice['transport'] ?? 'unknown'} · ${selectedDevice['mode'] ?? selectedDevice['state'] ?? 'unknown'}';
+        final targetStatus = Card(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            child: Row(children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: (fastbootTarget
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant).withValues(alpha: 0.11),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(
+                  fastbootTarget ? Icons.usb_rounded : Icons.usb_off_rounded,
+                  color: fastbootTarget
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(deviceLabel, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 3),
+                Text(selectedSerial == null ? 'Connect a device or select one above' : '$selectedSerial  ·  $transportLabel',
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontFamily: selectedSerial == null ? null : 'monospace')),
+              ])),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                decoration: BoxDecoration(
+                  color: (fastbootTarget
+                      ? Theme.of(context).colorScheme.tertiary
+                      : Theme.of(context).colorScheme.surfaceContainerHighest).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                ),
+                child: Text(
+                  fastbootTarget ? 'FASTBOOT READY' : selectedDevice == null ? 'NOT CONNECTED' : 'WRONG MODE',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: fastbootTarget
+                        ? Theme.of(context).colorScheme.tertiary
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                    letterSpacing: 0.45),
+                ),
+              ),
+            ]),
+          ),
+        );
         return Column(children: [
+          targetStatus,
+          const SizedBox(height: 14),
           if (warning != null) ...[warning, const SizedBox(height: 12)],
           if (devicesAsync.hasError)
-            Text('Device scan failed: ${devicesAsync.error}', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-          if (allDevices.isEmpty)
-            const Padding(padding: EdgeInsets.only(bottom: 12), child: Text('No devices detected. Connect a Fastboot target or transition through ADB Toolkit.')),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text('Device scan failed: ${devicesAsync.error}', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ),
           if (_busy) const LinearProgressIndicator(),
           Expanded(child: wide
             ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
