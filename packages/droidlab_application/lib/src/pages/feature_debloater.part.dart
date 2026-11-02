@@ -27,14 +27,12 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       final inventory = await client.request('debloat.packages.list', {'serial': serial, 'user_id': _userId});
       final packages = (inventory.data['packages'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>().toList(growable: false);
-      final states = await Future.wait(packages.map((item) async {
-        final state = await client.request('debloat.package.state', {
-          'serial': serial, 'package': item['package'], 'user_id': _userId,
-        });
-        return state.data['state'] == 'disabled' ? item['package'] as String : null;
-      }));
+      final disabled = packages
+          .where((item) => item['disabled'] == true)
+          .map((item) => item['package'] as String)
+          .toSet();
       if (!mounted || generation != _loadGeneration || serial != _serial) return;
-      setState(() { _packages = packages; _disabled = states.whereType<String>().toSet(); });
+      setState(() { _packages = packages; _disabled = disabled; });
     } catch (error) {
       if (mounted && generation == _loadGeneration) setState(() => _error = error.toString());
     } finally {
