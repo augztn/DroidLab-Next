@@ -15,6 +15,7 @@ void main() {
     final settings = await DroidLabSettingsStore(file: file).load();
 
     expect(settings.theme, 'oled_black');
+    expect(settings.themeMode, 'dark');
     expect(settings.adbPath, isEmpty);
     expect(settings.fastbootPath, isEmpty);
   });
@@ -26,6 +27,7 @@ void main() {
     final store = DroidLabSettingsStore(file: file);
     const settings = DroidLabSettings(
       theme: 'standard_dark',
+      themeMode: 'light',
       pythonPath: '/opt/python/bin/python3',
       backendPath: '/opt/droidlab/server.py',
       adbPath: '/opt/platform-tools/adb',
@@ -37,6 +39,7 @@ void main() {
     final loaded = await store.load();
 
     expect(loaded.toJson(), settings.toJson());
+    expect(loaded.themeMode, 'light');
   });
 
   test('preserves malformed config and exposes a recovery notice', () async {
