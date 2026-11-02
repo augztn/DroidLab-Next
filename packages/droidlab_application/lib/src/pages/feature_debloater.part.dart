@@ -308,7 +308,13 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       // Stop at the first explicit cancellation; never dispatch later mutations.
       for (final package in packages) {
         if (!mounted) return;
-        final item = _packages.where((value) => value['package'] == package).firstOrNull;
+        Map<String, dynamic>? item;
+        for (final candidate in _packages) {
+          if (candidate['package'] == package) {
+            item = candidate;
+            break;
+          }
+        }
         final installed = item?['installed'] != false;
         if ((action == 'disable' && _disabled.contains(package)) ||
             (action == 'enable' && !_disabled.contains(package)) ||
@@ -481,6 +487,20 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                       : () => _applySelected('disable'),
                   icon: const Icon(Icons.pause_circle_outline, size: 18),
                   label: const Text('Disable selected'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: _busy || _selectedPackages.isEmpty
+                      ? null
+                      : () => _applySelected('enable'),
+                  icon: const Icon(Icons.play_circle_outline, size: 18),
+                  label: const Text('Enable selected'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: _busy || _selectedPackages.isEmpty
+                      ? null
+                      : () => _applySelected('restore'),
+                  icon: const Icon(Icons.restore_rounded, size: 18),
+                  label: const Text('Restore selected'),
                 ),
                 FilledButton.tonalIcon(
                   onPressed: _busy || _selectedPackages.isEmpty
