@@ -37,12 +37,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Hide console'));
+    await tester.tap(find.text('Hide'));
     await tester.pumpAndSettle();
-    expect(find.text('OPERATION CONSOLE'), findsNothing);
+    expect(
+      find.text('Operation Console (Bounded 300-line JSONL Event Stream)'),
+      findsNothing,
+    );
 
-    await tester.tap(find.text('Show console'));
+    await tester.tap(find.text('Show'));
     await tester.pumpAndSettle();
-    expect(find.text('OPERATION CONSOLE'), findsOneWidget);
+    expect(
+      find.text('Operation Console (Bounded 300-line JSONL Event Stream)'),
+      findsOneWidget,
+    );
   });
 }
