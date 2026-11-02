@@ -14,11 +14,13 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   bool _busy = false;
   List<Map<String, dynamic>> _packages = const [];
   Set<String> _disabled = {};
+  int _loadGeneration = 0;
   String? _error;
 
   Future<void> _load() async {
     final serial = _serial;
-    if (serial == null) return;
+    if (serial == null || _busy) return;
+    final generation = ++_loadGeneration;
     setState(() { _busy = true; _error = null; });
     try {
       final client = ref.read(backendClientProvider);
@@ -31,12 +33,12 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         });
         return state.data['state'] == 'disabled' ? item['package'] as String : null;
       }));
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration || serial != _serial) return;
       setState(() { _packages = packages; _disabled = states.whereType<String>().toSet(); });
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted && generation == _loadGeneration) setState(() => _error = error.toString());
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && generation == _loadGeneration) setState(() => _busy = false);
     }
   }
 
@@ -118,7 +120,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
               value: _serial,
               decoration: const InputDecoration(labelText: 'Authorized ADB device', border: OutlineInputBorder()),
               items: serials.map((value) => DropdownMenuItem(value: value, child: Text(value, overflow: TextOverflow.ellipsis))).toList(),
-              onChanged: _busy ? null : (value) => setState(() { _serial = value; _packages = const []; _disabled = {}; }),
+              onChanged: _busy ? null : (value) => setState(() { _loadGeneration++; _serial = value; _packages = const []; _disabled = {}; }),
             )),
             SizedBox(width: 130, child: TextFormField(
               initialValue: '0', keyboardType: TextInputType.number,
@@ -126,7 +128,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
               onChanged: (value) {
                 final parsed = int.tryParse(value);
                 if (parsed != null && parsed >= 0 && parsed <= 2147483647 && !_busy) {
-                  setState(() { _userId = parsed; _packages = const []; _disabled = {}; });
+                  setState(() { _loadGeneration++; _userId = parsed; _packages = const []; _disabled = {}; });
                 }
               },
             )),
