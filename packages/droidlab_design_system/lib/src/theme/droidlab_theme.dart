@@ -88,7 +88,8 @@ abstract final class DroidLabTheme {
       error: error, onSurface: text, onSurfaceVariant: muted,
       outline: border, outlineVariant: border,
     );
-    final base = Typography.material2021(platform: defaultTargetPlatform);
+    final typography = Typography.material2021(platform: defaultTargetPlatform);
+    final base = brightness == Brightness.dark ? typography.white : typography.black;
     final textTheme = base.copyWith(
       displayLarge: base.displayLarge?.copyWith(color: text, letterSpacing: -1.2),
       displayMedium: base.displayMedium?.copyWith(color: text, letterSpacing: -0.9),
