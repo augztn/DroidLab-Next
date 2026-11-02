@@ -28,7 +28,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   int _operationLogBytes = 0;
   static const _maxOperationLogBytes = 5 * 1024 * 1024;
   static const _groups = <(String, List<(String, String, IconData)>)>[
-    ('WORKSPACE', [('Dashboard','/dashboard',Icons.grid_view_rounded),('Device Manager','/devices',Icons.devices_rounded)]),
+    ('WORKSPACE', [('Dashboard','/dashboard',Icons.grid_view_rounded),('Device Manager','/devices',Icons.devices_rounded),('Android Debloater','/debloater',Icons.cleaning_services_rounded)]),
     ('FIRMWARE', [('Firmware & Payload','/firmware',Icons.folder_open_rounded)]),
     ('DEVICE TOOLS', [('ADB Toolkit','/adb',Icons.terminal_rounded),('Fastboot Toolkit','/fastboot',Icons.memory_rounded)]),
     ('OBSERVABILITY', [('Logs & Diagnostics','/logs',Icons.receipt_long_rounded),('Operation History','/history',Icons.history_rounded)]),
