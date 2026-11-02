@@ -102,7 +102,9 @@ cat > "$APPDIR/droidlab.svg" <<'SVG'
   <g fill="none" stroke="url(#frame)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
     <path d="m19 39 6 5-6 5M30 49h13"/>
   </g>
-</svg>cp "$APPDIR/droidlab.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/droidlab.svg"
+</svg>
+SVG
+cp "$APPDIR/droidlab.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/droidlab.svg"
 cp "$APPDIR/droidlab.svg" "$APPDIR/.DirIcon"
 mkdir -p "$DIST"
 APPIMAGE_ARGS=()
