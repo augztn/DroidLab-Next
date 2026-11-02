@@ -26,17 +26,47 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       final serial = target['serial']?.toString();
       if (serial == null || serial.isEmpty) return;
       final client = ref.read(backendClientProvider);
-      final battery = client.request('adb.shell', {'serial': serial, 'command_text': 'dumpsys battery', 'confirmed': true, 'confirmation': {'operation': 'adb.shell', 'serial': serial, 'command_text': 'dumpsys battery'}}, timeout: const Duration(seconds: 12));
-      final processes = client.request('adb.shell', {'serial': serial, 'command_text': 'top -n 1 -m 5', 'confirmed': true, 'confirmation': {'operation': 'adb.shell', 'serial': serial, 'command_text': 'top -n 1 -m 5'}}, timeout: const Duration(seconds: 12));
-      final results = await Future.wait([battery, processes]);
-      final batteryText = results[0].data['output']?.toString() ?? '';
-      final topText = results[1].data['output']?.toString() ?? '';
+      // Run device shell reads sequentially. The backend serializes ADB shell
+      // operations per device, so dispatching both at once can reject one request
+      // or race a backend restart on slower desktop hosts.
+      final batteryResult = await client.request(
+        'adb.shell',
+        {
+          'serial': serial,
+          'command_text': 'dumpsys battery',
+          'confirmed': true,
+          'confirmation': {
+            'operation': 'adb.shell',
+            'serial': serial,
+            'command_text': 'dumpsys battery',
+          },
+        },
+        timeout: const Duration(seconds: 20),
+      );
+      final batteryText = batteryResult.data['output']?.toString() ?? '';
+      final processesResult = await client.request(
+        'adb.shell',
+        {
+          'serial': serial,
+          'command_text': 'top -n 1 -m 5',
+          'confirmed': true,
+          'confirmation': {
+            'operation': 'adb.shell',
+            'serial': serial,
+            'command_text': 'top -n 1 -m 5',
+          },
+        },
+        timeout: const Duration(seconds: 20),
+      );
+      final topText = processesResult.data['output']?.toString() ?? '';
       final lm = RegExp(r'(?m)^\s*level:\s*(\d+)').firstMatch(batteryText);
       final tm = RegExp(r'(?m)^\s*temperature:\s*(-?\d+)').firstMatch(batteryText);
       final level = lm == null ? null : int.tryParse(lm.group(1)!);
       final temp = tm == null ? null : double.tryParse(tm.group(1)!);
-      final lines = topText.split(RegExp(r'\r?\n')).map((v) => v.trimRight()).where((v) => v.trim().isNotEmpty).take(14).toList();
-      if (mounted) setState(() { _serial = serial; _level = level?.clamp(0, 100); _temperature = temp == null ? null : temp / 10; _batteryError = level == null ? 'Battery data was not present in the device response.' : null; _top = lines; _resourceError = lines.isEmpty ? 'No process data returned by Android.' : null; _updated = DateTime.now(); });
+      final lines = topText.split(RegExp(r'\r?\n')).map((v) => v.trimRight()).where((v) => v.trim().isNotEmpty).toList();
+      final processLines = lines.where((line) => RegExp(r'^\\s*\\d+\\s+').hasMatch(line)).take(5).toList();
+      final displayLines = processLines.isNotEmpty ? processLines : lines.take(14).toList();
+      if (mounted) setState(() { _serial = serial; _level = level?.clamp(0, 100); _temperature = temp == null ? null : temp / 10; _batteryError = level == null ? 'Battery data was not present in the device response.' : null; _top = displayLines; _resourceError = displayLines.isEmpty ? 'No process data returned by Android.' : null; _updated = DateTime.now(); });
     } catch (error) { if (mounted) setState(() { _batteryError = 'Could not query device metrics: $error'; _resourceError = 'Resource monitor unavailable.'; }); }
     finally { _polling = false; }
   }
