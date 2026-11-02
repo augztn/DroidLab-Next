@@ -117,3 +117,6 @@ final discoveredDevicesProvider =
   await ref.watch(backendReadyProvider.future);
   return ref.watch(deviceRepositoryProvider).discover();
 });
+
+/// Bounded live operation-console history shared with the Logs workspace.
+final operationConsoleLinesProvider = StateProvider<List<String>>((ref) => const []);
