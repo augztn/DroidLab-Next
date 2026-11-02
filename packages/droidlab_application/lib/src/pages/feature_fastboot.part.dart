@@ -460,6 +460,14 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         .whereType<Map<String, dynamic>>().toList();
     final fastbootDevices = allDevices.where((device) => device['transport'] == 'fastboot').toList();
     final serials = allDevices.map((device) => device['serial'] as String).toList();
+    if (globalTarget == null && fastbootDevices.length == 1) {
+      final onlySerial = fastbootDevices.single['serial'] as String;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && ref.read(selectedTargetSerialProvider) == null) {
+          ref.read(selectedTargetSerialProvider.notifier).state = onlySerial;
+        }
+      });
+    }
     final currentSelection = globalTarget ?? _selectedSerial ?? _serial.text.trim();
     final selectedSerial = serials.contains(currentSelection)
         ? currentSelection
