@@ -15,6 +15,34 @@ class ProcessRunnerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("ready", result.stdout)
 
+    def test_popen_kwargs_cannot_override_protocol_streams_or_session(self):
+        with self.assertRaisesRegex(ValueError, "reserved Popen option"):
+            run_streaming(
+                [sys.executable, "-c", "print('no')"],
+                popen_kwargs={"stdout": None},
+            )
+
+    def test_popen_kwargs_cannot_override_stdin(self):
+        with self.assertRaisesRegex(ValueError, "reserved Popen option"):
+            run_streaming(
+                [sys.executable, "-c", "print('no')"],
+                popen_kwargs={"stdin": None},
+            )
+
+    def test_popen_kwargs_cannot_override_text_decoding(self):
+        with self.assertRaisesRegex(ValueError, "reserved Popen option"):
+            run_streaming(
+                [sys.executable, "-c", "print('no')"],
+                popen_kwargs={"text": False},
+            )
+
+    def test_popen_kwargs_cannot_override_process_session(self):
+        with self.assertRaisesRegex(ValueError, "reserved Popen option"):
+            run_streaming(
+                [sys.executable, "-c", "print('no')"],
+                popen_kwargs={"start_new_session": False},
+            )
+
     def test_cancel_before_launch(self):
         event = threading.Event()
         event.set()

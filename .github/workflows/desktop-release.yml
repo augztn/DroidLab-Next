@@ -20,7 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             platform: linux
           - os: windows-latest
             platform: windows
@@ -54,6 +54,30 @@ jobs:
         shell: bash
         run: |
           if [ "${{ runner.os }}" = "Windows" ]; then python scripts/stage_backend.py; else python3 scripts/stage_backend.py; fi
+      - name: Stage bundled CPython runtime (Windows and macOS)
+        shell: bash
+        if: runner.os != 'Linux'
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then python scripts/stage_python_runtime.py; else python3 scripts/stage_python_runtime.py; fi
+      - name: Smoke-test staged Windows runtime and backend
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $python = Resolve-Path 'apps/desktop/build/windows/x64/runner/Release/python/python.exe'
+          $env:DROIDLAB_BACKEND_TEST_PATH = (Resolve-Path 'apps/desktop/build/windows/x64/runner/Release/backend/python').Path
+          & $python -c "import json, ssl, subprocess, os, sys; sys.path.insert(0, os.environ['DROIDLAB_BACKEND_TEST_PATH']); import server; import droidlab.core.tool_resolver"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows bundled runtime/backend smoke test failed.' }
+          if (-not (Test-Path 'apps/desktop/build/windows/x64/runner/Release/backend/python/server.py')) { throw 'Windows backend payload is missing.' }
+      - name: Smoke-test staged macOS runtime and backend
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$(find apps/desktop/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)"
+          python="$app/Contents/Resources/python/bin/python3"
+          test -x "$python"
+          DROIDLAB_BACKEND_TEST_PATH="$app/Contents/Resources/backend/python" "$python" -c 'import json, ssl, subprocess, os, sys; sys.path.insert(0, os.environ["DROIDLAB_BACKEND_TEST_PATH"]); import server; import droidlab.core.tool_resolver'
+          test -f "$app/Contents/Resources/backend/python/server.py"
       - name: Sign Windows executable (when certificate is configured)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -64,7 +88,7 @@ jobs:
           if (-not $env:SIGNING_PFX_BASE64 -or -not $env:SIGNING_PFX_PASSWORD) { throw 'Windows release signing secrets are required for tagged production releases.' }
           $pfx = Join-Path $env:RUNNER_TEMP 'droidlab-signing.pfx'
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNING_PFX_BASE64))
-          $binaries = Get-ChildItem 'apps/desktop/build/windows/x64/runner/Release' -Recurse -File | Where-Object { $_.Extension -in '.exe', '.dll' }
+          $binaries = Get-ChildItem 'apps/desktop/build/windows/x64/runner/Release' -Recurse -File | Where-Object { $_.Extension -in '.exe', '.dll', '.pyd' }
           if (-not $binaries) { throw 'No Windows executable or DLL files found to sign.' }
           foreach ($binary in $binaries) {
             signtool sign /f $pfx /p $env:SIGNING_PFX_PASSWORD /fd SHA256 /tr https://timestamp.digicert.com /td SHA256 $binary.FullName
@@ -131,6 +155,22 @@ jobs:
           VERSION: ${{ github.event.inputs.tag || github.ref_name }}
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: bash scripts/build-linux-appimage.sh
+      - name: Smoke-test Linux AppImage payload
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          appimage="$(find dist -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          test -n "$appimage"
+          chmod +x "$appimage"
+          smoke_dir="$(mktemp -d)"
+          trap 'rm -rf "$smoke_dir"' EXIT
+          (cd "$smoke_dir" && "$GITHUB_WORKSPACE/$appimage" --appimage-extract >/dev/null)
+          appdir="$smoke_dir/squashfs-root"
+          test -x "$appdir/AppRun"
+          test -x "$appdir/usr/bin/droidlab_desktop"
+          test -x "$appdir/usr/bin/payload-dumper-go"
+          test -f "$appdir/usr/lib/droidlab/backend/server.py"
       - name: Package Linux
         if: runner.os == 'Linux'
         run: |

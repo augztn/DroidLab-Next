@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../diagnostics/diagnostic_redactor.dart';
+import 'fastboot_command.dart';
 import '../state/app_settings.dart';
 import '../state/backend_providers.dart';
 import '../state/operation_history.dart';
@@ -28,6 +29,7 @@ Future<bool> _waitForDeviceTransport({
   required WidgetRef ref,
   required String serial,
   required String transport,
+  String? fastbootMode,
 }) async {
   // USB disconnect/re-enumeration is asynchronous after reboot. Poll a bounded
   // number of times and only navigate once the same serial is visible again
@@ -42,7 +44,9 @@ Future<bool> _waitForDeviceTransport({
       final devices = (data['devices'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>();
       if (devices.any((device) =>
-          device['serial'] == serial && device['transport'] == transport)) {
+          device['serial'] == serial &&
+          device['transport'] == transport &&
+          (fastbootMode == null || device['mode'] == fastbootMode))) {
         return true;
       }
     } catch (_) {

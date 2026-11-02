@@ -11,6 +11,9 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   final _serial = TextEditingController();
   final _command = TextEditingController(text: 'getprop ro.build.version.release');
   final _package = TextEditingController();
+  final _transferLocal = TextEditingController();
+  final _transferRemote = TextEditingController(text: '/sdcard/Download/');
+  String _transferDirection = 'push';
   final _bugreport = TextEditingController();
   final _logcatFilters = TextEditingController();
   final _logSavePath = TextEditingController();
@@ -57,11 +60,25 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     _serial.dispose();
     _command.dispose();
     _package.dispose();
+    _transferLocal.dispose();
+    _transferRemote.dispose();
     _bugreport.dispose();
     _logcatFilters.dispose();
     _logSavePath.dispose();
     _logDisplayFilter.dispose();
     super.dispose();
+  }
+
+  void _dropCommandPath(DropDoneDetails detail) {
+    if (detail.files.isEmpty) return;
+    final path = detail.files.first.path;
+    final quoted = '"${path.replaceAll('"', r'\"')}"';
+    final current = _command.text.trim();
+    setState(() {
+      _command.text = current.isEmpty ? quoted : '$current $quoted';
+      _command.selection = TextSelection.collapsed(offset: _command.text.length);
+      _output = 'Inserted dropped file path into the command field: $path';
+    });
   }
 
   Future<void> _refreshDevices() async {
@@ -85,13 +102,34 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   }
 
   String? _stripHostExecutable(String command, String executable) {
-    final pattern = RegExp(
-      '^' + RegExp.escape(executable) + r'(?:\.exe)?(?:\s+|$)',
-      caseSensitive: false,
-    );
-    final match = pattern.firstMatch(command.trimLeft());
-    if (match == null) return null;
-    return command.trimLeft().substring(match.end).trim();
+    final trimmed = command.trimLeft();
+    if (trimmed.isEmpty) return null;
+
+    // Parse only the first executable token. Quoted paths may contain spaces;
+    // unquoted paths are accepted when the executable itself has no spaces.
+    final quote = trimmed.startsWith('"') || trimmed.startsWith("'")
+        ? trimmed[0]
+        : null;
+    late final String executableToken;
+    late final int tokenEnd;
+    if (quote != null) {
+      final closingQuote = trimmed.indexOf(quote, 1);
+      if (closingQuote < 0) return null;
+      executableToken = trimmed.substring(1, closingQuote);
+      tokenEnd = closingQuote + 1;
+    } else {
+      final match = RegExp(r'^\S+').firstMatch(trimmed);
+      if (match == null) return null;
+      executableToken = match.group(0)!;
+      tokenEnd = match.end;
+    }
+
+    final normalizedPath = executableToken.replaceAll(r'\', '/');
+    final basename = normalizedPath.split('/').last.toLowerCase();
+    final expected = executable.toLowerCase();
+    if (basename != expected && basename != '$expected.exe') return null;
+
+    return trimmed.substring(tokenEnd).trim();
   }
 
   Future<bool> _confirmCommand({
@@ -135,7 +173,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
 
     final fastbootArguments = _stripHostExecutable(command, 'fastboot');
     if (fastbootArguments != null) {
-      final verb = fastbootArguments.split(RegExp(r'\\s+')).first.toLowerCase();
+      final verb = fastbootArguments.split(RegExp(r'\s+')).first.toLowerCase();
       const discovery = {'devices', 'help', '--help', '--version', 'version'};
       final isDiscovery = discovery.contains(verb);
       if (!isDiscovery && (transport != 'fastboot' || serial == null || state != 'fastboot')) {
@@ -280,8 +318,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         setState(() => _output = result.data['output'] as String? ?? 'Command completed.');
       }
     } catch (error) {
-      if (mounted) setState(() => _output = error.toString());
-    } finally {
+      if (mounted) setState(() => _output = error.toString());    } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -302,6 +339,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     );
     if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
+    var rebootAccepted = false;
     try {
       final result = await trackOperation(
         ref,
@@ -314,19 +352,27 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
           'confirmation': {'operation': 'adb.reboot', 'serial': serial, 'mode': mode},
         }),
       );
+      rebootAccepted = true;
       if (mounted) setState(() => _output = result.data.toString());
     } catch (error) {
       if (mounted) setState(() => _output = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
-      if (mounted && (mode == 'bootloader' || mode == 'fastboot')) {
+      if (mounted && rebootAccepted && (mode == 'bootloader' || mode == 'fastboot')) {
+        final expectedFastbootMode = mode == 'fastboot' ? 'fastbootd' : 'bootloader';
         final transitioned = await _waitForDeviceTransport(
           ref: ref,
           serial: serial,
           transport: 'fastboot',
+          fastbootMode: expectedFastbootMode,
         );
-        if (mounted && transitioned) context.go('/fastboot');
-      } else if (mounted) {
+        if (mounted && transitioned) {
+          context.go('/fastboot');
+        } else if (mounted) {
+          setState(() => _output =
+              'Reboot was accepted, but $serial was not detected in $expectedFastbootMode. Refresh devices and check the USB connection.');
+        }
+      } else if (mounted && rebootAccepted) {
         // Recovery and normal Android boot remain on the ADB workspace.
         await _waitForDeviceTransport(
           ref: ref,
@@ -488,10 +534,90 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     if (file != null && mounted) setState(() => _package.text = file.path);
   }
 
+  Future<void> _browseTransferLocal() async {
+    if (_transferDirection == 'push') {
+      final file = await openFile();
+      if (file != null && mounted) setState(() => _transferLocal.text = file.path);
+    } else {
+      final directory = await getDirectoryPath(confirmButtonText: 'Use pull destination');
+      if (directory != null && mounted) setState(() => _transferLocal.text = directory);
+    }
+  }
+
+  void _dropTransferSource(DropDoneDetails detail) {
+    if (_transferDirection == 'push' && detail.files.isNotEmpty) {
+      setState(() => _transferLocal.text = detail.files.first.path);
+    }
+  }
+
+  Future<void> _transferFile() async {
+    final serial = _serial.text.trim();
+    final localPath = _transferLocal.text.trim();
+    final remotePath = _transferRemote.text.trim();
+    if (_busy || serial.isEmpty || localPath.isEmpty || remotePath.isEmpty) return;
+    if (_transferDirection == 'push' && !File(localPath).existsSync()) {
+      setState(() => _output = 'Choose an existing local file to push.');
+      return;
+    }
+    if (_transferDirection == 'pull' && !Directory(localPath).existsSync()) {
+      setState(() => _output = 'Choose an existing local destination directory for pull.');
+      return;
+    }
+    final sourcePath = _transferDirection == 'push' ? localPath : remotePath;
+    final destinationPath = _transferDirection == 'push' ? remotePath : localPath;
+    final intent = {
+      'operation': 'adb.transfer',
+      'serial': serial,
+      'direction': _transferDirection,
+      'source_path': sourcePath,
+      'destination_path': destinationPath,
+    };
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(_transferDirection == 'push' ? 'Confirm file push' : 'Confirm file pull'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Device: ' + serial),
+            Text('Direction: ' + _transferDirection.toUpperCase()),
+            Text('Source: ' + sourcePath),
+            Text('Destination: ' + destinationPath),
+            const SizedBox(height: 10),
+            const Text('Transfers use argument arrays, not a shell. Pull refuses to overwrite an existing local file. Review the paths before continuing.'),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Transfer')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final result = await trackOperation(
+        ref,
+        operation: 'ADB ' + _transferDirection,
+        target: serial,
+        action: () => ref.read(backendClientProvider).request('adb.transfer', {
+          ...intent,
+          'confirmed': true,
+          'confirmation': intent,
+        }, timeout: const Duration(hours: 1)),
+      );
+      if (mounted) setState(() => _output = result.data.toString());
+    } catch (error) {
+      if (mounted) setState(() => _output = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _sideload() async {
     final serial = _serial.text.trim();
-    final packagePath = _package.text.trim();
-    if (serial.isEmpty || packagePath.isEmpty || _busy) return;
+    final packagePath = _package.text.trim();    if (serial.isEmpty || packagePath.isEmpty || _busy) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -707,9 +833,17 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
                 final serial = device['serial'] as String;
                 final state = device['state'] as String? ?? 'unknown';
                 final transport = device['transport'] as String? ?? 'unknown';
+                final fastbootMode = device['mode'] == 'fastbootd'
+                    ? 'Fastbootd'
+                    : device['mode'] == 'bootloader'
+                        ? 'Bootloader Fastboot'
+                        : 'Fastboot mode unknown';
+                final label = transport == 'fastboot'
+                    ? '$serial  ·  $fastbootMode'
+                    : '$serial  ·  $transport: $state';
                 return DropdownMenuItem<String>(
                   value: serial,
-                  child: Text('$serial  ·  $transport: $state', overflow: TextOverflow.ellipsis),
+                  child: Text(label, overflow: TextOverflow.ellipsis),
                 );
               }).toList(),
               onChanged: (value) {
@@ -766,7 +900,14 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
           ),
         ),
       const SizedBox(height: 12),
-      _TextField(controller: _command, label: 'Command', hint: 'dumpsys battery · adb devices -l · fastboot getvar all'),
+      DropTarget(
+        onDragDone: _dropCommandPath,
+        child: _TextField(
+          controller: _command,
+          label: 'Command (drop a file to insert its path)',
+          hint: 'dumpsys battery · adb devices -l · fastboot getvar all',
+        ),
+      ),
       const SizedBox(height: 8),
       Wrap(spacing: 8, runSpacing: 8, children: [
         FilledButton(onPressed: _busy || !canRunAdbCommands ? null : _runShell, child: const Text('Run shell command')),
@@ -775,8 +916,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('recovery'), child: const Text('Recovery')),
         FilledButton.tonal(onPressed: _busy || !canReboot ? null : () => _reboot('fastboot'), child: const Text('Fastbootd')),
         OutlinedButton(onPressed: _busy || !(canRunAdbCommands || selectedFastboot) ? null : _loadDeviceInfo, child: const Text('Device info')),
-        OutlinedButton(
-          onPressed: _logcatRequestId != null ? _stopLogcat : (canRunAdbCommands ? _startLogcat : null),
+        OutlinedButton(          onPressed: _logcatRequestId != null ? _stopLogcat : (canRunAdbCommands ? _startLogcat : null),
           child: Text(_logcatRequestId == null ? 'Start logcat' : 'Stop logcat'),
         ),
       ]),
@@ -796,6 +936,49 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
           child: const Text('Capture full logcat to file (1 hour)'),
         ),
       ]),
+      const SizedBox(height: 14),
+      Text('FILE TRANSFER', style: Theme.of(context).textTheme.titleSmall),
+      const SizedBox(height: 8),
+      DropdownButtonFormField<String>(
+        initialValue: _transferDirection,
+        decoration: const InputDecoration(labelText: 'Transfer direction'),
+        items: const [
+          DropdownMenuItem(value: 'push', child: Text('Computer → device (push)')),
+          DropdownMenuItem(value: 'pull', child: Text('Device → computer (pull)')),
+        ],
+        onChanged: _busy ? null : (value) {
+          if (value == null) return;
+          setState(() {
+            _transferDirection = value;
+            _transferLocal.clear();
+            _transferRemote.text = value == 'push' ? '/sdcard/Download/' : '/sdcard/Download/file';
+          });
+        },
+      ),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(child: DropTarget(
+          onDragDone: _dropTransferSource,
+          child: _TextField(
+            controller: _transferLocal,
+            label: _transferDirection == 'push' ? 'Local file to push (drop a file here)' : 'Local destination directory',
+          ),
+        )),
+        const SizedBox(width: 8),
+        OutlinedButton(onPressed: _busy ? null : _browseTransferLocal, child: const Text('Browse…')),
+      ]),
+      const SizedBox(height: 8),
+      _TextField(
+        controller: _transferRemote,
+        label: _transferDirection == 'push' ? 'Android destination path' : 'Android source file path',
+        hint: _transferDirection == 'push' ? '/sdcard/Download/' : '/sdcard/Download/file.zip',
+      ),
+      const SizedBox(height: 8),
+      FilledButton.tonal(
+        onPressed: _busy || !canRunAdbCommands ? null : _transferFile,
+        child: const Text('Transfer file'),
+      ),
+      const SizedBox(height: 14),
       const SizedBox(height: 8),
       Row(children: [
         Expanded(child: DropTarget(
@@ -864,4 +1047,3 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   );
   }
 }
-

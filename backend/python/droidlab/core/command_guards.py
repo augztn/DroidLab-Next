@@ -5,11 +5,10 @@ from pathlib import PurePath
 
 _ADB_DESTRUCTIVE_VERBS = {"reboot","sideload","root","unroot","remount","disable-verity","enable-verity","uninstall","erase","format","flash","wipe"}
 _SHELL_DESTRUCTIVE_PATTERNS = (
- re.compile(r"(?:^|[;&|]\s*)rm\s+(?:-[a-z]*r[a-z]*f\b|-[a-z]*r\s+-[a-z]*f\b|-[a-z]*f\s+-[a-z]*r\b)", re.I),
- re.compile(r"(?:^|[;&|]\s*)(?:mkfs(?:\.[\w-]+)?|dd|reboot|poweroff|shutdown|wipe|format)\b", re.I),
- re.compile(r"(?:^|[;&|]\s*)setprop\b", re.I),
- re.compile(r"(?:^|[;&|]\s*)pm\s+(?:uninstall|disable-user)\b", re.I),
- re.compile(r"(?:^|[;&|]\s*)svc\b[^;&|]*\bdisable\b", re.I),
+ re.compile(r"(?:^|[;&|(){}\s])(?:[^\s;&|(){}]+/)?(?:mkfs(?:\.[\w-]+)?|dd|reboot|poweroff|shutdown|wipe|format)\b", re.I),
+ re.compile(r"(?:^|[;&|(){}\s])setprop\b", re.I),
+ re.compile(r"(?:^|[;&|(){}\s])pm\s+(?:uninstall|disable-user)\b", re.I),
+ re.compile(r"(?:^|[;&|(){}\s])svc\b[^;&|(){}]*\bdisable\b", re.I),
 )
 _FASTBOOT_DESTRUCTIVE_VERBS = {"flash","flashall","erase","format","wipe","set_active","update","delete-logical-partition","create-logical-partition","resize-logical-partition"}
 def _strip_executable(tokens,names):
@@ -24,17 +23,67 @@ def _skip_device_options(tokens):
   elif token in {"-d","-e"}: index+=1
   else: break
  return values[index:]
-def _is_destructive_shell_text(text,depth=0):
- text=text.strip()
- if not text: return False
- if any(pattern.search(text) for pattern in _SHELL_DESTRUCTIVE_PATTERNS): return True
- if depth>=4: return False
- wrapper=re.search(r"(?:^|[;&|]\s*)(?:(?:/[^\s;&|]+/)?(?:sh|bash|ash|dash|mksh|ksh|zsh)|su)\s+(?:-[a-z]*c\s+|--command(?:=|\s+))(.+)$",text,re.I)
- if wrapper:
-  nested=wrapper.group(1).strip()
-  if len(nested)>=2 and nested[0]==nested[-1] and nested[0] in {"'",'"'}: nested=nested[1:-1]
-  return _is_destructive_shell_text(nested,depth+1)
- return False
+def _is_destructive_shell_text(text, depth=0):
+    """Conservatively detect destructive commands, including common shell wrappers."""
+    text = text.strip()
+    if not text:
+        return False
+
+    # rm -rf, rm -r -f, rm -f -r, and long-option equivalents.
+    for match in re.finditer(
+        r"(?:^|[;&|(){}\s])(?:(?:[^\s;&|(){}]+/)?(?:toybox|busybox)\s+)?"
+        r"(?:[^\s;&|(){}]+/)?rm\s+",
+        text,
+        re.I,
+    ):
+        flags = []
+        for token in text[match.end():].split():
+            token = token.strip("'\\\"")
+            if token.startswith("-"):
+                flags.append(token.lower())
+                if len(flags) >= 6:
+                    break
+            else:
+                break
+        recursive = any(
+            flag == "--recursive" or
+            (flag.startswith("-") and not flag.startswith("--") and "r" in flag[1:])
+            for flag in flags
+        )
+        force = any(
+            flag == "--force" or
+            (flag.startswith("-") and not flag.startswith("--") and "f" in flag[1:])
+            for flag in flags
+        )
+        if recursive and force:
+            return True
+
+    if any(pattern.search(text) for pattern in _SHELL_DESTRUCTIVE_PATTERNS):
+        return True
+    if depth >= 6:
+        return False
+
+    # Catch destructive commands hidden in $(...) or backtick substitutions.
+    nested_fragments = re.findall(r"\$\((.*?)\)|\x60([^\x60]*)\x60", text, re.S)
+    for paren, backtick in nested_fragments:
+        nested = paren or backtick
+        if nested and _is_destructive_shell_text(nested, depth + 1):
+            return True
+
+    wrapper = re.search(
+        r"(?:^|[;&|(){}\s])(?:(?:/[^\s;&|(){}]+/)?"
+        r"(?:sh|bash|ash|dash|mksh|ksh|zsh)|su)\s+"
+        r"(?:-[a-z]*c\s+|--command(?:=|\s+))(.+)$",
+        text,
+        re.I,
+    )
+    if wrapper:
+        nested = wrapper.group(1).strip()
+        if len(nested) >= 2 and nested[0] == nested[-1] and nested[0] in {"'", '"'}:
+            nested = nested[1:-1]
+        return _is_destructive_shell_text(nested, depth + 1)
+    return False
+
 def is_destructive_adb(tokens):
  values=_skip_device_options(_strip_executable(list(tokens),{"adb","adb.exe"}))
  if not values:return False
@@ -90,4 +139,4 @@ def is_adb_target_connected(serial,output,returncode=0,allowed_states=("device",
  return False
 def is_fastboot_target_connected(serial,output,returncode=0):
  if returncode!=0 or not serial:return False
- return any(len(fields:=line.split())>=2 and fields[0]==serial and fields[1].lower()=="fastboot" for line in output.splitlines())
+ return any(len(fields:=line.split())>=2 and fields[0]==serial and fields[1].lower() in {"fastboot", "fastbootd"} for line in output.splitlines())

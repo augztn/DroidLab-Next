@@ -19,6 +19,81 @@ abstract final class DroidLabTokens {
 }
 
 abstract final class DroidLabTheme {
+  static ThemeData light({String themeName = 'cyberpunk_glass'}) {
+    final primary = switch (themeName) {
+      'standard_dark' => const Color(0xFF2868D7),
+      'oled_black' => const Color(0xFF386FDA),
+      _ => const Color(0xFF1679B8),
+    };
+    const background = Color(0xFFF4F7FA);
+    const sidebar = Color(0xFFE9EEF4);
+    const surface = Color(0xFFFFFFFF);
+    const panelAlt = Color(0xFFF1F4F8);
+    const input = Color(0xFFFAFCFE);
+    const button = Color(0xFFDCE7F2);
+    const console = Color(0xFF101820);
+    const border = Color(0xFFCBD5E1);
+    const text = Color(0xFF17212B);
+    const muted = Color(0xFF526171);
+
+    final scheme = ColorScheme.fromSeed(
+      seedColor: primary,
+      brightness: Brightness.light,
+      surface: surface,
+    ).copyWith(
+      primary: primary,
+      secondary: primary,
+      surface: surface,
+      error: const Color(0xFFB42318),
+      onSurface: text,
+      onSurfaceVariant: muted,
+      outline: border,
+      outlineVariant: border,
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: background,
+      dividerColor: border,
+      cardTheme: CardThemeData(
+        color: surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: border),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: input,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: border),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: button,
+          foregroundColor: text,
+        ),
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: sidebar,
+        foregroundColor: text,
+        elevation: 0,
+      ),
+      extensions: const [
+        DroidLabThemeSurfaces(console: console, panelAlt: panelAlt),
+      ],
+    );
+  }
+
   static ThemeData dark({String themeName = 'cyberpunk_glass'}) {
     final colors = switch (themeName) {
       'standard_dark' => (

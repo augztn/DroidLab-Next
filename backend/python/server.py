@@ -10,8 +10,20 @@ from droidlab.core.command_guards import (
     validate_device_selector,
 )
 from droidlab.core.process_runner import run_streaming, ProcessCancelledError
+from droidlab.core.device_metadata import (
+    first_property, parse_battery_level, parse_fastboot_getvar, parse_getprop_output,
+)
+from droidlab.core.fastboot_command import strip_adb_executable, strip_fastboot_executable
 from droidlab.core import payload_dumper
 from droidlab.core.tool_resolver import resolve_tool_path
+from droidlab.core.windows_volumes import list_removable_drives
+from droidlab.core.platform_tools_installer import (
+    PLATFORM_TOOLS_VERSION, install_platform_tools,
+)
+from droidlab.core.file_transfer import (
+    ensure_pull_target_is_new, publish_file_no_replace, validate_android_path,
+    validate_pull_directory, validate_push_source,
+)
 
 PROTOCOL_VERSION = 1
 MAX_LINE_BYTES = 1024 * 1024
@@ -23,7 +35,7 @@ _ACTIVE: dict[str, threading.Event] = {}
 _WORKER_SLOTS = threading.BoundedSemaphore(MAX_ACTIVE_REQUESTS)
 _DEVICE_LOCKS: dict[str, threading.Lock] = {}
 _DEVICE_LOCKS_LOCK = threading.Lock()
-_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active"}
+_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active"}
 
 def emit(message: dict[str, Any]) -> None:
     envelope = {"version": PROTOCOL_VERSION, "timestamp": time.time(), **message}
@@ -78,13 +90,39 @@ def fastboot_scan(cancel_event: threading.Event | None = None) -> list[dict[str,
     devices = []
     for line in result.stdout.splitlines():
         fields = line.split()
-        if len(fields) >= 2 and fields[1].lower() == "fastboot":
+        if len(fields) >= 2 and fields[1].lower() in {"fastboot", "fastbootd"}:
+            serial = fields[0]
             details = {}
             for item in fields[2:]:
                 if ":" in item:
                     key, value = item.split(":", 1)
                     details[key] = value
-            devices.append({"serial": fields[0], "transport": "fastboot", "state": "fastboot", "details": details})
+            # The devices command reports both bootloader Fastboot and Fastbootd
+            # as the same transport. Query the standard userspace flag so the UI
+            # can distinguish the two without relying on a user-triggered info read.
+            mode = "unknown"
+            try:
+                mode_result = run_capture(
+                    [tool_path("fastboot"), "-s", serial, "getvar", "is-userspace"],
+                    5,
+                    cancel_event,
+                )
+                mode_output = (mode_result.stdout or "") + "\n" + (mode_result.stderr or "")
+                userspace = parse_fastboot_getvar(mode_output, "is-userspace").lower()
+                mode = {"yes": "fastbootd", "no": "bootloader"}.get(userspace, "unknown")
+            except ProcessCancelledError:
+                raise
+            except Exception:
+                # Older or vendor-specific Fastboot implementations may not
+                # expose is-userspace. Keep the device usable, but mark unknown.
+                mode = "unknown"
+            devices.append({
+                "serial": serial,
+                "transport": "fastboot",
+                "state": "fastboot",
+                "mode": mode,
+                "details": details,
+            })
     return devices
 
 def require_adb(serial: Any, states: tuple[str, ...] = ("device",), cancel_event: threading.Event | None = None) -> None:
@@ -125,6 +163,21 @@ def require_fastboot(serial: Any, cancel_event: threading.Event | None = None) -
     if not is_fastboot_target_connected(serial, result.stdout, result.returncode):
         raise RuntimeError(f"Fastboot target {serial!r} is not present in a fresh scan. No command was dispatched.")
 
+def split_command_text(value: str) -> list[str]:
+    """Parse a command field into argv, preserving Windows path separators."""
+    tokens = shlex.split(value, posix=(os.name != "nt"))
+    if os.name == "nt":
+        # shlex's non-POSIX mode preserves the quote delimiters. Remove only
+        # matching outer delimiters after tokenization; backslashes remain intact.
+        tokens = [
+            token[1:-1]
+            if len(token) >= 2 and token[0] == token[-1] and token[0] in {"'", '"'}
+            else token
+            for token in tokens
+        ]
+    return tokens
+
+
 def string_list(value: Any, name: str, maximum: int = 128) -> list[str]:
     if not isinstance(value, list) or not value or len(value) > maximum:
         raise ValueError(f"{name} must be an array containing 1 to {maximum} strings.")
@@ -150,6 +203,14 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             except Exception as exc:
                 tools[name] = {"available": False, "error": str(exc)}
         return {"tools": tools}
+    if operation == "system.platform_tools.install":
+        intent = {
+            "operation": "system.platform_tools.install",
+            "version": PLATFORM_TOOLS_VERSION,
+            "license_accepted": True,
+        }
+        require_confirmation(args, "Android Platform-Tools installation", intent)
+        return install_platform_tools(license_accepted=True)
     if operation == "devices.list":
         devices, warnings = [], []
         for scanner, label in ((lambda: adb_scan(cancel), "adb"), (lambda: fastboot_scan(cancel), "fastboot")):
@@ -166,7 +227,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if command_text is not None:
             if not isinstance(command_text, str) or not command_text.strip() or "\x00" in command_text:
                 raise ValueError("A non-empty Android shell command is required.")
-            command = shlex.split(command_text, posix=(os.name != "nt"))
+            command = split_command_text(command_text)
             confirmation = {"operation": "adb.shell", "serial": serial, "command_text": command_text}
         else:
             command = string_list(args.get("command"), "command")
@@ -189,7 +250,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         command_text = args.get("command_text")
         if not isinstance(command_text, str) or not command_text.strip() or "\x00" in command_text:
             raise ValueError("A non-empty host ADB command is required.")
-        command_args = shlex.split(command_text, posix=(os.name != "nt"))
+        command_args = strip_adb_executable(split_command_text(command_text))
         if not command_args:
             raise ValueError("A non-empty host ADB command is required.")
         command_args = string_list(command_args, "arguments")
@@ -296,6 +357,74 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             "transport": transport,
             "message": f"{transport.upper()} accepted reboot request to {mode}; USB mode transition is not verified.",
         }
+    if operation == "adb.transfer":
+        serial = args.get("serial")
+        direction = args.get("direction")
+        require_adb(serial, cancel_event=cancel)
+        if direction == "push":
+            source = validate_push_source(args.get("source_path"))
+            destination = validate_android_path(args.get("destination_path"), "destination_path")
+            intent = {
+                "operation": "adb.transfer", "serial": serial, "direction": "push",
+                "source_path": args.get("source_path"), "destination_path": args.get("destination_path"),
+            }
+            require_confirmation(args, "ADB push", intent)
+            command = [tool_path("adb"), "-s", serial, "push", str(source), destination]
+        elif direction == "pull":
+            source = validate_android_path(args.get("source_path"), "source_path")
+            destination = validate_pull_directory(args.get("destination_path"))
+            ensure_pull_target_is_new(source, destination)
+            intent = {
+                "operation": "adb.transfer", "serial": serial, "direction": "pull",
+                "source_path": args.get("source_path"), "destination_path": args.get("destination_path"),
+            }
+            require_confirmation(args, "ADB pull", intent)
+            command = [tool_path("adb"), "-s", serial, "pull", source, str(destination)]
+        else:
+            raise ValueError("direction must be 'push' or 'pull'.")
+        response(request_id, "preflight", target=serial, command=command, destructive=False)
+        if direction == "pull":
+            # Pull into a private sibling directory, then publish with an atomic
+            # hard-link. This closes the check/use race and never overwrites a
+            # file created by another process while the transfer is running.
+            with tempfile.TemporaryDirectory(prefix=".droidlab-pull-", dir=destination) as staging:
+                staged_command = [tool_path("adb"), "-s", serial, "pull", source, staging]
+                result = run_streaming(
+                    staged_command,
+                    timeout=bounded_timeout(args.get("timeout_seconds"), 600, 3600),
+                    cancel_event=cancel,
+                    on_line=lambda line: response(request_id, "output", stream="stdout", line=line),
+                )
+                if result.returncode:
+                    raise RuntimeError(
+                        f"ADB pull failed ({result.returncode}); verify the device state before retrying. "
+                        f"{result.stdout[-MAX_RETAINED_OUTPUT:]}"
+                    )
+                staged_file = Path(staging) / Path(source).name
+                if staged_file.is_symlink() or not staged_file.is_file():
+                    raise RuntimeError("ADB pull did not produce the expected regular file.")
+                published = destination / staged_file.name
+                try:
+                    publish_file_no_replace(staged_file, published)
+                except FileExistsError:
+                    raise FileExistsError(f"Refusing to overwrite existing pull destination: {published}")
+                return {
+                    "exit_code": 0, "direction": direction,
+                    "path": str(published), "output": result.stdout,
+                }
+
+        result = run_streaming(
+            command, timeout=bounded_timeout(args.get("timeout_seconds"), 600, 3600),
+            cancel_event=cancel,
+            on_line=lambda line: response(request_id, "output", stream="stdout", line=line),
+        )
+        if result.returncode:
+            raise RuntimeError(
+                f"ADB push failed ({result.returncode}); verify the destination before retrying. "
+                f"{result.stdout[-MAX_RETAINED_OUTPUT:]}"
+            )
+        return {"exit_code": 0, "direction": direction, "output": result.stdout}
+
     if operation == "adb.sideload":
         serial, package = args.get("serial"), args.get("package_path")
         require_confirmation(args, "ADB recovery sideload", {
@@ -353,35 +482,28 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
                 timeout=30, cancel_event=cancel)
             if result.returncode:
                 raise RuntimeError(f"ADB getprop failed: {result.stdout[-MAX_RETAINED_OUTPUT:]}")
-            properties = {}
-            for line in result.stdout.splitlines():
-                if line.startswith("[") and "]: [" in line:
-                    key, value = line[1:].split("]: [", 1)
-                    properties[key] = value.rstrip("]")
-            def prop(*keys: str) -> str:
-                return next((properties.get(key, "") for key in keys if properties.get(key)), "")
+            properties = parse_getprop_output(result.stdout)
             values.update({
-                "Brand / Manufacturer": prop("ro.product.manufacturer", "ro.product.brand"),
-                "Device name / Model": prop("ro.product.marketname", "ro.product.model") or serial,
-                "Model code": prop("ro.product.name", "ro.product.model"),
-                "Codename": prop("ro.product.device", "ro.build.product"),
-                "Active slot": prop("ro.boot.slot_suffix", "ro.boot.slot"),
-                "Android Version": prop("ro.build.version.release"),
-                "Android SDK": prop("ro.build.version.sdk"),
+                "Brand / Manufacturer": first_property(properties, "ro.product.manufacturer", "ro.product.brand"),
+                "Device name / Model": first_property(properties, "ro.product.marketname", "ro.product.model") or serial,
+                "Model code": first_property(properties, "ro.product.name", "ro.product.model"),
+                "Codename": first_property(properties, "ro.product.device", "ro.build.product"),
+                "Active slot": first_property(properties, "ro.boot.slot_suffix", "ro.boot.slot"),
+                "Android Version": first_property(properties, "ro.build.version.release"),
+                "Android SDK": first_property(properties, "ro.build.version.sdk"),
             })
             battery = run_streaming([tool_path("adb"), "-s", serial, "shell", "dumpsys", "battery"],
                 timeout=15, cancel_event=cancel)
-            match = re.search(r"(?m)^\s*level:\s*(\d+)", battery.stdout)
-            if match:
-                values["Battery"] = match.group(1) + "%"
+            battery_level = parse_battery_level(battery.stdout)
+            if battery_level is not None:
+                values["Battery"] = f"{battery_level}%"
         elif device.get("transport") == "fastboot":
             binary = tool_path("fastboot")
             def getvar(key: str) -> str:
                 result = run_streaming([binary, "-s", serial, "getvar", key],
                     timeout=10, cancel_event=cancel)
                 output = (result.stdout or "") + "\n" + (result.stderr or "")
-                match = re.search(r"(?im)(?:\(bootloader\)\s*)?" + re.escape(key) + r":\s*(.+)$", output)
-                return match.group(1).strip() if match else ""
+                return parse_fastboot_getvar(output, key)
             userspace = getvar("is-userspace").lower()
             if userspace == "yes":
                 fastboot_mode = "Fastbootd (userspace Fastboot)"
@@ -409,11 +531,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             timeout=30, cancel_event=cancel)
         if result.returncode:
             raise RuntimeError(f"getprop failed: {result.stdout[-MAX_RETAINED_OUTPUT:]}")
-        properties = {}
-        for line in result.stdout.splitlines():
-            if line.startswith("[") and "]: [" in line:
-                key, value = line[1:].split("]: [", 1)
-                properties[key] = value.rstrip("]")
+        properties = parse_getprop_output(result.stdout)
         return {"serial": serial, "properties": {key: properties.get(key, "") for key in keys}}
     if operation == "adb.logcat.start":
         serial, filters = args.get("serial"), args.get("filters", [])
@@ -437,9 +555,9 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             }
     if operation == "fastboot.command":
         serial, raw_command = args.get("serial"), args.get("command")
-        if not isinstance(raw_command, str) or not raw_command.strip() or "\\x00" in raw_command:
+        if not isinstance(raw_command, str) or not raw_command.strip() or "\x00" in raw_command:
             raise ValueError("A non-empty Fastboot command is required.")
-        tokens = shlex.split(raw_command, posix=(os.name != "nt"))
+        tokens = strip_fastboot_executable(split_command_text(raw_command))
         if not tokens:
             raise ValueError("A non-empty Fastboot command is required.")
         explicit_serial = explicit_device_selector(tokens, "fastboot")
@@ -454,10 +572,20 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             else:
                 verb_index += 1
         verb = tokens[verb_index].lower() if verb_index < len(tokens) else ""
-        discovery = verb in discovery_verbs
+        # A command carrying an explicit -s selector or Fastboot's -w wipe
+        # option is device-targeted even when its verb normally looks host-side.
+        # Never let a destructive global option downgrade a command to discovery.
+        has_destructive_global_option = any(
+            token.lower() == "-w" for token in tokens[:verb_index]
+        )
+        discovery = (
+            verb in discovery_verbs
+            and explicit_serial is None
+            and not has_destructive_global_option
+        )
         if not discovery and not serial:
             raise ValueError("Select a Fastboot device for this command.")
-        if discovery and serial and explicit_serial is None:
+        if discovery and serial:
             serial = None
         intent = {"operation": "fastboot.command", "serial": serial, "command": raw_command}
         require_confirmation(args, "Advanced Fastboot command", intent)
@@ -565,7 +693,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         command += (["reboot"] if mode == "system" else
                     ["reboot", "recovery"] if mode == "recovery" else
                     ["reboot", "fastboot"] if mode == "fastbootd" else
-                    ["reboot-bootloader"])
+                    ["reboot", "bootloader"])
         result = run_streaming(command, timeout=45, cancel_event=cancel)
         if result.returncode:
             raise RuntimeError(f"Fastboot reboot failed: {result.stdout}")
@@ -583,6 +711,8 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if result.returncode:
             raise RuntimeError(f"Fastboot wipe failed ({result.returncode}); device state may be uncertain.")
         return {"exit_code": 0, "message": "Fastboot reported userdata/cache wipe completion."}
+    if operation == "storage.removable_drives":
+        return {"drives": list_removable_drives()}
     if operation == "payload.inspect":
         parts = payload_dumper.inspect_source(args.get("source_path"),
             progress=lambda line: response(request_id, "output", stream="payload", line=line), cancel_event=cancel)
@@ -606,7 +736,7 @@ def _device_command_requires_lock(operation: str, args: dict[str, Any]) -> bool:
     if operation == "adb.command":
         raw = args.get("command_text", "")
         try:
-            tokens = shlex.split(raw, posix=(os.name != "nt"))
+            tokens = split_command_text(raw)
         except (TypeError, ValueError):
             return True
         index = 0
@@ -639,7 +769,7 @@ def _device_command_requires_lock(operation: str, args: dict[str, Any]) -> bool:
     if operation == "fastboot.command":
         raw = args.get("command", "")
         try:
-            tokens = shlex.split(raw, posix=(os.name != "nt"))
+            tokens = strip_fastboot_executable(split_command_text(raw))
         except (TypeError, ValueError):
             return True
         index = 0
@@ -652,6 +782,11 @@ def _device_command_requires_lock(operation: str, args: dict[str, Any]) -> bool:
                 index += 1
             else:
                 break
+        # Fastboot's -w global option requests a userdata/cache wipe. Never
+        # classify a command carrying it as read-only, even if its verb looks
+        # like discovery; keep it serialized and require a selected device.
+        if any(token.lower() == "-w" for token in tokens[:index]):
+            return True
         verb = tokens[index].lower() if index < len(tokens) else ""
         if verb in {"devices", "help", "--help", "--version", "version", "getvar"}:
             return False
@@ -743,19 +878,34 @@ def main() -> None:
             message = json.loads(raw.decode("utf-8"))
             if not isinstance(message, dict) or message.get("version") != PROTOCOL_VERSION:
                 raise ValueError("Unsupported protocol version.")
-            if message.get("operation") == "system.cancel":
-                args = message.get("args", {})
-                target = args.get("request_id") if isinstance(args, dict) else None
+            request_id, operation, args = message.get("id"), message.get("operation"), message.get("args", {})
+            if (
+                not isinstance(request_id, str)
+                or not request_id.strip()
+                or not isinstance(operation, str)
+                or not operation.strip()
+                or not isinstance(args, dict)
+            ):
+                raise ValueError("Invalid request envelope.")
+            if operation == "system.cancel":
+                target = args.get("request_id")
+                if not isinstance(target, str) or not target.strip():
+                    emit({
+                        "id": request_id,
+                        "type": "failed",
+                        "error": {
+                            "code": "InvalidRequest",
+                            "message": "system.cancel requires a non-empty request_id.",
+                        },
+                    })
+                    continue
                 with _ACTIVE_LOCK:
                     event = _ACTIVE.get(target)
                 if event is not None:
                     event.set()
-                emit({"id": message.get("id", ""), "type": "completed",
+                emit({"id": request_id, "type": "completed",
                     "result": {"cancel_requested": event is not None, "target": target}})
                 continue
-            request_id, operation, args = message.get("id"), message.get("operation"), message.get("args", {})
-            if not isinstance(request_id, str) or not request_id or not isinstance(operation, str) or not isinstance(args, dict):
-                raise ValueError("Invalid request envelope.")
             if len(json.dumps(message).encode("utf-8")) > MAX_LINE_BYTES:
                 raise ValueError("Request exceeds maximum size.")
             cancel = threading.Event()

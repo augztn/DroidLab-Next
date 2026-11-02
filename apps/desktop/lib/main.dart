@@ -18,9 +18,13 @@ class DroidLabApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'DroidLab',
       debugShowCheckedModeBanner: false,
-      theme: DroidLabTheme.dark(
+      theme: DroidLabTheme.light(
         themeName: settings.valueOrNull?.theme ?? 'cyberpunk_glass',
       ),
+      darkTheme: DroidLabTheme.dark(
+        themeName: settings.valueOrNull?.theme ?? 'cyberpunk_glass',
+      ),
+      themeMode: ThemeMode.system,
       routerConfig: router,
     );
   }

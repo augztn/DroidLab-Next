@@ -22,6 +22,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   StreamSubscription<BackendEvent>? _events;
   BackendClient? _eventClient;
   Timer? _deviceRefreshTimer;
+  String? _pendingDeviceToolRoute;
   Future<void> _logWriteQueue = Future<void>.value();
   IOSink? _operationLogSink;
   int _operationLogBytes = 0;
@@ -157,6 +158,26 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       unawaited(_subscribeToBackendEvents(ref.read(backendClientProvider)));
     }
     final devices = ref.watch(deviceListProvider);
+    final detectedToolRoute = devices.valueOrNull == null
+        ? null
+        : preferredDeviceToolLocation(devices.valueOrNull!);
+    if ((widget.currentLocation == '/adb' ||
+            widget.currentLocation == '/fastboot') &&
+        detectedToolRoute != null &&
+        detectedToolRoute != widget.currentLocation &&
+        _pendingDeviceToolRoute != detectedToolRoute) {
+      _pendingDeviceToolRoute = detectedToolRoute;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final destination = _pendingDeviceToolRoute;
+        _pendingDeviceToolRoute = null;
+        if (destination != null &&
+            (widget.currentLocation == '/adb' ||
+                widget.currentLocation == '/fastboot')) {
+          context.go(destination);
+        }
+      });
+    }
     return LayoutBuilder(builder: (context, constraints) {
       final compact = constraints.maxWidth < 1000;
       final expanded = _expanded && !compact;

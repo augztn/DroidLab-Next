@@ -17,11 +17,19 @@ final backendClientProvider = Provider<BackendClient>((ref) {
   final backendOverride = ref.watch(droidLabSettingsProvider.select(
     (state) => state.valueOrNull?.backendPath ?? '',
   ));
+  final executableDirectory = File(Platform.resolvedExecutable).parent;
+  final bundledPython = Platform.isWindows
+      ? File('${executableDirectory.path}/python/python.exe')
+      : Platform.isMacOS
+          ? File('${executableDirectory.parent.path}/Resources/python/bin/python3')
+          : null;
   final python = pythonOverride.trim().isNotEmpty
       ? pythonOverride.trim()
       : (Platform.environment['DROIDLAB_PYTHON']?.trim().isNotEmpty == true
           ? Platform.environment['DROIDLAB_PYTHON']!.trim()
-          : (Platform.isWindows ? 'python' : 'python3'));
+          : (bundledPython?.existsSync() == true
+              ? bundledPython!.path
+              : (Platform.isWindows ? 'python' : 'python3')));
   final configured = backendOverride.trim().isNotEmpty
       ? backendOverride.trim()
       : (Platform.environment['DROIDLAB_BACKEND_SCRIPT']?.trim() ?? '');
@@ -40,7 +48,6 @@ final backendClientProvider = Provider<BackendClient>((ref) {
         name: Platform.environment[name]!.trim(),
   };
 
-  final executableDirectory = File(Platform.resolvedExecutable).parent;
   final candidates = <String>[
     if (configured.isNotEmpty) configured,
     '${Directory.current.path}/../backend/python/server.py',
@@ -80,6 +87,22 @@ final deviceListProvider =
   final result = await client.request('devices.list', const {});
   return result.data;
 });
+
+
+/// Returns the device-tool route only when discovery identifies one transport
+/// unambiguously. Mixed ADB/Fastboot sessions and empty scans never force
+/// navigation.
+String? preferredDeviceToolLocation(Map<String, dynamic> data) {
+  final devices = (data['devices'] as List<dynamic>? ?? const [])
+      .whereType<Map<String, dynamic>>();
+  final hasAdb = devices.any((device) =>
+      device['transport'] == 'adb' && device['state'] == 'device');
+  final hasFastboot = devices.any((device) =>
+      device['transport'] == 'fastboot' &&
+      (device['state'] == 'fastboot' || device['state'] == 'fastbootd'));
+  if (hasAdb == hasFastboot) return null;
+  return hasAdb ? '/adb' : '/fastboot';
+}
 
 /// Typed device-discovery boundary used by features migrating off raw JSON.
 final deviceRepositoryProvider = Provider<DeviceRepository>((ref) {

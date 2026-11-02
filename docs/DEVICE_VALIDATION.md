@@ -46,3 +46,23 @@ Run one transition at a time. Refresh DroidLab's device list after each transiti
 ## Evidence
 
 Attach the completed matrix, `fastboot getvar all` output after removing serials, and DroidLab diagnostic report after reviewing redactions. Do not publish IMEI, serial, account identifiers, tokens, or private firmware.
+
+## Host storage and ADB transfer validation
+
+- On Windows, verify that USB flash drives reported by Windows as `DRIVE_REMOVABLE` appear in the mounted-storage selector.
+- Verify that fixed internal disks, USB-attached disks reported as `DRIVE_FIXED`, optical drives and unavailable drive letters do not appear.
+- Drag a regular file onto the ADB Toolkit push source field, select an authorized device, confirm the exact source and destination, and verify the file contents on-device.
+- Pull a known file into a clean local directory and verify its contents on a filesystem with hard-link support and on FAT/exFAT where the exclusive-create fallback is used. Repeat with an existing same-name local file and confirm DroidLab refuses to overwrite it.
+- Disconnect the device during a transfer and verify the operation reports an uncertain/failed outcome without automatically retrying.
+
+
+## Platform-Tools installation validation
+
+- On Windows and macOS, start with no configured ADB/Fastboot overrides and no existing DroidLab-managed Platform-Tools directory.
+- Open Settings and start the Platform-Tools installer. Verify that the download cannot begin until the user explicitly accepts Google's Android SDK License Agreement.
+- Cancel the dialog and verify no download or filesystem changes occur.
+- Accept the license, install version 37.0.1 from Google's official HTTPS download endpoint, and verify both `adb version` and `fastboot --version` report the expected version.
+- Verify the installation is stored in the per-user application-data directory, not the app bundle or a system-wide directory.
+- Verify custom ADB/Fastboot executable paths still take precedence over the managed installation; clearing the override should select the managed tools before PATH.
+- Interrupt a download and verify no partial installation becomes active. Retry and verify the installer can complete cleanly.
+- Verify the app bundle does not contain copied Google Platform-Tools binaries.

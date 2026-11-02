@@ -1,7 +1,7 @@
 name: Desktop CI
 on:
   push:
-    branches: [main, 'rewrite/**']
+    branches: [main, 'rewrite/**', 'hardening/**']
   pull_request:
     branches: [main, 'rewrite/**']
   workflow_dispatch:
@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             platform: linux
           - os: windows-latest
             platform: windows
@@ -57,6 +57,12 @@ jobs:
       - name: Domain model tests (typed device boundary)
         working-directory: packages/droidlab_domain
         run: flutter test
+      - name: Design system tests (legacy palette and adaptive themes)
+        working-directory: packages/droidlab_design_system
+        run: flutter test
+      - name: Application package tests
+        working-directory: packages/droidlab_application
+        run: flutter test
       - name: Build desktop release
         working-directory: apps/desktop
         run: flutter build ${{ matrix.platform }} --release
@@ -66,6 +72,31 @@ jobs:
       - name: Stage Python backend (Linux and macOS)
         if: runner.os != 'Windows'
         run: python3 scripts/stage_backend.py
+      - name: Stage bundled CPython runtime (Windows)
+        if: runner.os == 'Windows'
+        run: python scripts/stage_python_runtime.py
+      - name: Stage bundled CPython runtime (macOS)
+        if: runner.os == 'macOS'
+        run: python3 scripts/stage_python_runtime.py
+      - name: Smoke-test bundled Python and backend (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $python = Resolve-Path 'apps/desktop/build/windows/x64/runner/Release/python/python.exe'
+          $env:DROIDLAB_BACKEND_TEST_PATH = (Resolve-Path 'apps/desktop/build/windows/x64/runner/Release/backend/python').Path
+          & $python -c "import json, ssl, subprocess, os, sys; sys.path.insert(0, os.environ['DROIDLAB_BACKEND_TEST_PATH']); import server; import droidlab.core.tool_resolver"
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled Windows Python/backend smoke test failed.' }
+          if (-not (Test-Path 'apps/desktop/build/windows/x64/runner/Release/backend/python/server.py')) { throw 'Windows backend payload is missing.' }
+      - name: Smoke-test bundled Python and backend (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$(find apps/desktop/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)"
+          python="$app/Contents/Resources/python/bin/python3"
+          test -x "$python"
+          DROIDLAB_BACKEND_TEST_PATH="$app/Contents/Resources/backend/python" "$python" -c 'import json, ssl, subprocess, os, sys; sys.path.insert(0, os.environ["DROIDLAB_BACKEND_TEST_PATH"]); import server; import droidlab.core.tool_resolver'
+          test -f "$app/Contents/Resources/backend/python/server.py"
       - name: Install AppImage tooling
         if: runner.os == 'Linux'
         run: |

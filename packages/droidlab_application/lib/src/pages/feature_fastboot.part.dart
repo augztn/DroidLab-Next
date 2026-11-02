@@ -158,6 +158,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     );
     if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
+    var rebootAccepted = false;
     try {
       final result = await trackOperation(
         ref,
@@ -173,40 +174,56 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           },
         ),
       );
+      rebootAccepted = true;
       if (mounted) setState(() => _output = result.data.toString());
     } catch (error) {
       if (mounted) setState(() => _output = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
-      if (mounted && mode == 'system') {
+      if (mounted && rebootAccepted) {
+        final expectedTransport = mode == 'system' || mode == 'recovery'
+            ? 'adb'
+            : 'fastboot';
+        final expectedFastbootMode = mode == 'fastbootd'
+            ? 'fastbootd'
+            : mode == 'bootloader'
+                ? 'bootloader'
+                : null;
         final transitioned = await _waitForDeviceTransport(
           ref: ref,
           serial: serial,
-          transport: 'adb',
+          transport: expectedTransport,
+          fastbootMode: expectedFastbootMode,
         );
-        if (mounted && transitioned) context.go('/adb');
-      } else if (mounted) {
-        await _waitForDeviceTransport(
-          ref: ref,
-          serial: serial,
-          transport: 'fastboot',
-        );
+        if (!mounted) return;
+        if (transitioned && expectedTransport == 'adb') {
+          context.go('/adb');
+        } else if (!transitioned) {
+          final expectedLabel = expectedFastbootMode ??
+              (mode == 'recovery' ? 'recovery / ADB' : expectedTransport);
+          setState(() => _output =
+              'Reboot was accepted, but $serial was not detected in $expectedLabel. Refresh devices and check the USB connection.');
+        }
       }
     }
   }
 
-  bool _isFastbootDiscoveryCommand(String command) {
-    final verb = command.trim().split(RegExp(r'\s+')).first.toLowerCase();
-    return const {'devices', 'help', '--help', '--version', 'version'}.contains(verb);
-  }
+  FastbootCommand? _parseFastbootCommand(String command) =>
+      FastbootCommand.parse(command);
+
+  bool _isFastbootDiscoveryCommand(String command) =>
+      _parseFastbootCommand(command)?.isDiscovery ?? false;
 
   String _fastbootCommandPreview(String command) {
-    final trimmed = command.trim();
-    if (trimmed.isEmpty) return '';
-    if (_isFastbootDiscoveryCommand(trimmed) || _serial.text.trim().isEmpty) {
-      return 'fastboot ' + trimmed;
+    final parsed = _parseFastbootCommand(command);
+    if (parsed == null || parsed.arguments.isEmpty) return '';
+    final arguments = parsed.preview;
+    if (parsed.isDiscovery ||
+        _serial.text.trim().isEmpty ||
+        parsed.hasExplicitSerial) {
+      return 'fastboot ' + arguments;
     }
-    return 'fastboot -s ' + _serial.text.trim() + ' ' + trimmed;
+    return 'fastboot -s ' + _serial.text.trim() + ' ' + arguments;
   }
 
   Future<void> _runAdvancedCommand() async {
@@ -443,7 +460,14 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         .where((device) => device['transport'] == 'fastboot')
         .toList();
     final serials = devices.map((device) => device['serial'] as String).toList();
-    final selectedSerial = serials.contains(_selectedSerial) ? _selectedSerial : null;
+    // A single connected Fastboot device is unambiguous, so select it
+    // automatically. Multiple devices still require an explicit user choice.
+    final currentSelection = _selectedSerial ?? _serial.text.trim();
+    final selectedSerial = serials.contains(currentSelection)
+        ? currentSelection
+        : serials.length == 1
+            ? serials.single
+            : null;
     if (selectedSerial != null && selectedSerial != _serial.text && !_busy) {
       _serial.text = selectedSerial;
     }
@@ -462,7 +486,10 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           hint: const Text('Select a Fastboot device'),
           items: devices.map((device) => DropdownMenuItem<String>(
             value: device['serial'] as String,
-            child: Text(device['serial'] as String, overflow: TextOverflow.ellipsis),
+            child: Text(
+              '${device['serial']} · ${device['mode'] == 'fastbootd' ? 'Fastbootd' : device['mode'] == 'bootloader' ? 'Bootloader Fastboot' : 'Fastboot mode unknown'}',
+              overflow: TextOverflow.ellipsis,
+            ),
           )).toList(),
           onChanged: (value) => setState(() {
             _selectedSerial = value;
@@ -480,7 +507,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       if (devices.isEmpty)
         const Padding(
           padding: EdgeInsets.only(top: 8),
-          child: Text('No Fastboot device detected. Switch the phone to bootloader mode, then refresh.'),
+          child: Text('No Fastboot device detected. Use ADB Toolkit → Fastbootd to enter userspace Fastboot, or reboot to bootloader, then refresh.'),
         ),
       const SizedBox(height: 12),
       if (_discoveredPartitions.isNotEmpty)

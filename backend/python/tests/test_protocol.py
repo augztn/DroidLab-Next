@@ -26,6 +26,34 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(value["status"], "ok")
         self.assertEqual(value["protocol_version"], 1)
 
+    def test_platform_tools_install_requires_exact_license_confirmation(self):
+        with patch.object(server, "install_platform_tools") as install:
+            with self.assertRaises(PermissionError):
+                server.execute(
+                    "id",
+                    "system.platform_tools.install",
+                    {"confirmed": True, "license_accepted": True},
+                    threading.Event(),
+                )
+            install.assert_not_called()
+
+    def test_platform_tools_install_runs_after_explicit_license_confirmation(self):
+        intent = {
+            "operation": "system.platform_tools.install",
+            "version": server.PLATFORM_TOOLS_VERSION,
+            "license_accepted": True,
+        }
+        expected = {"installed": True, "version": server.PLATFORM_TOOLS_VERSION}
+        with patch.object(server, "install_platform_tools", return_value=expected) as install:
+            result = server.execute(
+                "id",
+                "system.platform_tools.install",
+                {**intent, "confirmed": True, "confirmation": intent},
+                threading.Event(),
+            )
+        self.assertEqual(result, expected)
+        install.assert_called_once_with(license_accepted=True)
+
     def test_configured_tool_path(self):
         with tempfile.TemporaryDirectory() as directory:
             executable = Path(directory) / "adb"
@@ -146,6 +174,38 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(value["output"], "15\n")
         self.assertEqual(run.call_args.args[0], ["adb", "-s", "SERIAL", "shell", "getprop", "ro.build.version.release"])
 
+
+    def test_fastboot_scan_identifies_fastbootd_from_userspace_flag(self):
+        with patch.object(server, "tool_path", return_value="fastboot"):
+            with patch.object(server, "run_capture", side_effect=[
+                result("FASTBOOT-1 fastboot product:unit\n"),
+                result("", 0, "(bootloader) is-userspace: yes\n"),
+            ]) as run:
+                devices = server.fastboot_scan(threading.Event())
+        self.assertEqual(devices[0]["mode"], "fastbootd")
+        self.assertEqual(devices[0]["transport"], "fastboot")
+        self.assertEqual(run.call_args_list[1].args[0], [
+            "fastboot", "-s", "FASTBOOT-1", "getvar", "is-userspace",
+        ])
+
+    def test_fastboot_scan_identifies_bootloader_mode(self):
+        with patch.object(server, "tool_path", return_value="fastboot"):
+            with patch.object(server, "run_capture", side_effect=[
+                result("FASTBOOT-1 fastboot\n"),
+                result("", 0, "is-userspace: no\n"),
+            ]):
+                devices = server.fastboot_scan(threading.Event())
+        self.assertEqual(devices[0]["mode"], "bootloader")
+
+    def test_fastboot_scan_keeps_device_when_userspace_flag_is_unavailable(self):
+        with patch.object(server, "tool_path", return_value="fastboot"):
+            with patch.object(server, "run_capture", side_effect=[
+                result("FASTBOOT-1 fastboot\n"),
+                result("", 1, "FAILED (remote: unknown variable)\n"),
+            ]):
+                devices = server.fastboot_scan(threading.Event())
+        self.assertEqual(len(devices), 1)
+        self.assertEqual(devices[0]["mode"], "unknown")
 
     def test_fastboot_discovery_command_runs_without_device(self):
         command_text = "devices"
@@ -571,6 +631,29 @@ class ProtocolTests(unittest.TestCase):
             server.handle(message, threading.Event())
         self.assertEqual(server._WORKER_SLOTS._value, server.MAX_ACTIVE_REQUESTS)
 
+
+    def test_advanced_adb_command_preserves_quoted_windows_paths(self):
+        command_text = 'install -r "C:\\Users\\me\\My Phone\\app.apk"'
+        args = {
+            "serial": "SERIAL",
+            "command_text": command_text,
+            "confirmed": True,
+            "confirmation": {
+                "operation": "adb.command",
+                "serial": "SERIAL",
+                "command_text": command_text,
+            },
+        }
+        with patch.object(server.os, "name", "nt"):
+            with patch.object(server, "tool_path", return_value="adb.exe"):
+                with patch.object(server, "run_capture", return_value=result("List of devices attached\nSERIAL device\n")):
+                    with patch.object(server, "run_streaming", return_value=result("Success\n")) as run:
+                        with patch.object(server, "response"):
+                            server.execute("id", "adb.command", args, threading.Event())
+        self.assertEqual(
+            run.call_args.args[0],
+            ["adb.exe", "-s", "SERIAL", "install", "-r", r"C:\Users\me\My Phone\app.apk"],
+        )
 
 if __name__ == "__main__":
     unittest.main()
