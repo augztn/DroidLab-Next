@@ -581,7 +581,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                     ]),
                   ),
                 );
-              }),
+              })),
         Align(alignment: Alignment.centerLeft, child: Text(visible.length.toString() + ' of ' + _packages.length.toString() + ' packages · ' + _disabled.length.toString() + ' disabled', style: Theme.of(context).textTheme.bodySmall)),
       ]),
     );
