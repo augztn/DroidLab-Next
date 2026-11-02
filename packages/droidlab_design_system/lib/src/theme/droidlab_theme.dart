@@ -54,8 +54,6 @@ abstract final class DroidLabTheme {
     return ThemeData(
       useMaterial3: true,
       visualDensity: VisualDensity.standard,
-      fontFamily: 'Inter',
-      typography: Typography.material2021(platform: TargetPlatform.windows),
       listTileTheme: const ListTileThemeData(dense: true, minVerticalPadding: 6, horizontalTitleGap: 12),
       brightness: Brightness.light,
       colorScheme: scheme,
@@ -65,7 +63,7 @@ abstract final class DroidLabTheme {
         color: surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           side: const BorderSide(color: border),
         ),
       ),
