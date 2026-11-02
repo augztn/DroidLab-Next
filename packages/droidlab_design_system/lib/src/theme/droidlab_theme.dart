@@ -88,27 +88,27 @@ abstract final class DroidLabTheme {
       error: error, onSurface: text, onSurfaceVariant: muted,
       outline: border, outlineVariant: border,
     );
-    final base = Typography.material2021(platform: TargetPlatform.windows);
+    final base = Typography.material2021(platform: defaultTargetPlatform);
     final textTheme = base.copyWith(
-      displayLarge: base.displayLarge?.copyWith(fontFamily: 'Inter', color: text, letterSpacing: -1.2),
-      displayMedium: base.displayMedium?.copyWith(fontFamily: 'Inter', color: text, letterSpacing: -0.9),
-      displaySmall: base.displaySmall?.copyWith(fontFamily: 'Inter', color: text, letterSpacing: -0.7),
-      headlineLarge: base.headlineLarge?.copyWith(fontFamily: 'Inter', color: text, fontWeight: FontWeight.w700, letterSpacing: -0.8),
-      headlineMedium: base.headlineMedium?.copyWith(fontFamily: 'Inter', color: text, fontWeight: FontWeight.w700, letterSpacing: -0.6),
-      headlineSmall: base.headlineSmall?.copyWith(fontFamily: 'Inter', color: text, fontWeight: FontWeight.w700, letterSpacing: -0.5),
-      titleLarge: base.titleLarge?.copyWith(fontFamily: 'Inter', color: text, fontWeight: FontWeight.w700),
-      titleMedium: base.titleMedium?.copyWith(fontFamily: 'Inter', color: text, fontWeight: FontWeight.w600),
-      titleSmall: base.titleSmall?.copyWith(fontFamily: 'Inter', color: text, fontWeight: FontWeight.w600),
-      bodyLarge: base.bodyLarge?.copyWith(fontFamily: 'Inter', color: text, height: 1.45),
-      bodyMedium: base.bodyMedium?.copyWith(fontFamily: 'Inter', color: text, height: 1.4),
-      bodySmall: base.bodySmall?.copyWith(fontFamily: 'Inter', color: muted, height: 1.4),
-      labelLarge: base.labelLarge?.copyWith(fontFamily: 'Inter', color: text, fontWeight: FontWeight.w600),
-      labelMedium: base.labelMedium?.copyWith(fontFamily: 'Inter', color: muted, fontWeight: FontWeight.w600, letterSpacing: 0.15),
-      labelSmall: base.labelSmall?.copyWith(fontFamily: 'Inter', color: muted, fontWeight: FontWeight.w700, letterSpacing: 0.45),
+      displayLarge: base.displayLarge?.copyWith(color: text, letterSpacing: -1.2),
+      displayMedium: base.displayMedium?.copyWith(color: text, letterSpacing: -0.9),
+      displaySmall: base.displaySmall?.copyWith(color: text, letterSpacing: -0.7),
+      headlineLarge: base.headlineLarge?.copyWith(color: text, fontWeight: FontWeight.w700, letterSpacing: -0.8),
+      headlineMedium: base.headlineMedium?.copyWith(color: text, fontWeight: FontWeight.w700, letterSpacing: -0.6),
+      headlineSmall: base.headlineSmall?.copyWith(color: text, fontWeight: FontWeight.w700, letterSpacing: -0.5),
+      titleLarge: base.titleLarge?.copyWith(color: text, fontWeight: FontWeight.w700),
+      titleMedium: base.titleMedium?.copyWith(color: text, fontWeight: FontWeight.w600),
+      titleSmall: base.titleSmall?.copyWith(color: text, fontWeight: FontWeight.w600),
+      bodyLarge: base.bodyLarge?.copyWith(color: text, height: 1.45),
+      bodyMedium: base.bodyMedium?.copyWith(color: text, height: 1.4),
+      bodySmall: base.bodySmall?.copyWith(color: muted, height: 1.4),
+      labelLarge: base.labelLarge?.copyWith(color: text, fontWeight: FontWeight.w600),
+      labelMedium: base.labelMedium?.copyWith(color: muted, fontWeight: FontWeight.w600, letterSpacing: 0.15),
+      labelSmall: base.labelSmall?.copyWith(color: muted, fontWeight: FontWeight.w700, letterSpacing: 0.45),
     );
     final buttonShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(9));
     return ThemeData(
-      useMaterial3: true, fontFamily: 'Inter', textTheme: textTheme,
+      useMaterial3: true, textTheme: textTheme,
       visualDensity: VisualDensity.standard, colorScheme: scheme,
       scaffoldBackgroundColor: background, dividerColor: border,
       listTileTheme: ListTileThemeData(
@@ -137,21 +137,21 @@ abstract final class DroidLabTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(
         backgroundColor: button, foregroundColor: text, minimumSize: const Size(0, 40),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-        shape: buttonShape, textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w600),
+        shape: buttonShape, textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       )),
       filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(
         minimumSize: const Size(0, 40), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-        shape: buttonShape, textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w600),
+        shape: buttonShape, textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       )),
       outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(
         foregroundColor: primary, minimumSize: const Size(0, 40),
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
         side: BorderSide(color: border), shape: buttonShape,
-        textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       )),
       textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(
         foregroundColor: primary, minimumSize: const Size(0, 38),
-        textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       )),
       iconButtonTheme: IconButtonThemeData(style: IconButton.styleFrom(
         foregroundColor: muted, minimumSize: const Size(38, 38),
@@ -159,7 +159,7 @@ abstract final class DroidLabTheme {
       )),
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(color: panelAlt, borderRadius: BorderRadius.circular(7), border: Border.all(color: border)),
-        textStyle: TextStyle(color: text, fontFamily: 'Inter', fontSize: 12),
+        textStyle: TextStyle(color: text, fontSize: 12),
       ),
       appBarTheme: AppBarTheme(backgroundColor: sidebar, foregroundColor: text, elevation: 0),
       extensions: [DroidLabThemeSurfaces(console: console, panelAlt: panelAlt)],
