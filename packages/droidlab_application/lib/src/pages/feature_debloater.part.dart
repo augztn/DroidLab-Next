@@ -11,6 +11,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   int _userId = 0;
   String _query = '';
   String _filter = 'all';
+  String _riskFilter = 'all';
+  Map<String, Map<String, dynamic>> _guidance = const {};
   bool _busy = false;
   List<Map<String, dynamic>> _packages = const [];
   Set<String> _disabled = {};
@@ -24,6 +26,12 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     setState(() { _busy = true; _error = null; });
     try {
       final client = ref.read(backendClientProvider);
+      final catalogResult = await client.request('debloat.catalog.list', const {});
+      final catalog = (catalogResult.data['entries'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .where((item) => item['package'] is String)
+          .map((item) => MapEntry(item['package'] as String, item))
+          .toMap();
       final inventory = await client.request('debloat.packages.list', {'serial': serial, 'user_id': _userId});
       final packages = (inventory.data['packages'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>().toList(growable: false);
@@ -32,12 +40,71 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
           .map((item) => item['package'] as String)
           .toSet();
       if (!mounted || generation != _loadGeneration || serial != _serial) return;
-      setState(() { _packages = packages; _disabled = disabled; });
+      setState(() { _packages = packages; _disabled = disabled; _guidance = catalog; });
     } catch (error) {
       if (mounted && generation == _loadGeneration) setState(() => _error = error.toString());
     } finally {
       if (mounted && generation == _loadGeneration) setState(() => _busy = false);
     }
+  }
+
+
+  Future<void> _showGuidance(Map<String, dynamic> item) async {
+    final package = item['package'] as String;
+    Map<String, dynamic> details = _guidance[package] ?? const {};
+    if (details.isEmpty) {
+      try {
+        final response = await ref.read(backendClientProvider).request(
+          'debloat.package.guidance',
+          {'package': package},
+        );
+        details = response.data;
+      } catch (error) {
+        if (!mounted) return;
+        setState(() => _error = error.toString());
+        return;
+      }
+    }
+    if (!mounted) return;
+    final system = item['system'] == true;
+    final risk = (details['risk'] as String?) ?? 'Not listed — review manually';
+    final explanation = (details['function'] as String?) ?? 'No verified package description is available for this exact ID.';
+    final impact = (details['impact'] as String?) ?? 'No device-specific impact information is available.';
+    final recommendation = (details['recommendation'] as String?) ?? 'Not listed';
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text((details['app'] as String?)?.isNotEmpty == true ? details['app'] as String : package),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SelectableText(package, style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 12),
+              Text('Risk: $risk', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              Text(explanation),
+              const SizedBox(height: 12),
+              Text('What happens if removed', style: Theme.of(context).textTheme.titleSmall),
+              Text(impact),
+              const SizedBox(height: 12),
+              Text('Recommendation: $recommendation', style: Theme.of(context).textTheme.titleSmall),
+              if (system) const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Text('This is a system package. Its dependencies and feature impact vary by device and OS build. Review carefully.'),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Text('Guidance is advisory, not proof that a package is safe to remove. Not listed does not mean safe or unsafe.'),
+              ),
+            ],
+          )),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close'))],
+      ),
+    );
   }
 
   Future<void> _apply(Map<String, dynamic> item, String action) async {
@@ -98,6 +165,12 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     final visible = _packages.where((item) {
       final package = item['package'] as String;
       final system = item['system'] == true;
+      final guidance = _guidance[package];
+      final risk = (guidance?['risk'] as String? ?? 'Not listed').toLowerCase();
+      if (_riskFilter == 'recommended' && !(risk.startsWith('low') || risk.startsWith('optional'))) return false;
+      if (_riskFilter == 'advanced' && !risk.contains('advanced')) return false;
+      if (_riskFilter == 'review' && !(risk.contains('review') || risk.contains('unclear') || risk.contains('not listed'))) return false;
+      if (_riskFilter == 'keep' && !(risk.contains('critical') || risk.startsWith('high') || risk.contains('keep'))) return false;
       if (_filter == 'system' && !system) return false;
       if (_filter == 'user' && system) return false;
       final query = _query.trim().toLowerCase();
@@ -156,6 +229,16 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
               onChanged: (value) => setState(() => _filter = value ?? 'all'),
             ),
           ]),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(spacing: 8, children: [
+              FilterChip(label: const Text('Recommended'), selected: _riskFilter == 'recommended', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'recommended' ? 'all' : 'recommended')),
+              FilterChip(label: const Text('Advanced'), selected: _riskFilter == 'advanced', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'advanced' ? 'all' : 'advanced')),
+              FilterChip(label: const Text('Review first'), selected: _riskFilter == 'review', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'review' ? 'all' : 'review')),
+              FilterChip(label: const Text('Keep'), selected: _riskFilter == 'keep', onSelected: (_) => setState(() => _riskFilter = _riskFilter == 'keep' ? 'all' : 'keep')),
+            ]),
+          ),
         ]))),
         if (_error != null) Padding(padding: const EdgeInsets.all(8), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
         const SizedBox(height: 8),
@@ -176,7 +259,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                         return Card(child: ListTile(
                           leading: Icon(system ? Icons.android : Icons.apps),
                           title: SelectableText(package),
-                          subtitle: Text((system ? 'System package' : 'User package') + ' · ' + (disabled ? 'Disabled' : 'Enabled')),
+                          subtitle: Text((system ? 'System package' : 'User package') + ' · ' + (disabled ? 'Disabled' : 'Enabled') + ' · ' + (_guidance[package]?['risk'] as String? ?? 'Not listed')),
+                          onTap: () => _showGuidance(item),
                           trailing: Wrap(spacing: 4, children: [
                             TextButton(onPressed: _busy || disabled ? null : () => _apply(item, 'disable'), child: const Text('Disable')),
                             TextButton(onPressed: _busy ? null : () => _apply(item, 'uninstall'), child: const Text('Uninstall')),
