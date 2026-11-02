@@ -657,3 +657,30 @@ class ProtocolTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_debloat_inventory_parses_valid_package_ids_and_system_paths(self):
+        output = "package:/system/app/Example/Example.apk=com.example.app\npackage:com.example.user\npackage:invalid package\n"
+        with patch.object(server, "tool_path", return_value="adb"):
+            with patch.object(server, "run_capture", return_value=result("List of devices attached\nSERIAL device\n")):
+                with patch.object(server, "run_streaming", return_value=result(output)) as run:
+                    value = server.execute("id", "debloat.packages.list", {"serial": "SERIAL", "user_id": 0}, threading.Event())
+        self.assertEqual([item["package"] for item in value["packages"]], ["com.example.app", "com.example.user"])
+        self.assertTrue(value["packages"][0]["system"])
+        self.assertFalse(value["packages"][1]["system"])
+        self.assertEqual(run.call_args.args[0][-4:], ["packages", "-f", "--user", "0"])
+
+    def test_debloat_apply_requires_exact_confirmation(self):
+        with self.assertRaises(PermissionError):
+            server.execute("id", "debloat.package.apply", {
+                "serial": "SERIAL", "package": "com.example.app", "action": "disable", "user_id": 0, "confirmed": True,
+            }, threading.Event())
+
+    def test_debloat_apply_rejects_invalid_package(self):
+        with self.assertRaises(ValueError):
+            server.execute("id", "debloat.package.apply", {
+                "serial": "SERIAL", "package": "com.example;reboot", "action": "disable", "user_id": 0,
+            }, threading.Event())
+
+    def test_debloat_operation_is_serialized_per_device(self):
+        self.assertIn("debloat.package.apply", server._MUTATING)
