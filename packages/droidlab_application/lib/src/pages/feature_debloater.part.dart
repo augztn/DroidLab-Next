@@ -180,7 +180,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                           title: SelectableText(package),
                           subtitle: Text((system ? 'System package' : 'User package') + ' · ' + (disabled ? 'Disabled' : 'Enabled')),
                           trailing: Wrap(spacing: 4, children: [
-                            TextButton(onPressed: _busy ? null : () => _apply(item, 'disable'), child: const Text('Disable')),
+                            TextButton(onPressed: _busy || disabled ? null : () => _apply(item, 'disable'), child: const Text('Disable')),
                             TextButton(onPressed: _busy ? null : () => _apply(item, 'uninstall'), child: const Text('Uninstall')),
                           ]),
                         ));
