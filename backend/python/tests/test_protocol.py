@@ -663,8 +663,6 @@ class ProtocolTests(unittest.TestCase):
                 with patch.object(server, "run_streaming", side_effect=[
                     result(output),
                     result(disabled),
-                    result(output),
-                    result(disabled),
                 ]) as run:
                     value = server.execute("id", "debloat.packages.list", {"serial": "SERIAL", "user_id": 0}, threading.Event())
         self.assertEqual([item["package"] for item in value["packages"]], ["com.example.app", "com.example.user"])
