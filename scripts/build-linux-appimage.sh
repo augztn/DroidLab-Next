@@ -80,32 +80,9 @@ Categories=Utility;Development;System;
 Terminal=false
 DESKTOP
 cp "$APPDIR/droidlab.desktop" "$APPDIR/usr/share/applications/droidlab.desktop"
-cat > "$APPDIR/droidlab.svg" <<'SVG'
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 64 64">
-  <defs>
-    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#38bdf8"/>
-      <stop offset="1" stop-color="#087cf0"/>
-    </linearGradient>
-    <linearGradient id="robot" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#34d399"/>
-      <stop offset="1" stop-color="#38bdf8"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="15" fill="#0b1728"/>
-  <rect x="5" y="5" width="54" height="54" rx="12" fill="none" stroke="url(#frame)" stroke-width="3.2"/>
-  <g fill="none" stroke="#34d399" stroke-width="3.2" stroke-linecap="round">
-    <path d="M23 20 18 13M41 20l5-7"/>
-  </g>
-  <path d="M17 32a15 15 0 0 1 30 0H17Z" fill="none" stroke="url(#robot)" stroke-width="3.2" stroke-linejoin="round"/>
-  <g fill="#34d399"><circle cx="25" cy="27" r="2.2"/><circle cx="39" cy="27" r="2.2"/></g>
-  <g fill="none" stroke="url(#frame)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="m19 39 6 5-6 5M30 49h13"/>
-  </g>
-</svg>
-SVG
-cp "$APPDIR/droidlab.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/droidlab.svg"
-cp "$APPDIR/droidlab.svg" "$APPDIR/.DirIcon"
+install -D -m 0644 assets/branding/droidlab_app_icon.png "$APPDIR/droidlab.png"
+install -D -m 0644 assets/branding/droidlab_app_icon.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/droidlab.png"
+cp "$APPDIR/droidlab.png" "$APPDIR/.DirIcon"
 mkdir -p "$DIST"
 APPIMAGE_ARGS=()
 if [[ -n "${APPIMAGE_RUNTIME_FILE:-}" ]]; then
