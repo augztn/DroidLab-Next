@@ -201,7 +201,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       action: action,
     );
     if (!confirmed || !mounted) return;
-    setState(() { _busy = true; _error = null; });
+    setState(() { _busy = true; _error = null; _notice = null; });
     try {
       await _applyPackage(package, action);
       if (mounted) setState(() => _selectedPackages.remove(package));
@@ -221,7 +221,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       action: action,
     );
     if (!confirmed || !mounted) return;
-    setState(() { _busy = true; _error = null; });
+    setState(() { _busy = true; _error = null; _notice = null; });
     final succeeded = <String>[];
     final skipped = <String>[];
     final failed = <String, String>{};
