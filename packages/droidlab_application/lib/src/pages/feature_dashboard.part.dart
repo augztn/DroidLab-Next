@@ -87,16 +87,35 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   @override Widget build(BuildContext context) {
     final backend = ref.watch(backendReadyProvider);
     final devices = ref.watch(deviceListProvider);
-    final wide = MediaQuery.sizeOf(context).width >= 1500;
     final colors = Theme.of(context).colorScheme;
     return _PageFrame(title: 'Dashboard', subtitle: 'Android engineering workstation overview.',
       actions: [OutlinedButton.icon(onPressed: _polling ? null : _poll, icon: const Icon(Icons.refresh, size: 17), label: const Text('Refresh device metrics'))],
       child: ListView(children: [
-        GridView.count(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: wide ? 3 : 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 2.2, children: [
-          _MetricCard(title: 'Backend', icon: Icons.hub, value: backend.when(data: (_) => 'Online', error: (_, __) => 'Unavailable', loading: () => 'Starting')),
-          _MetricCard(title: 'Connected devices', icon: Icons.devices, value: devices.when(data: (payload) => ((payload['devices'] as List?)?.length ?? 0).toString(), error: (_, __) => 'Error', loading: () => '…')),
-          const _MetricCard(title: 'Desktop', value: 'Ready', icon: Icons.desktop_windows),
-        ]),
+        LayoutBuilder(builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 900
+              ? 3
+              : constraints.maxWidth >= 560
+                  ? 2
+                  : 1;
+          final aspectRatio = columns == 3
+              ? 2.15
+              : columns == 2
+                  ? 2.35
+                  : 3.0;
+          return GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: columns,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: aspectRatio,
+            children: [
+              _MetricCard(title: 'Backend', icon: Icons.hub, value: backend.when(data: (_) => 'Online', error: (_, __) => 'Unavailable', loading: () => 'Starting')),
+              _MetricCard(title: 'Connected devices', icon: Icons.devices, value: devices.when(data: (payload) => ((payload['devices'] as List?)?.length ?? 0).toString(), error: (_, __) => 'Error', loading: () => '…')),
+              const _MetricCard(title: 'Desktop', value: 'Ready', icon: Icons.desktop_windows),
+            ],
+          );
+        }),
         const SizedBox(height: 16),
         Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [Icon(Icons.battery_charging_full, color: colors.primary), const SizedBox(width: 10), Expanded(child: Text('Device Battery Status', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))), if (_serial != null) Text(_serial!, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, fontFamily: 'monospace'))]),
