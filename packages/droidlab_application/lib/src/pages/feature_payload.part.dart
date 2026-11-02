@@ -240,6 +240,14 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
     }
   }
 
+  List<Map<String, dynamic>> get _visibleParts {
+    final query = _partitionFilter.text.trim().toLowerCase();
+    if (query.isEmpty) return _parts;
+    return _parts.where((part) =>
+      (part['name'] as String).toLowerCase().contains(query)
+    ).toList(growable: false);
+  }
+
   @override
   Widget build(BuildContext context) => _PageFrame(
     title: 'Firmware & Payload',
@@ -332,22 +340,31 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
             hint: 'Search by partition name',
             onChanged: (_) => setState(() {}),
           ),
-          for (final part in _parts.where((part) =>
-            (part['name'] as String).toLowerCase().contains(_partitionFilter.text.trim().toLowerCase())))
-            CheckboxListTile(
-              dense: true,
-              value: _selected.contains(part['name']),
-              title: Text(part['name'] as String),
-              subtitle: Text(part['size_bytes'].toString() + ' bytes'),
-              onChanged: (value) => setState(() {
-                final name = part['name'] as String;
-                if (value == true) {
-                  _selected.add(name);
-                } else {
-                  _selected.remove(name);
-                }
-              }),
-            ),
+          SizedBox(
+            height: 360,
+            child: _visibleParts.isEmpty
+                ? const Center(child: Text('No partitions match this filter.'))
+                : ListView.builder(
+                    itemCount: _visibleParts.length,
+                    itemBuilder: (context, index) {
+                      final part = _visibleParts[index];
+                      final name = part['name'] as String;
+                      return CheckboxListTile(
+                        dense: true,
+                        value: _selected.contains(name),
+                        title: Text(name),
+                        subtitle: Text(part['size_bytes'].toString() + ' bytes'),
+                        onChanged: (value) => setState(() {
+                          if (value == true) {
+                            _selected.add(name);
+                          } else {
+                            _selected.remove(name);
+                          }
+                        }),
+                      );
+                    },
+                  ),
+          ),
         ],
         const SizedBox(height: 12),
         Text('ACTIVITY LOG', style: Theme.of(context).textTheme.labelLarge),
