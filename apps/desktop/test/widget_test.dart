@@ -83,7 +83,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Settings'), findsWidgets);
-    expect(find.text('Color theme'), findsOneWidget);
+    expect(find.text('Appearance & Theme Identity'), findsOneWidget);
+    expect(find.text('Cyberpunk Glass'), findsOneWidget);
+    expect(find.text('Standard Dark'), findsOneWidget);
+    expect(find.text('OLED Black'), findsOneWidget);
+    expect(find.text('Switch to Light Surface'), findsOneWidget);
     expect(find.text('Python executable'), findsOneWidget);
     expect(find.text('Backend script'), findsOneWidget);
     expect(find.text('ADB executable'), findsOneWidget);
