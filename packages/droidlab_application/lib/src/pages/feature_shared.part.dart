@@ -21,16 +21,16 @@ class _PageFrame extends StatelessWidget {
         Expanded(child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: Theme.of(context).textTheme.headlineMedium),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
             if (subtitle != null) ...[
-              const SizedBox(height: 6),
-              Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height: 3),
+              Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
             ],
           ],
         )),
         ...actions,
       ]),
-      const SizedBox(height: 20),
+      const SizedBox(height: 10),
       Expanded(child: child),
     ],
   );
