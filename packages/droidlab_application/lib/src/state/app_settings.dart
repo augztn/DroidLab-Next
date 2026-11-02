@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class DroidLabSettings {
   const DroidLabSettings({
     this.theme = 'cyberpunk_glass',
+    this.themeMode = 'dark',
     this.pythonPath = '',
     this.backendPath = '',
     this.adbPath = '',
@@ -14,6 +15,7 @@ class DroidLabSettings {
   });
 
   final String theme;
+  final String themeMode;
   final String pythonPath;
   final String backendPath;
   final String adbPath;
@@ -21,10 +23,11 @@ class DroidLabSettings {
   final String payloadDumperPath;
 
   DroidLabSettings copyWith({
-    String? theme, String? pythonPath, String? backendPath,
+    String? theme, String? themeMode, String? pythonPath, String? backendPath,
     String? adbPath, String? fastbootPath, String? payloadDumperPath,
   }) => DroidLabSettings(
         theme: theme ?? this.theme,
+        themeMode: themeMode ?? this.themeMode,
         pythonPath: pythonPath ?? this.pythonPath,
         backendPath: backendPath ?? this.backendPath,
         adbPath: adbPath ?? this.adbPath,
@@ -41,6 +44,7 @@ class DroidLabSettings {
     }
     return DroidLabSettings(
         theme: _validTheme(json['theme']),
+        themeMode: _validThemeMode(json['theme_mode']),
         pythonPath: _string(json['python_path'] ?? json['python']),
         backendPath: _string(json['backend_path'] ?? json['backend_script']),
         adbPath: _string(json['adb_path'] ?? json['adb']),
@@ -51,12 +55,14 @@ class DroidLabSettings {
 
   Map<String, dynamic> toJson() => {
         'schema_version': 1,
-        'theme': theme, 'python_path': pythonPath, 'backend_path': backendPath,
+        'theme': theme, 'theme_mode': themeMode, 'python_path': pythonPath, 'backend_path': backendPath,
         'adb_path': adbPath, 'fastboot_path': fastbootPath,
         'payload_dumper_path': payloadDumperPath,
       };
 
   static String _string(Object? value) => value is String ? value.trim() : '';
+  static String _validThemeMode(Object? value) =>
+      const {'light', 'dark', 'system'}.contains(value) ? value as String : 'dark';
   static String _validTheme(Object? value) =>
       const {'cyberpunk_glass', 'standard_dark', 'oled_black'}.contains(value)
           ? value as String : 'cyberpunk_glass';
