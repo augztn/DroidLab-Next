@@ -358,7 +358,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               return Column(children: [
                 Expanded(child: wide
                   ? Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                      Expanded(child: appearance),
+                      Expanded(child: SingleChildScrollView(child: appearance)),
                       const SizedBox(width: 24),
                       Expanded(child: SingleChildScrollView(child: tools)),
                     ])
