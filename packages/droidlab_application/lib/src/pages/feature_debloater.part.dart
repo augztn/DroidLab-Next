@@ -35,11 +35,29 @@ class _PackageIconBadge extends StatelessWidget {
                                                         ? (Icons.key_outlined, const Color(0xFFFB7185))
                                                         : key.contains('qualcomm') || key.contains('uim')
                                                             ? (Icons.radio_outlined, const Color(0xFF818CF8))
-                                                            : (key.endsWith('.apk') ? Icons.android : Icons.memory_outlined,
+                                                             : key.contains('overlay') || key.contains('rro')
+                                                                 ? (Icons.layers_outlined, const Color(0xFF38BDF8))
+                                                                 : key.contains('ext.services') || key.contains('android.ext')
+                                                                     ? (Icons.extension_outlined, const Color(0xFFA78BFA))
+                                                                     : key.contains('bluetooth')
+                                                                         ? (Icons.bluetooth, const Color(0xFF60A5FA))
+                                                                         : key.contains('camera')
+                                                                             ? (Icons.camera_alt_outlined, const Color(0xFFF59E0B))
+                                                                             : key.contains('contacts') || key.contains('dialer') || key.contains('phone')
+                                                                                 ? (Icons.contacts_outlined, const Color(0xFF34D399))
+                                                                                 : key.contains('calendar')
+                                                                                     ? (Icons.calendar_month_outlined, const Color(0xFFFB7185))
+                                                                                     : key.contains('browser') || key.contains('chrome') || key.contains('webview')
+                                                                                         ? (Icons.language_outlined, const Color(0xFF38BDF8))
+                                                                                         : key.contains('location') || key.contains('maps')
+                                                                                             ? (Icons.location_on_outlined, const Color(0xFF22C55E))
+                                                                                             : key.contains('media') || key.contains('music') || key.contains('audio')
+                                                                                                 ? (Icons.music_note_outlined, const Color(0xFFC084FC))
+                                                                                                 : (key.endsWith('.apk') ? Icons.android : Icons.memory_outlined,
                                                                 Theme.of(context).colorScheme.primary);
     return Container(
-      width: 34,
-      height: 34,
+      width: 40,
+      height: 40,
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         border: Border.all(color: color.withValues(alpha: 0.32)),
