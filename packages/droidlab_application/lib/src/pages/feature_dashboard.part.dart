@@ -64,7 +64,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       final level = lm == null ? null : int.tryParse(lm.group(1)!);
       final temp = tm == null ? null : double.tryParse(tm.group(1)!);
       final lines = topText.split(RegExp(r'\r?\n')).map((v) => v.trimRight()).where((v) => v.trim().isNotEmpty).toList();
-      final processLines = lines.where((line) => RegExp(r'^\\s*\\d+\\s+').hasMatch(line)).take(5).toList();
+      final processLines = lines.where((line) => RegExp(r'^\s*\d+\s+').hasMatch(line)).take(5).toList();
       final displayLines = processLines.isNotEmpty ? processLines : lines.take(14).toList();
       if (mounted) setState(() { _serial = serial; _level = level?.clamp(0, 100); _temperature = temp == null ? null : temp / 10; _batteryError = level == null ? 'Battery data was not present in the device response.' : null; _top = displayLines; _resourceError = displayLines.isEmpty ? 'No process data returned by Android.' : null; _updated = DateTime.now(); });
     } catch (error) { if (mounted) setState(() { _batteryError = 'Could not query device metrics: $error'; _resourceError = 'Resource monitor unavailable.'; }); }
