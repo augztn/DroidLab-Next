@@ -212,6 +212,15 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       final colors = Theme.of(context).colorScheme;
       final surfaces = Theme.of(context).extension<DroidLabThemeSurfaces>();
       final targetSerial = ref.watch(selectedTargetSerialProvider);
+      final discovered = devices.valueOrNull?['devices'] as List<dynamic>? ?? const [];
+      if (targetSerial != null && devices.hasValue &&
+          !discovered.whereType<Map<String, dynamic>>().any((device) => device['serial'] == targetSerial)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && ref.read(selectedTargetSerialProvider) == targetSerial) {
+            ref.read(selectedTargetSerialProvider.notifier).state = null;
+          }
+        });
+      }
       return Scaffold(body: SafeArea(child: Column(children: [
         Container(
           height: 72,
