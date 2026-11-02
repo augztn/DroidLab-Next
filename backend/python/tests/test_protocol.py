@@ -677,6 +677,42 @@ class ProtocolTests(unittest.TestCase):
                 "serial": "SERIAL", "package": "com.example.app", "action": "disable", "user_id": 0, "confirmed": True,
             }, threading.Event())
 
+    def test_debloat_restore_uses_uninstalled_inventory_and_install_existing(self):
+        intent = {
+            "operation": "debloat.package.apply", "serial": "SERIAL",
+            "package": "com.example.app", "action": "restore", "user_id": 0,
+        }
+        with patch.object(server, "tool_path", return_value="adb"):
+            with patch.object(server, "require_adb"):
+                with patch.object(server, "run_capture", side_effect=[
+                    result("package:com.example.app\\n"),
+                    result(""),
+                ]) as capture:
+                    with patch.object(server, "run_streaming", return_value=result("Package com.example.app installed for user: 0\\n")) as run:
+                        with patch.object(server, "response"):
+                            value = server.execute("id", "debloat.package.apply", {
+                                **intent, "confirmed": True, "confirmation": intent,
+                            }, threading.Event())
+        self.assertEqual(value["action"], "restore")
+        self.assertIn("-u", capture.call_args_list[0].args[0])
+        self.assertEqual(run.call_args.args[0], [
+            "adb", "-s", "SERIAL", "shell", "cmd", "package",
+            "install-existing", "--user", "0", "com.example.app",
+        ])
+
+    def test_debloat_restore_rejects_package_missing_from_system_image(self):
+        intent = {
+            "operation": "debloat.package.apply", "serial": "SERIAL",
+            "package": "com.example.removed", "action": "restore", "user_id": 0,
+        }
+        with patch.object(server, "tool_path", return_value="adb"):
+            with patch.object(server, "require_adb"):
+                with patch.object(server, "run_capture", return_value=result("")):
+                    with self.assertRaisesRegex(RuntimeError, "not known to this Android system image"):
+                        server.execute("id", "debloat.package.apply", {
+                            **intent, "confirmed": True, "confirmation": intent,
+                        }, threading.Event())
+
     def test_debloat_apply_rejects_invalid_package(self):
         with self.assertRaises(ValueError):
             server.execute("id", "debloat.package.apply", {
