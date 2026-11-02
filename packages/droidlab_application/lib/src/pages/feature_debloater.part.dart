@@ -18,7 +18,6 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   List<Map<String, dynamic>> _packages = const [];
   Set<String> _disabled = {};
   final Set<String> _selectedPackages = {};
-  static const int _maxBulkSelection = 50;
   int _loadGeneration = 0;
   String? _error;
 
@@ -216,10 +215,6 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   Future<void> _applySelected(String action) async {
     if (_busy || _serial == null || _selectedPackages.isEmpty) return;
     final packages = _selectedPackages.toList()..sort();
-    if (packages.length > _maxBulkSelection) {
-      setState(() => _error = 'Select no more than $_maxBulkSelection packages per batch.');
-      return;
-    }
     final confirmed = await _confirmPackageAction(
       packages: packages,
       action: action,
@@ -261,16 +256,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   }
 
   void _selectVisible(List<Map<String, dynamic>> visible) {
-    final packages = visible
-        .map((item) => item['package'] as String)
-        .where((package) => !_selectedPackages.contains(package))
-        .take(_maxBulkSelection - _selectedPackages.length);
+    final packages = visible.map((item) => item['package'] as String);
     setState(() => _selectedPackages.addAll(packages));
-    if (_selectedPackages.length >= _maxBulkSelection && visible.any(
-      (item) => !_selectedPackages.contains(item['package']),
-    )) {
-      setState(() => _error = 'Batch selection is limited to $_maxBulkSelection packages.');
-    }
   }
 
   @override
@@ -429,12 +416,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                 ? null
                                 : (selected) => setState(() {
                                     if (selected == true) {
-                                      if (_selectedPackages.length >= _maxBulkSelection) {
-                                        _error = 'Batch selection is limited to $_maxBulkSelection packages.';
-                                      } else {
-                                        _selectedPackages.add(package);
-                                        _error = null;
-                                      }
+                                      _selectedPackages.add(package);
+                                      _error = null;
                                     } else {
                                       _selectedPackages.remove(package);
                                       _error = null;
