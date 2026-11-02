@@ -27,11 +27,12 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     try {
       final client = ref.read(backendClientProvider);
       final catalogResult = await client.request('debloat.catalog.list', const {});
-      final catalog = (catalogResult.data['entries'] as List<dynamic>? ?? const [])
+      final recommendationPackages = (catalogResult.data['recommendations'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
           .where((item) => item['package'] is String)
-          .map((item) => MapEntry(item['package'] as String, item))
-          .toMap();
+          .map((item) => item['package'] as String)
+          .toSet();
+      final catalog = <String, Map<String, dynamic>>{};
       final inventory = await client.request('debloat.packages.list', {'serial': serial, 'user_id': _userId});
       final packages = (inventory.data['packages'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>().toList(growable: false);
@@ -40,7 +41,19 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
           .map((item) => item['package'] as String)
           .toSet();
       if (!mounted || generation != _loadGeneration || serial != _serial) return;
-      setState(() { _packages = packages; _disabled = disabled; _guidance = catalog; });
+      setState(() {
+        _packages = packages;
+        _disabled = disabled;
+        _guidance = {
+          for (final package in packages)
+            if (recommendationPackages.contains(package['package']))
+              package['package'] as String: {
+                'package': package['package'],
+                'risk': 'Recommended — review first',
+                'recommendation': 'Recommended — review first',
+              },
+        };
+      });
     } catch (error) {
       if (mounted && generation == _loadGeneration) setState(() => _error = error.toString());
     } finally {
@@ -51,19 +64,17 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
 
   Future<void> _showGuidance(Map<String, dynamic> item) async {
     final package = item['package'] as String;
-    Map<String, dynamic> details = _guidance[package] ?? const {};
-    if (details.isEmpty) {
-      try {
-        final response = await ref.read(backendClientProvider).request(
-          'debloat.package.guidance',
-          {'package': package},
-        );
-        details = response.data;
-      } catch (error) {
-        if (!mounted) return;
-        setState(() => _error = error.toString());
-        return;
-      }
+    Map<String, dynamic> details;
+    try {
+      final response = await ref.read(backendClientProvider).request(
+        'debloat.package.guidance',
+        {'package': package},
+      );
+      details = response.data;
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+      return;
     }
     if (!mounted) return;
     final system = item['system'] == true;
@@ -167,7 +178,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       final system = item['system'] == true;
       final guidance = _guidance[package];
       final risk = (guidance?['risk'] as String? ?? 'Not listed').toLowerCase();
-      if (_riskFilter == 'recommended' && !(risk.startsWith('low') || risk.startsWith('optional'))) return false;
+      if (_riskFilter == 'recommended' && guidance == null) return false;
       if (_riskFilter == 'advanced' && !risk.contains('advanced')) return false;
       if (_riskFilter == 'review' && !(risk.contains('review') || risk.contains('unclear') || risk.contains('not listed'))) return false;
       if (_riskFilter == 'keep' && !(risk.contains('critical') || risk.startsWith('high') || risk.contains('keep'))) return false;
