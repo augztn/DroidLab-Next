@@ -37,7 +37,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Hide'));
+    await tester.tap(find.byTooltip('Hide console'));
     await tester.pumpAndSettle();
     expect(
       find.text('Operation Console (Bounded 300-line JSONL Event Stream)'),
