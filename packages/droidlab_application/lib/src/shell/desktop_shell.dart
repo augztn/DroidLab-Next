@@ -17,7 +17,6 @@ class DesktopShell extends ConsumerStatefulWidget {
 
 class _DesktopShellState extends ConsumerState<DesktopShell> {
   bool _expanded = true;
-  bool _consoleVisible = true;
   final List<String> _consoleLines = [];
   StreamSubscription<BackendEvent>? _events;
   BackendClient? _eventClient;
@@ -211,7 +210,6 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       final compact = constraints.maxWidth < 1000;
       final expanded = _expanded && !compact;
       final colors = Theme.of(context).colorScheme;
-      final surfaces = Theme.of(context).extension<DroidLabThemeSurfaces>();
       final discovered = devices.valueOrNull?['devices'] as List<dynamic>? ?? const [];
       if (targetSerial != null && devices.hasValue &&
           !discovered.whereType<Map<String, dynamic>>().any((device) => device['serial'] == targetSerial)) {
@@ -390,109 +388,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
             child: widget.child,
           )),
         ])),
-        if (_consoleVisible)
-          Container(
-            height: compact ? 160 : 188,
-            decoration: BoxDecoration(
-              color: surfaces?.console ?? colors.surface,
-              border: Border(top: BorderSide(color: colors.outlineVariant)),
-            ),
-            child: Column(children: [
-              LayoutBuilder(builder: (context, headerConstraints) {
-                final narrow = headerConstraints.maxWidth < 620;
-                final title = Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.terminal, color: colors.primary, size: 17),
-                  const SizedBox(width: 10),
-                  Flexible(child: Text(
-                    'Operation Console',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Colors.white),
-                  )),
-                ]);
-                final actions = Wrap(
-                  spacing: 2,
-                  children: [
-                    IconButton(
-                      tooltip: 'Clear console',
-                      onPressed: () => setState(() {
-                        _consoleLines.clear();
-                        ref.read(operationConsoleLinesProvider.notifier).state = const [];
-                      }),
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                    ),
-                    IconButton(
-                      tooltip: 'Hide console',
-                      onPressed: () => setState(() => _consoleVisible = false),
-                      icon: const Icon(Icons.keyboard_arrow_down, size: 19),
-                    ),
-                  ],
-                );
-                return SizedBox(
-                  height: 44,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: narrow
-                        ? Row(children: [Expanded(child: title), actions])
-                        : Row(children: [
-                            Expanded(child: Row(children: [
-                              title,
-                              const SizedBox(width: 7),
-                              Flexible(child: Text(
-                                '(Bounded 300-line JSONL Event Stream)',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
-                              )),
-                            ])),
-                            actions,
-                          ]),
-                  ),
-                );
-              }),
-              const Divider(height: 1),
-              Expanded(child: _consoleLines.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(14),
-                    child: Align(alignment: Alignment.topLeft, child: Text(
-                      'Backend output and preflight events will stream here.',
-                      style: TextStyle(fontFamily: 'monospace', color: Color(0xFFEDF4FB)),
-                    )),
-                  )
-                : ListView.builder(
-                    reverse: true,
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                    itemCount: _consoleLines.length,
-                    itemBuilder: (context, index) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Text(
-                        _consoleLines[_consoleLines.length-index-1],
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontFamily: 'monospace', color: const Color(0xFFEDF4FB),
-                        ),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-              ),
-            ]),
-          )
-        else
-          Container(
-            height: 36,
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 12),
-            decoration: BoxDecoration(
-              color: surfaces?.console ?? colors.surface,
-              border: Border(top: BorderSide(color: colors.outlineVariant)),
-            ),
-            child: TextButton.icon(
-              onPressed: () => setState(() => _consoleVisible = true),
-              icon: const Icon(Icons.terminal, size: 16),
-              label: const Text('Show'),
-              style: TextButton.styleFrom(foregroundColor: colors.onSurfaceVariant),
-            ),
-          ),
+
       ])));
     });
   }
