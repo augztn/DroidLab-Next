@@ -208,11 +208,13 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                 }),
                 icon: const Icon(Icons.delete_outline, size: 17),
               ),
-              TextButton.icon(
-                tooltip: _consoleExpanded ? 'Hide console' : 'Show console',
+              Tooltip(
+                message: _consoleExpanded ? 'Hide console' : 'Show console',
+                child: TextButton.icon(
                 onPressed: () => setState(() => _consoleExpanded = !_consoleExpanded),
                 icon: Icon(_consoleExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up, size: 18),
                 label: Text(_consoleExpanded ? 'Hide' : 'Show'),
+                ),
               ),
               const SizedBox(width: 8),
             ]),
