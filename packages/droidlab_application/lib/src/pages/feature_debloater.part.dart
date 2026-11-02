@@ -390,32 +390,70 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       title: 'Android Debloater Workspace',
       subtitle: 'Inspect installed packages. Every package change requires explicit confirmation.',
       actions: [
-        IconButton(onPressed: _busy || _serial == null ? null : _load, tooltip: 'Refresh packages', icon: const Icon(Icons.refresh)),
+        SizedBox(
+          width: 220,
+          child: DropdownButtonFormField<String>(
+            initialValue: _serial,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              isDense: true,
+              labelText: 'Authorized ADB device',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+            items: serials.map((value) => DropdownMenuItem(
+              value: value,
+              child: Text(value, overflow: TextOverflow.ellipsis),
+            )).toList(),
+            onChanged: _busy ? null : (value) => setState(() {
+              _loadGeneration++;
+              _serial = value;
+              _packages = const [];
+              _disabled = {};
+              _recommendations = {};
+              _selectedPackages.clear();
+            }),
+          ),
+        ),
+        SizedBox(
+          width: 104,
+          child: TextFormField(
+            key: ValueKey(_userId),
+            initialValue: '$_userId',
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              isDense: true,
+              labelText: 'Android user ID',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+            onChanged: (value) {
+              final parsed = int.tryParse(value);
+              if (parsed != null && parsed >= 0 && parsed <= 2147483647 && !_busy) {
+                setState(() {
+                  _loadGeneration++;
+                  _userId = parsed;
+                  _packages = const [];
+                  _disabled = {};
+                  _recommendations = {};
+                  _selectedPackages.clear();
+                });
+              }
+            },
+          ),
+        ),
+        FilledButton.icon(
+          onPressed: _serial == null || _busy ? null : _load,
+          icon: const Icon(Icons.list, size: 18),
+          label: const Text('Load packages'),
+        ),
+        IconButton(
+          onPressed: _busy || _serial == null ? null : _load,
+          tooltip: 'Refresh packages',
+          icon: const Icon(Icons.refresh),
+        ),
       ],
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Card(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), child: Wrap(
-          spacing: 10, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            SizedBox(width: 250, child: DropdownButtonFormField<String>(
-              initialValue: _serial,
-              decoration: const InputDecoration(isDense: true, labelText: 'Authorized ADB device', border: OutlineInputBorder()),
-              items: serials.map((value) => DropdownMenuItem(value: value, child: Text(value, overflow: TextOverflow.ellipsis))).toList(),
-              onChanged: _busy ? null : (value) => setState(() { _loadGeneration++; _serial = value; _packages = const []; _disabled = {}; _recommendations = {}; _selectedPackages.clear(); }),
-            )),
-            SizedBox(width: 130, child: TextFormField(
-              initialValue: '0', keyboardType: TextInputType.number,
-              decoration: const InputDecoration(isDense: true, labelText: 'Android user ID', border: OutlineInputBorder()),
-              onChanged: (value) {
-                final parsed = int.tryParse(value);
-                if (parsed != null && parsed >= 0 && parsed <= 2147483647 && !_busy) {
-                  setState(() { _loadGeneration++; _userId = parsed; _packages = const []; _disabled = {}; _recommendations = {}; _selectedPackages.clear(); });
-                }
-              },
-            )),
-            FilledButton.icon(onPressed: _serial == null || _busy ? null : _load, icon: const Icon(Icons.list), label: const Text('Load packages')),
-          ],
-        ))),
-        const SizedBox(height: 6),
         Card(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), child: Column(children: [
           Row(children: [
             const Icon(Icons.warning_amber_rounded), const SizedBox(width: 8),
@@ -523,9 +561,9 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
               : _packages.isEmpty
                   ? const _EmptyPanel(icon: Icons.apps, title: 'No package inventory loaded', message: 'Load packages to inspect the selected Android user.')
                   : LayoutBuilder(builder: (context, constraints) {
-                const selectWidth = 40.0;
-                const packageWidth = 270.0;
-                const functionWidth = 205.0;
+                const selectWidth = 44.0;
+                const packageWidth = 300.0;
+                const functionWidth = 220.0;
                 const riskWidth = 125.0;
                 const stateWidth = 105.0;
                 const guidanceWidth = 82.0;
@@ -548,11 +586,11 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                         child: const Row(children: [
                           SizedBox(width: selectWidth, child: Text('Select', maxLines: 1, softWrap: false)),
                           SizedBox(width: packageWidth, child: Text('Package Identifier / Label', maxLines: 1, softWrap: false)),
-                          SizedBox(width: functionWidth, child: Text('OEM / Function', maxLines: 1, softWrap: false)),
-                          SizedBox(width: riskWidth, child: Text('Advisory Risk', maxLines: 1, softWrap: false)),
-                          SizedBox(width: stateWidth, child: Text('User State', maxLines: 1, softWrap: false)),
-                          SizedBox(width: guidanceWidth, child: Text('Guidance', maxLines: 1, softWrap: false)),
-                          SizedBox(width: actionsWidth, child: Text('Actions', maxLines: 1, softWrap: false)),
+                          SizedBox(width: functionWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('OEM / Function', maxLines: 1, softWrap: false))),
+                          SizedBox(width: riskWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Advisory Risk', maxLines: 1, softWrap: false))),
+                          SizedBox(width: stateWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('User State', maxLines: 1, softWrap: false))),
+                          SizedBox(width: guidanceWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Guidance', maxLines: 1, softWrap: false))),
+                          SizedBox(width: actionsWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Actions', maxLines: 1, softWrap: false))),
                         ]),
                       ),
                       Expanded(child: ListView.separated(
