@@ -79,6 +79,32 @@ void main() {
         'History could not be loaded; clear is blocked to preserve the existing files.');
   });
 
+  test('does not overwrite an invalid backup when primary history is missing', () async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-history-missing-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final file = File('${temporary.path}/operation_history.json');
+    final backup = File('${file.path}.bak');
+    await backup.writeAsString('{backup-corrupt');
+
+    final notifier = OperationHistoryNotifier(
+      supportDirectory: () async => temporary,
+    );
+    addTearDown(notifier.dispose);
+    await notifier.record(OperationRecord(
+      id: 'new',
+      timestamp: DateTime.utc(2026, 11, 2),
+      operation: 'Device refresh',
+      target: 'serial',
+      status: 'completed',
+      summary: 'done',
+    ));
+
+    expect(await file.exists(), isFalse);
+    expect(await backup.readAsString(), '{backup-corrupt');
+    expect(notifier.persistenceError,
+        'History could not be loaded; writes are blocked to preserve the existing files.');
+  });
+
   test('history labels use an allowlist and omit dynamic arguments', () {
     expect(historyOperationLabel('Advanced ADB: shell cat /private/token.txt'), 'Advanced ADB');
     expect(historyOperationLabel('Fastboot flash boot'), 'Fastboot flash');
