@@ -206,12 +206,12 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
         }
       });
     }
+    final targetSerial = ref.watch(selectedTargetSerialProvider);
     return LayoutBuilder(builder: (context, constraints) {
       final compact = constraints.maxWidth < 1000;
       final expanded = _expanded && !compact;
       final colors = Theme.of(context).colorScheme;
       final surfaces = Theme.of(context).extension<DroidLabThemeSurfaces>();
-      final targetSerial = ref.watch(selectedTargetSerialProvider);
       final discovered = devices.valueOrNull?['devices'] as List<dynamic>? ?? const [];
       if (targetSerial != null && devices.hasValue &&
           !discovered.whereType<Map<String, dynamic>>().any((device) => device['serial'] == targetSerial)) {
