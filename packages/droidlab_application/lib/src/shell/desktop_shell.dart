@@ -24,6 +24,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   Timer? _deviceRefreshTimer;
   Timer? _consoleFlushTimer;
   final List<String> _pendingConsoleLines = [];
+  Timer? _operationLogFlushTimer;
+  final List<String> _pendingOperationLogLines = [];
   String? _pendingDeviceToolRoute;
   Future<void> _logWriteQueue = Future<void>.value();
   IOSink? _operationLogSink;
@@ -102,11 +104,23 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   }
 
   Future<void> _appendOperationLog(String line) {
+    _pendingOperationLogLines.add(line);
+    _operationLogFlushTimer ??= Timer(const Duration(seconds: 1), () {
+      _operationLogFlushTimer = null;
+      unawaited(_drainOperationLog());
+    });
+    return _logWriteQueue;
+  }
+
+  Future<void> _drainOperationLog() {
+    if (_pendingOperationLogLines.isEmpty) return _logWriteQueue;
+    final batch = List<String>.of(_pendingOperationLogLines);
+    _pendingOperationLogLines.clear();
     _logWriteQueue = _logWriteQueue.then((_) async {
       try {
         final file = File(_operationLogPath);
         await file.parent.create(recursive: true);
-        final encoded = utf8.encode('$line\n');
+        final encoded = utf8.encode('${batch.join('\n')}\n');
         if (_operationLogSink == null) {
           _operationLogBytes = await file.exists() ? await file.length() : 0;
           if (_operationLogBytes >= _maxOperationLogBytes) {
@@ -146,6 +160,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     _deviceRefreshTimer?.cancel();
     _consoleFlushTimer?.cancel();
     _pendingConsoleLines.clear();
+    _operationLogFlushTimer?.cancel();
     unawaited(_events?.cancel() ?? Future<void>.value());
     unawaited(_closeOperationLog());
     super.dispose();
@@ -153,6 +168,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
 
   Future<void> _closeOperationLog() async {
     try {
+      await _drainOperationLog();
       await _logWriteQueue;
       await _operationLogSink?.flush();
       await _operationLogSink?.close();
