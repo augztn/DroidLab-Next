@@ -1,52 +1,54 @@
 part of 'feature_pages.dart';
 
-class DeviceManagerPage extends ConsumerWidget {
+class DeviceManagerPage extends ConsumerStatefulWidget {
   const DeviceManagerPage({super.key});
 
-  Future<void> _showDeviceInfo(BuildContext context, WidgetRef ref, String serial) async {
-    try {
-      final result = await ref.read(backendClientProvider).request('device.info', {'serial': serial});
-      if (!context.mounted) return;
-      final metadata = result.data['metadata'] as Map<String, dynamic>;
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Device details · $serial'),
-          content: SizedBox(
-            width: 480,
-            child: ListView(
-              shrinkWrap: true,
-              children: metadata.entries.map((entry) => ListTile(
-                dense: true,
-                title: Text(entry.key),
-                subtitle: SelectableText(
-                  entry.value?.toString().isNotEmpty == true ? entry.value.toString() : '—',
-                ),
-              )).toList(),
-            ),
-          ),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
-        ),
-      );
-    } catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not read device details: $error')),
-      );
-    }
+  @override
+  ConsumerState<DeviceManagerPage> createState() => _DeviceManagerPageState();
+}
+
+class _DeviceManagerPageState extends ConsumerState<DeviceManagerPage> {
+  String? _selectedSerial;
+  String? _metadataSerial;
+  Future<Map<String, dynamic>>? _metadataFuture;
+
+  Future<Map<String, dynamic>> _readMetadata(String serial) async {
+    final result = await ref.read(backendClientProvider).request(
+      'device.info',
+      {'serial': serial},
+    );
+    final raw = result.data['metadata'];
+    return raw is Map<String, dynamic> ? raw : const {};
   }
 
+  String _displayValue(Map<String, dynamic> values, String key, [String fallback = '—']) {
+    final value = values[key];
+    return value == null || value.toString().isEmpty ? fallback : value.toString();
+  }
+
+  Widget _property(BuildContext context, String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 9),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Expanded(child: Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ))),
+      const SizedBox(width: 12),
+      Flexible(child: SelectableText(value, textAlign: TextAlign.right,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'))),
+    ]),
+  );
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final devices = ref.watch(deviceListProvider);
     return _PageFrame(
-      title: 'Device Manager',
-      subtitle: 'Discover ADB and Fastboot targets. Multiple devices are never implicitly selected.',
+      title: 'Device Manager & Transport State',
+      subtitle: 'Distinguishes ADB, Recovery, Sideload, Bootloader Fastboot, and Userspace Fastbootd',
       actions: [
-        IconButton(
+        OutlinedButton.icon(
           onPressed: () => ref.invalidate(deviceListProvider),
-          tooltip: 'Refresh devices',
-          icon: const Icon(Icons.refresh),
+          icon: const Icon(Icons.usb, size: 17),
+          label: const Text('Probe Hardware'),
         ),
       ],
       child: devices.when(
@@ -57,70 +59,226 @@ class DeviceManagerPage extends ConsumerWidget {
         ),
         data: (data) {
           final list = (data['devices'] as List<dynamic>? ?? const [])
-              .cast<Map<String, dynamic>>();
-          final warnings = data['warnings'] as List<dynamic>? ?? const [];
+              .whereType<Map<String, dynamic>>()
+              .toList(growable: false);
+          final warnings = (data['warnings'] as List<dynamic>? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .toList(growable: false);
           if (list.isEmpty) {
             return Column(children: [
-              const Expanded(
-                child: _EmptyPanel(
-                  icon: Icons.usb_off,
-                  title: 'No Android devices detected',
-                  message: 'Connect a device with USB debugging or Fastboot enabled.',
-                ),
-              ),
+              const Expanded(child: _EmptyPanel(
+                icon: Icons.usb_off,
+                title: 'No Android devices detected',
+                message: 'Connect a device with USB debugging or Fastboot enabled.',
+              )),
               for (final warning in warnings)
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    warning['transport'].toString() + ': ' + warning['message'].toString(),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
+                    '${warning['transport']}: ${warning['message']}',
+                    style: TextStyle(color: Theme.of(context).colorScheme.error),
                   ),
                 ),
             ]);
           }
-          return ListView.separated(
-            itemCount: list.length + warnings.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              if (index >= list.length) {
-                final warning = warnings[index - list.length];
-                return ListTile(
-                  leading: const Icon(Icons.warning_amber),
-                  title: Text(warning['transport'].toString() + ' discovery warning'),
-                  subtitle: Text(warning['message'].toString()),
-                );
-              }
-              final device = list[index];
-              final transport = device['transport'] as String? ?? 'unknown';
-              final state = device['state'] as String? ?? 'unknown';
-              final serial = device['serial'] as String? ?? 'unknown';
-              final product = device['product'] as String?;
-              return Card(
-                child: ListTile(
-                  leading: Icon(transport == 'fastboot' ? Icons.memory : Icons.phone_android),
-                  title: SelectableText(serial),
-                  subtitle: Text(transport + ' · ' + state + (product == null ? '' : ' · ' + product)),
-                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                    IconButton(
-                      tooltip: 'Device details',
-                      icon: const Icon(Icons.info_outline),
-                      onPressed: () => _showDeviceInfo(context, ref, serial),
-                    ),
-                    IconButton(
-                      tooltip: 'Copy serial',
-                      icon: const Icon(Icons.copy),
-                      onPressed: () => unawaited(Clipboard.setData(ClipboardData(text: serial))),
+
+          final selected = list.firstWhere(
+            (device) => device['serial'] == _selectedSerial,
+            orElse: () => list.first,
+          );
+          final serial = selected['serial']?.toString() ?? '';
+          if (_metadataSerial != serial) {
+            _metadataSerial = serial;
+            _metadataFuture = _readMetadata(serial);
+          }
+          final metadataFuture = _metadataFuture;
+
+          Widget deviceCard(Map<String, dynamic> device) {
+            final targetSerial = device['serial']?.toString() ?? 'unknown';
+            final transport = device['transport']?.toString() ?? 'unknown';
+            final state = device['state']?.toString() ?? 'unknown';
+            final model = device['model']?.toString() ??
+                device['product']?.toString() ?? 'Android device';
+            final active = targetSerial == serial;
+            final product = device['product']?.toString();
+            final mode = device['mode']?.toString();
+            final version = device['android_version']?.toString();
+            final summary = <String>[
+              if (version != null && version.isNotEmpty) 'Android $version',
+              if (mode != null && mode.isNotEmpty) mode,
+              if (product != null && product.isNotEmpty) product,
+              'State: $state',
+            ].join(' · ');
+            return Card(
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: active ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outlineVariant,
+                  width: active ? 1.2 : 1,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Row(children: [
+                    Icon(transport.startsWith('fastboot') ? Icons.memory : Icons.phone_android,
+                      color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(model, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 3),
+                      Text('${transport.toUpperCase()} · $targetSerial',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontFamily: 'monospace',
+                        )),
+                    ])),
+                    if (active)
+                      FilledButton.tonal(onPressed: null, child: const Text('Active Target'))
+                    else
+                      OutlinedButton(onPressed: () => setState(() => _selectedSerial = targetSerial),
+                        child: const Text('Select Target')),
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: () => context.go(
+                        transport == 'fastboot' || transport == 'fastbootd' ? '/fastboot' : '/adb',
+                      ),
+                      child: const Text('Open Toolkit'),
                     ),
                   ]),
-                ),
-              );
-            },
+                  const SizedBox(height: 12),
+                  Text(summary, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  )),
+                  const SizedBox(height: 12),
+                  Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Text('Transport State', style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    )),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(7),
+                        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                      ),
+                      child: Text(transport, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                    ),
+                    const Spacer(),
+                    Icon(transport.startsWith('fastboot') ? Icons.lock_open : Icons.usb,
+                      size: 16, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 6),
+                    Text(state, style: Theme.of(context).textTheme.labelMedium),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Copy serial',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => unawaited(Clipboard.setData(ClipboardData(text: targetSerial))),
+                      icon: const Icon(Icons.copy, size: 17),
+                    ),
+                  ]),
+                ]),
+              ),
+            );
+          }
+
+          final wide = MediaQuery.sizeOf(context).width >= 1150;
+          final transports = Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text('Discovered Transports (${list.length})',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 14),
+                Expanded(child: ListView.separated(
+                  itemCount: list.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) => deviceCard(list[index]),
+                )),
+                if (warnings.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  for (final warning in warnings)
+                    Text('${warning['transport']}: ${warning['message']}',
+                      style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12)),
+                ],
+              ]),
+            ),
           );
+
+          final inspector = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Text('Transport Property Inspector',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Text('$serial · ${selected['transport'] ?? 'unknown'}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontFamily: 'monospace',
+                    )),
+                  const SizedBox(height: 8),
+                  FutureBuilder<Map<String, dynamic>>(
+                    future: metadataFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      if (snapshot.hasError) {
+                        return Text('Property inspection unavailable: ${snapshot.error}',
+                          style: TextStyle(color: Theme.of(context).colorScheme.error));
+                      }
+                      final values = snapshot.data ?? const <String, dynamic>{};
+                      if (values.isEmpty) return const Text('No device properties were returned.');
+                      return Column(children: [
+                        for (final entry in values.entries.take(12)) ...[
+                          _property(context, entry.key, entry.value?.toString() ?? '—'),
+                          Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
+                        ],
+                      ]);
+                    },
+                  ),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Transport Guidance', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  const Text('Select a detected target before running device operations. ADB, Recovery, Sideload, Bootloader Fastboot, and Fastbootd are distinct transports.'),
+                  const SizedBox(height: 8),
+                  Text('Device changes remain guarded by operation-specific confirmation and backend transport checks.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                ]),
+              ),
+            ),
+          ]);
+
+          if (wide) {
+            return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Expanded(flex: 7, child: transports),
+              const SizedBox(width: 24),
+              Expanded(flex: 4, child: SingleChildScrollView(child: inspector)),
+            ]);
+          }
+          return ListView(children: [
+            SizedBox(height: 480, child: transports),
+            const SizedBox(height: 14),
+            inspector,
+          ]);
         },
       ),
     );
   }
 }
-
