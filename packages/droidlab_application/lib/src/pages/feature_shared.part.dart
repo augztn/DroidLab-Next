@@ -124,7 +124,7 @@ class _EmptyPanel extends StatelessWidget {
           Container(
             width: 64, height: 64,
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.10),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(18),
             ),
             child: Icon(icon, size: 29, color: Theme.of(context).colorScheme.primary),
