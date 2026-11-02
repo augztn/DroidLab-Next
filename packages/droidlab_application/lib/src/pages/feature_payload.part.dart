@@ -17,6 +17,8 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   String? _selectedMount;
   StreamSubscription<BackendEvent>? _events;
   List<Map<String, dynamic>> _parts = [];
+  String? _cachedPartitionQuery;
+  List<Map<String, dynamic>> _cachedVisibleParts = const [];
   String _status = 'Drop an OTA ZIP or payload BIN file here, or enter its path.';
   bool _busy = false;
   bool _sha = false;
@@ -198,6 +200,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
       if (!mounted) return;
       setState(() {
         _parts = parts;
+        _cachedPartitionQuery = null;
         _selected.clear();
         _status = 'Found ' + parts.length.toString() + ' partitions.';
       });
@@ -242,10 +245,14 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
 
   List<Map<String, dynamic>> get _visibleParts {
     final query = _partitionFilter.text.trim().toLowerCase();
-    if (query.isEmpty) return _parts;
-    return _parts.where((part) =>
-      (part['name'] as String).toLowerCase().contains(query)
-    ).toList(growable: false);
+    if (_cachedPartitionQuery == query) return _cachedVisibleParts;
+    _cachedPartitionQuery = query;
+    _cachedVisibleParts = query.isEmpty
+        ? _parts
+        : _parts.where((part) =>
+            (part['name'] as String).toLowerCase().contains(query)
+          ).toList(growable: false);
+    return _cachedVisibleParts;
   }
 
   @override
