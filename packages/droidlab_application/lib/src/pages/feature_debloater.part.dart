@@ -88,8 +88,6 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   Set<String> _disabled = {};
   final Set<String> _selectedPackages = {};
   int _loadGeneration = 0;
-  int _pageIndex = 0;
-  int _pageSize = 50;
   String? _error;
   String? _notice;
 
@@ -387,10 +385,6 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       final query = _query.trim().toLowerCase();
       return query.isEmpty || package.toLowerCase().contains(query);
     }).toList(growable: false);
-    final pageCount = visible.isEmpty ? 1 : (visible.length / _pageSize).ceil();
-    final safePageIndex = _pageIndex.clamp(0, pageCount - 1).toInt();
-    final pageStart = safePageIndex * _pageSize;
-    final pageItems = visible.skip(pageStart).take(_pageSize).toList(growable: false);
 
     return _PageFrame(
       title: 'Android Debloater Workspace',
@@ -431,7 +425,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
           Row(children: [
             Expanded(child: TextField(
               decoration: const InputDecoration(isDense: true, prefixIcon: Icon(Icons.search), hintText: 'Search package IDs', border: OutlineInputBorder()),
-              onChanged: (value) => setState(() { _query = value; _pageIndex = 0; }),
+              onChanged: (value) => setState(() => _query = value),
             )),
             const SizedBox(width: 8),
             DropdownButton<String>(
@@ -441,7 +435,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                 DropdownMenuItem(value: 'user', child: Text('User apps')),
                 DropdownMenuItem(value: 'system', child: Text('System apps')),
               ],
-              onChanged: (value) => setState(() { _filter = value ?? 'all'; _pageIndex = 0; }),
+              onChanged: (value) => setState(() => _filter = value ?? 'all'),
             ),
           ]),
           const SizedBox(height: 4),
@@ -461,7 +455,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                   visualDensity: VisualDensity.compact,
                   label: Text(filter.$2),
                   selected: _riskFilter == filter.$1,
-                  onSelected: (_) => setState(() { _riskFilter = filter.$1; _pageIndex = 0; }),
+                  onSelected: (_) => setState(() => _riskFilter = filter.$1),
                 ),
             ]),
           ),
@@ -562,10 +556,10 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                         ]),
                       ),
                       Expanded(child: ListView.separated(
-                        itemCount: pageItems.length,
+                        itemCount: visible.length,
                         separatorBuilder: (_, __) => Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
                         itemBuilder: (context, index) {
-                          final item = pageItems[index];
+                          final item = visible[index];
                           final package = item['package'] as String;
                           final system = item['system'] == true;
                           final disabled = _disabled.contains(package);
@@ -663,37 +657,15 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                 );
               })),
         if (_packages.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Row(children: [
-              Expanded(child: Text(
-                '${visible.isEmpty ? 0 : pageStart + 1}–${(pageStart + pageItems.length)} of ${visible.length} packages · ${_disabled.length} disabled',
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Text(
+                '${visible.length} of ${_packages.length} packages · ${_disabled.length} disabled',
                 style: Theme.of(context).textTheme.bodySmall,
-              )),
-              const Text('Rows', style: TextStyle(fontSize: 12)),
-              const SizedBox(width: 6),
-              DropdownButton<int>(
-                value: _pageSize,
-                isDense: true,
-                underline: const SizedBox.shrink(),
-                items: const [25, 50, 100].map((size) =>
-                  DropdownMenuItem(value: size, child: Text('$size'))).toList(),
-                onChanged: (size) => setState(() { _pageSize = size ?? 50; _pageIndex = 0; }),
               ),
-              IconButton(
-                tooltip: 'Previous page',
-                visualDensity: VisualDensity.compact,
-                onPressed: safePageIndex == 0 ? null : () => setState(() => _pageIndex--),
-                icon: const Icon(Icons.chevron_left, size: 19),
-              ),
-              Text('${safePageIndex + 1} / $pageCount', style: Theme.of(context).textTheme.bodySmall),
-              IconButton(
-                tooltip: 'Next page',
-                visualDensity: VisualDensity.compact,
-                onPressed: safePageIndex >= pageCount - 1 ? null : () => setState(() => _pageIndex++),
-                icon: const Icon(Icons.chevron_right, size: 19),
-              ),
-            ]),
+            ),
           ),
       ]),
     );
