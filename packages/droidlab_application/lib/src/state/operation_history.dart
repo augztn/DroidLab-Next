@@ -332,6 +332,7 @@ Future<T> trackOperation<T>(
     operation: operation,
     target: target,
     action: action,
+    successSummary: successSummary,
   );
 }
 
@@ -340,6 +341,7 @@ Future<T> trackOperationWithHistory<T>(
   required String operation,
   required String target,
   required Future<T> Function() action,
+  String Function(T result)? successSummary,
 }) async {
   final started = DateTime.now();
   try {
@@ -350,7 +352,7 @@ Future<T> trackOperationWithHistory<T>(
       operation: historyOperationLabel(operation),
       target: target,
       status: 'completed',
-      summary: 'Operation completed.',
+      summary: successSummary?.call(result) ?? 'Operation completed.',
     ));
     return result;
   } on Object catch (error) {
