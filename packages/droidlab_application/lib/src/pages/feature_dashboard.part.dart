@@ -28,7 +28,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           _level = null;
           _temperature = null;
           _updated = null;
-          _batteryError = 'Connect an authorized ADB device to view metrics.';
+          _batteryError = 'Select one authorized ADB target, or connect a single device, to view metrics.';
           _top = const [];
           _resourceError = null;
         });
