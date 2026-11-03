@@ -144,6 +144,17 @@ def response(request_id: str, kind: str, **kwargs: Any) -> None:
 
 tool_path = resolve_tool_path
 
+def _require_complete_output(result: subprocess.CompletedProcess[str], purpose: str) -> None:
+    """Reject truncated output when callers need a complete machine-readable listing."""
+    if re.search(
+        r"(?m)^\\[DroidLab: \\d+ additional output chunk\\(s\\) omitted\\]$",
+        result.stdout or "",
+    ):
+        raise RuntimeError(
+            f"{purpose} output was truncated; no partial inventory was used. Refresh and retry."
+        )
+
+
 def run_capture(command: list[str], timeout: float = 10,
                 cancel_event: threading.Event | None = None) -> subprocess.CompletedProcess[str]:
     return run_streaming(
@@ -654,15 +665,19 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         result = run_streaming([*base, "-u", "-f", "--user", str(user_id)], timeout=60, cancel_event=cancel)
         if result.returncode:
             raise RuntimeError(f"Package inventory failed ({result.returncode}): {result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        _require_complete_output(result, "Package inventory")
         installed_result = run_streaming([*base, "-f", "--user", str(user_id)], timeout=45, cancel_event=cancel)
         if installed_result.returncode:
             raise RuntimeError(f"Could not inspect installed packages ({installed_result.returncode}): {installed_result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        _require_complete_output(installed_result, "Installed-package inventory")
         disabled_result = run_streaming([*base, "-d", "--user", str(user_id)], timeout=30, cancel_event=cancel)
         if disabled_result.returncode:
             raise RuntimeError(f"Could not inspect disabled packages ({disabled_result.returncode}): {disabled_result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        _require_complete_output(disabled_result, "Disabled-package inventory")
         system_result = run_streaming([*base, "-s", "-u", "--user", str(user_id)], timeout=30, cancel_event=cancel)
         if system_result.returncode:
             raise RuntimeError(f"Could not classify system packages ({system_result.returncode}): {system_result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        _require_complete_output(system_result, "System-package classification")
         def package_lines(output: str) -> set[str]:
             packages: set[str] = set()
             for line in output.splitlines():
