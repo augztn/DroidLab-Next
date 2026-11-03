@@ -32,6 +32,12 @@ for raw in sys.stdin:
         })
         continue
 
+    if mode == "invalid_utf8" and operation == "protocol.invalid_utf8":
+        sys.stdout.flush()
+        sys.stdout.buffer.write(b"\\xff\\n")
+        sys.stdout.buffer.flush()
+        continue
+
     if mode == "exit_on_request":
         raise SystemExit(23)
 
