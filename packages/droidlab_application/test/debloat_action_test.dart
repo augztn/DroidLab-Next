@@ -3,8 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('shouldSkipDebloatAction', () {
-    test('skips every mutation for packages not installed for this user', () {
-      for (final action in ['disable', 'enable', 'uninstall', 'restore']) {
+    test('skips disable, enable, and uninstall for packages not installed for this user', () {
+      for (final action in ['disable', 'enable', 'uninstall']) {
         expect(
           shouldSkipDebloatAction(
             action: action,
@@ -15,6 +15,10 @@ void main() {
           reason: action,
         );
       }
+      expect(
+        shouldSkipDebloatAction(action: 'restore', installed: false, disabled: false),
+        isFalse,
+      );
     });
 
     test('skips disable when already disabled and enable when already enabled', () {
@@ -40,6 +44,10 @@ void main() {
       expect(
         shouldSkipDebloatAction(action: 'uninstall', installed: true, disabled: false),
         isFalse,
+      );
+      expect(
+        shouldSkipDebloatAction(action: 'restore', installed: true, disabled: false),
+        isTrue,
       );
     });
   });
