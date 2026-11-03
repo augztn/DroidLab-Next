@@ -92,6 +92,23 @@ final deviceListProvider =
 });
 
 
+/// Resolve the dashboard target without silently choosing among devices.
+Map<String, dynamic>? resolveDashboardAdbTarget(
+  Iterable<Map<String, dynamic>> devices,
+  String? selectedSerial,
+) {
+  final authorized = devices.where(
+    (device) => device['transport'] == 'adb' && device['state'] == 'device',
+  ).toList(growable: false);
+  if (selectedSerial != null && selectedSerial.isNotEmpty) {
+    for (final device in authorized) {
+      if (device['serial'] == selectedSerial) return device;
+    }
+    return null;
+  }
+  return authorized.length == 1 ? authorized.single : null;
+}
+
 /// Returns whether a discovered device is ready for Fastboot commands.
 bool isFastbootDeviceReady(Map<String, dynamic>? device) =>
     device != null &&
