@@ -25,12 +25,16 @@ class CommandGuardTests(unittest.TestCase):
         self.assertTrue(is_destructive_adb(["shell", "rm", "-rf", "/data"]))
         self.assertTrue(is_destructive_adb(["shell", "sh", "-c", "rm -rf /data"]))
         self.assertTrue(is_destructive_adb(["reboot", "bootloader"]))
+        self.assertTrue(is_destructive_adb(["shell", "pm", "clear", "com.example.app"]))
+        self.assertTrue(is_destructive_adb(["shell", "cmd", "package", "clear", "com.example.app"]))
         self.assertFalse(is_destructive_adb(["shell", "getprop", "ro.build.version.release"]))
 
     def test_fastboot_destructive_detection(self):
         self.assertTrue(is_destructive_fastboot(["flash", "boot", "boot.img"]))
         self.assertTrue(is_destructive_fastboot(["-w"]))
         self.assertTrue(is_destructive_fastboot(["flashing", "unlock"]))
+        self.assertTrue(is_destructive_fastboot(["oem", "lock"]))
+        self.assertTrue(is_destructive_fastboot(["fastboot", "oem", "unlock"]))
         self.assertTrue(is_destructive_fastboot(["--slot", "a", "flash", "boot", "boot.img"]))
         self.assertTrue(is_destructive_fastboot(["--slot=b", "erase", "userdata"]))
         self.assertFalse(is_destructive_fastboot(["--slot", "a", "getvar", "product"]))
