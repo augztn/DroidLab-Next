@@ -75,7 +75,7 @@ class ProcessRunnerTests(unittest.TestCase):
 
     def test_default_output_retention_fits_backend_protocol_budget(self):
         result = run_streaming(
-            [sys.executable, "-c", "import sys; sys.stdout.write('\\\\x01' * (256 * 1024))"],
+            [sys.executable, "-c", "import sys; sys.stdout.write('\\x01' * (256 * 1024))"],
             timeout=5,
         )
         self.assertLessEqual(len(result.stdout), 64 * 1024 + 128)
