@@ -102,6 +102,35 @@ void main() {
     expect(await recovered.readAsString(), '{ invalid json');
   });
 
+  test('recovers a valid backup when the primary settings file is corrupt', () async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-corrupt-primary-backup-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final file = File(temporary.path + '/config.json');
+    final backup = File('${file.path}.bak');
+    await file.writeAsString('{ invalid primary json');
+    await backup.writeAsString(
+      '{"schema_version":1,"theme":"oled_black","adb_path":"/backup/adb"}',
+    );
+
+    final store = DroidLabSettingsStore(file: file);
+    final recovered = await store.load();
+
+    expect(recovered.theme, 'oled_black');
+    expect(recovered.adbPath, '/backup/adb');
+    expect(store.recoveryNotice, contains('restored from the backup'));
+    expect(store.recoveryNotice, contains('original file was preserved'));
+    expect(await file.exists(), isTrue);
+    expect(await backup.exists(), isFalse);
+
+    final preserved = temporary
+        .listSync()
+        .whereType<File>()
+        .singleWhere((candidate) => candidate.path.contains('.corrupt.'));
+    expect(await preserved.readAsString(), '{ invalid primary json');
+    await store.save(recovered.copyWith(theme: 'standard_dark'));
+    expect((await store.load()).theme, 'standard_dark');
+  });
+
   test('preserves unsupported future schema without overwriting it', () async {
     final temporary = await Directory.systemTemp.createTemp('droidlab-future-settings-');
     addTearDown(() => temporary.delete(recursive: true));
