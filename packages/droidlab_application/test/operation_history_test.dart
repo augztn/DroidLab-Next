@@ -189,7 +189,7 @@ void main() {
         await gate.future;
         return 'completed';
       },
-      successSummary: (_) => 'Completed safely.',
+      successSummary: (_) => '3 image file(s) created.',
     );
 
     // The initiating page/caller can be discarded after the notifier has
@@ -199,7 +199,25 @@ void main() {
     expect(await operation.timeout(const Duration(seconds: 5)), 'completed');
     expect(notifier.state.valueOrNull, hasLength(1));
     expect(notifier.state.value!.single.status, 'completed');
-    expect(notifier.state.value!.single.summary, 'Operation completed.');
+    expect(notifier.state.value!.single.summary, '3 image file(s) created.');
+  });
+
+
+  test('history preserves safe success summaries but strips report paths', () {
+    final record = OperationRecord(
+      id: 'op-summary',
+      timestamp: DateTime.utc(2026, 11, 2),
+      operation: 'ADB bugreport',
+      target: 'SERIAL-PRIVATE',
+      status: 'completed',
+      summary: 'Report saved to /home/private/device-bugreport.zip',
+    );
+
+    final serialized = jsonEncode(record.toJson());
+
+    expect(serialized, contains('Report saved.'));
+    expect(serialized, isNot(contains('/home/private')));
+    expect(serialized, isNot(contains('device-bugreport.zip')));
   });
 
   test('unknown statuses are normalized to failed', () {
