@@ -47,14 +47,22 @@ class _AdbServerLock:
         self._writer = False
         self._waiting_writers = 0
 
-    def acquire_shared(self, timeout: float) -> bool:
+    def acquire_shared(
+        self,
+        timeout: float,
+        cancel_event: threading.Event | None = None,
+    ) -> bool:
         deadline = time.monotonic() + timeout
         with self._condition:
             while self._writer or self._waiting_writers:
+                if cancel_event is not None and cancel_event.is_set():
+                    raise ProcessCancelledError("Cancelled while waiting for the ADB server.")
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     return False
-                self._condition.wait(remaining)
+                self._condition.wait(min(remaining, 0.1))
+            if cancel_event is not None and cancel_event.is_set():
+                raise ProcessCancelledError("Cancelled before acquiring the ADB server.")
             self._readers += 1
             return True
 
@@ -66,16 +74,24 @@ class _AdbServerLock:
             if self._readers == 0:
                 self._condition.notify_all()
 
-    def acquire_exclusive(self, timeout: float) -> bool:
+    def acquire_exclusive(
+        self,
+        timeout: float,
+        cancel_event: threading.Event | None = None,
+    ) -> bool:
         deadline = time.monotonic() + timeout
         with self._condition:
             self._waiting_writers += 1
             try:
                 while self._writer or self._readers:
+                    if cancel_event is not None and cancel_event.is_set():
+                        raise ProcessCancelledError("Cancelled while waiting for the ADB server.")
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
                         return False
-                    self._condition.wait(remaining)
+                    self._condition.wait(min(remaining, 0.1))
+                if cancel_event is not None and cancel_event.is_set():
+                    raise ProcessCancelledError("Cancelled before acquiring the ADB server.")
                 self._writer = True
                 return True
             finally:
@@ -1045,9 +1061,9 @@ def handle(
                 and _adb_server_control_requires_exclusive(args)
             )
             acquired = (
-                _ADB_SERVER_LOCK.acquire_exclusive(_ADB_SERVER_LOCK_TIMEOUT)
+                _ADB_SERVER_LOCK.acquire_exclusive(_ADB_SERVER_LOCK_TIMEOUT, cancel)
                 if exclusive else
-                _ADB_SERVER_LOCK.acquire_shared(_ADB_SERVER_LOCK_TIMEOUT)
+                _ADB_SERVER_LOCK.acquire_shared(_ADB_SERVER_LOCK_TIMEOUT, cancel)
             )
             if not acquired:
                 raise RuntimeError(
