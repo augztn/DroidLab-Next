@@ -185,6 +185,56 @@ class PlatformToolsInstallerTests(unittest.TestCase):
                     )
             self.assertFalse(destination.exists())
 
+    def test_interrupted_install_backup_is_restored_before_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory) / "tools"
+            destination = parent / PLATFORM_TOOLS_VERSION
+            backup = parent / f".{destination.name}.previous"
+            backup.mkdir(parents=True)
+            (backup / "adb").write_bytes(b"previous adb")
+            (backup / "fastboot").write_bytes(b"previous fastboot")
+
+            def fail_download(*_args, **_kwargs):
+                raise OSError("network unavailable")
+
+            with self.assertRaisesRegex(OSError, "network unavailable"):
+                install_platform_tools(
+                    license_accepted=True,
+                    platform_name="darwin",
+                    install_dir=destination,
+                    opener=fail_download,
+                    version_probe=lambda *_args: PLATFORM_TOOLS_VERSION,
+                )
+
+            self.assertTrue((destination / "adb").is_file())
+            self.assertEqual((destination / "adb").read_bytes(), b"previous adb")
+            self.assertEqual((destination / "fastboot").read_bytes(), b"previous fastboot")
+            self.assertFalse(backup.exists())
+
+    def test_existing_backup_and_install_are_both_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory) / "tools"
+            destination = parent / PLATFORM_TOOLS_VERSION
+            backup = parent / f".{destination.name}.previous"
+            destination.mkdir(parents=True)
+            backup.mkdir(parents=True)
+            (destination / "adb").write_bytes(b"current adb")
+            (backup / "adb").write_bytes(b"previous adb")
+            (backup / "fastboot").write_bytes(b"previous fastboot")
+
+            with self.assertRaisesRegex(RuntimeError, "both installations were preserved"):
+                install_platform_tools(
+                    license_accepted=True,
+                    platform_name="darwin",
+                    install_dir=destination,
+                    opener=lambda *_args, **_kwargs: self.fail("must not download"),
+                    version_probe=lambda *_args: PLATFORM_TOOLS_VERSION,
+                )
+
+            self.assertEqual((destination / "adb").read_bytes(), b"current adb")
+            self.assertEqual((backup / "adb").read_bytes(), b"previous adb")
+            self.assertEqual((backup / "fastboot").read_bytes(), b"previous fastboot")
+
     def test_installed_version_is_not_downloaded_again(self):
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "tools" / PLATFORM_TOOLS_VERSION
