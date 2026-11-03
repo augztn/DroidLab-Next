@@ -411,13 +411,24 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     try {
       final file = File(location.path);
       await file.parent.create(recursive: true);
+      if (!mounted) return;
       await file.create(exclusive: true);
+      if (!mounted) {
+        await file.delete();
+        return;
+      }
       final sink = file.openWrite(mode: FileMode.writeOnlyAppend);
       sink.writeln('DroidLab logcat capture');
       sink.writeln('Device: ${_serial.text.trim()}');
       sink.writeln('Started: ${DateTime.now().toIso8601String()}');
       sink.writeln('Capture window: 1 hour maximum');
       sink.writeln();
+      if (!mounted) {
+        await sink.flush();
+        await sink.close();
+        await file.delete();
+        return;
+      }
       _logcatCaptureSink = sink;
       _logcatCapturePath = file.path;
       await _startLogcat(captureToFile: true);
@@ -435,8 +446,10 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     final filters = _logcatFilters.text.trim().isEmpty
         ? <String>[]
         : _logcatFilters.text.trim().split(RegExp(r'\s+'));
+    final client = ref.read(backendClientProvider);
+    final history = ref.read(operationHistoryProvider.notifier);
     try {
-      final handle = await ref.read(backendClientProvider).startOperation(
+      final handle = await client.startOperation(
         'adb.logcat.start',
         {
           'serial': serial,
@@ -445,7 +458,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         },
       );
       if (!mounted) {
-        await ref.read(backendClientProvider).cancel(handle.requestId);
+        await client.cancel(handle.requestId);
         await _closeLogcatCapture();
         return;
       }
@@ -456,8 +469,8 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         _pausedLogSnapshot = [];
         _logPaused = false;
       });
-      unawaited(trackOperation(
-        ref,
+      unawaited(trackOperationWithHistory(
+        history,
         operation: captureToFile ? 'ADB logcat file capture (1 hour)' : 'ADB logcat',
         target: serial,
         action: () => handle.result,
