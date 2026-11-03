@@ -38,6 +38,18 @@ void main() {
     expect(value, isNot(contains('123456789012345')));
   });
 
+  test('redacts serials in preflight targets and adb/fastboot selectors', () {
+    final value = redactDiagnosticText(
+      '[preflight] SERIAL-123: adb -s SERIAL-123 shell getprop\\n'
+      '[preflight] 192.168.1.20:5555: fastboot -s 192.168.1.20:5555 flash boot /tmp/boot.img\\n'
+      '[preflight] host: adb devices',
+    );
+
+    expect(value, isNot(contains('SERIAL-123')));
+    expect(value, isNot(contains('192.168.1.20:5555')));
+    expect(value, contains('[preflight] host:'));
+  });
+
   test('preserves ordinary diagnostic context', () {
     expect(
       redactDiagnosticText('Backend started; request completed in 12 ms.'),
