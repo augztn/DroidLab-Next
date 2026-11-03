@@ -393,7 +393,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             command = [tool_path("adb"), "-s", serial, "pull", source, str(destination)]
         else:
             raise ValueError("direction must be 'push' or 'pull'.")
-        response(request_id, "preflight", target=serial, command=command, destructive=False)
+        response(request_id, "preflight", target=serial, command=command, destructive=direction == "push")
         if direction == "pull":
             # Pull into a private sibling directory, then publish with an atomic
             # hard-link. This closes the check/use race and never overwrites a
