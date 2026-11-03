@@ -89,14 +89,14 @@ class _DeviceManagerPageState extends ConsumerState<DeviceManagerPage> {
             }
           }
           final preferredSerial = globalTarget ?? _selectedSerial;
-          final selected = list.firstWhere(
-            (device) => device['serial'] == preferredSerial,
-            orElse: () => list.first,
-          );
-          final serial = selected['serial']?.toString() ?? '';
-          if (_metadataSerial != serial) {
+          final selected = resolveDeviceManagerTarget(list, preferredSerial);
+          final serial = selected?['serial']?.toString() ?? '';
+          if (selected != null && _metadataSerial != serial) {
             _metadataSerial = serial;
             _metadataFuture = _readMetadata(serial);
+          } else if (selected == null && _metadataSerial != null) {
+            _metadataSerial = null;
+            _metadataFuture = null;
           }
           final metadataFuture = _metadataFuture;
 
@@ -229,13 +229,18 @@ class _DeviceManagerPageState extends ConsumerState<DeviceManagerPage> {
                   Text('Transport Property Inspector',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
-                  Text('$serial · ${selected['transport'] ?? 'unknown'}',
+                  Text(selected == null
+                      ? 'No active target selected'
+                      : '$serial · ${selected['transport'] ?? 'unknown'}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.primary,
                       fontFamily: 'monospace',
                     )),
                   const SizedBox(height: 8),
-                  FutureBuilder<Map<String, dynamic>>(
+                  if (selected == null)
+                    const Text('Select a device card to inspect its properties. Multiple connected devices are never auto-selected.')
+                  else
+                    FutureBuilder<Map<String, dynamic>>(
                     future: metadataFuture,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
