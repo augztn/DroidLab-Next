@@ -40,18 +40,24 @@ class ProtocolTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "adb server refused connection"):
                     server.require_adb("SERIAL-1")
 
-    def test_retained_output_fits_jsonl_protocol_frame_even_for_control_characters(self):
+    def test_completed_command_output_is_bounded_at_protocol_boundary(self):
+        import io
         import json
-        from droidlab.core.process_runner import run_streaming
-        result = run_streaming(
-            [sys.executable, "-c", "import sys; sys.stdout.write('\\x01' * (256 * 1024))"],
-            timeout=5,
-        )
-        frame = json.dumps(
-            {"version": 1, "id": "test", "type": "completed", "result": {"output": result.stdout}},
-            separators=(",", ":"), ensure_ascii=False,
-        ).encode("utf-8")
+
+        stdout = io.StringIO()
+        large_output = "\\x01" * (256 * 1024)
+        with patch.object(server.sys, "stdout", stdout):
+            server.response("test", "completed", result={"output": large_output})
+
+        frame = stdout.getvalue().encode("utf-8")
         self.assertLess(len(frame), server.MAX_LINE_BYTES)
+        payload = json.loads(frame)
+        self.assertEqual(payload["type"], "completed")
+        self.assertIn("output truncated", payload["result"]["output"])
+        self.assertLessEqual(
+            len(payload["result"]["output"]),
+            server.MAX_PROTOCOL_OUTPUT_CHARS + 128,
+        )
 
     def test_ping(self):
         value = server.execute("id", "system.ping", {}, threading.Event())
