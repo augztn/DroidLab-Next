@@ -46,30 +46,72 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       );
       final batteryText = batteryResult.data['output']?.toString() ?? '';
       if (!mounted) return;
-      final processesResult = await client.request(
-        'adb.shell',
-        {
-          'serial': serial,
-          'command_text': 'top -n 1 -m 5',
-          'confirmed': true,
-          'confirmation': {
-            'operation': 'adb.shell',
-            'serial': serial,
-            'command_text': 'top -n 1 -m 5',
-          },
-        },
-        timeout: const Duration(seconds: 20),
-      );
-      final topText = processesResult.data['output']?.toString() ?? '';
-      if (!mounted) return;
       final lm = RegExp(r'^\s*level:\s*(\d+)', multiLine: true).firstMatch(batteryText);
       final tm = RegExp(r'^\s*temperature:\s*(-?\d+)', multiLine: true).firstMatch(batteryText);
       final level = lm == null ? null : int.tryParse(lm.group(1)!);
       final temp = tm == null ? null : double.tryParse(tm.group(1)!);
-      final lines = topText.split(RegExp(r'\r?\n')).map((v) => v.trimRight()).where((v) => v.trim().isNotEmpty).toList();
-      final processLines = lines.where((line) => RegExp(r'^\s*\d+\s+').hasMatch(line)).take(5).toList();
-      final displayLines = processLines.isNotEmpty ? processLines : lines.take(14).toList();
-      if (mounted) setState(() { _serial = serial; _level = level?.clamp(0, 100); _temperature = temp == null ? null : temp / 10; _batteryError = level == null ? 'Battery data was not present in the device response.' : null; _top = displayLines; _resourceError = displayLines.isEmpty ? 'No process data returned by Android.' : null; _updated = DateTime.now(); });
+      setState(() {
+        _serial = serial;
+        _level = level?.clamp(0, 100);
+        _temperature = temp == null ? null : temp / 10;
+        _batteryError = level == null
+            ? 'Battery data was not present in the device response.'
+            : null;
+        _updated = DateTime.now();
+      });
+
+      // Battery and process telemetry are independent. Unsupported vendor
+      // top implementations must not hide a successful battery reading.
+      try {
+        final processesResult = await client.request(
+          'adb.shell',
+          {
+            'serial': serial,
+            'command_text': 'top -n 1 -m 5',
+            'confirmed': true,
+            'confirmation': {
+              'operation': 'adb.shell',
+              'serial': serial,
+              'command_text': 'top -n 1 -m 5',
+            },
+          },
+          timeout: const Duration(seconds: 20),
+        );
+        if (!mounted) return;
+        final topText = processesResult.data['output']?.toString() ?? '';
+        final lines = topText
+            .split(RegExp(r'\r?\n'))
+            .map((value) => value.trimRight())
+            .where((value) => value.trim().isNotEmpty)
+            .toList();
+        final processLines = lines
+            .where((line) => RegExp(r'^\s*\d+\s+').hasMatch(line))
+            .take(5)
+            .toList();
+        final displayLines = processLines.isNotEmpty
+            ? processLines
+            : lines.take(14).toList();
+        setState(() {
+          _top = displayLines;
+          _resourceError = displayLines.isEmpty
+              ? 'No process data returned by Android.'
+              : null;
+          _updated = DateTime.now();
+        });
+      } catch (error) {
+        if (!mounted) return;
+        final message = error.toString();
+        setState(() => _resourceError = 'Resource monitor unavailable: $message');
+        final transportFailure = error is BackendException &&
+            const {'protocol', 'process_exit'}.contains(error.code);
+        if (transportFailure ||
+            message.contains('Could not write to backend stdin') ||
+            message.contains('Backend process exited unexpectedly')) {
+          ref.invalidate(backendClientProvider);
+          ref.invalidate(backendReadyProvider);
+          ref.invalidate(deviceListProvider);
+        }
+      }
     } catch (error) {
       final message = error.toString();
       // A closed backend stdin means the managed Python process exited while
