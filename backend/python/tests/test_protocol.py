@@ -45,7 +45,7 @@ class ProtocolTests(unittest.TestCase):
         import json
 
         stdout = io.StringIO()
-        large_output = "\\x01" * (256 * 1024)
+        large_output = "\x01" * (256 * 1024)
         with patch.object(server.sys, "stdout", stdout):
             server.response("test", "completed", result={"output": large_output})
 
