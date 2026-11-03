@@ -40,8 +40,8 @@ void main() {
 
   test('redacts serials in preflight targets and adb/fastboot selectors', () {
     final value = redactDiagnosticText(
-      '[preflight] SERIAL-123: adb -s SERIAL-123 shell getprop\\n'
-      '[preflight] 192.168.1.20:5555: fastboot -s 192.168.1.20:5555 flash boot /tmp/boot.img\\n'
+      '[preflight] SERIAL-123: adb -s SERIAL-123 shell getprop\n'
+      '[preflight] 192.168.1.20:5555: fastboot -s 192.168.1.20:5555 flash boot /tmp/boot.img\n'
       '[preflight] host: adb devices',
     );
 
