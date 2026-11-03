@@ -32,6 +32,11 @@ for raw in sys.stdin:
         })
         continue
 
+    if mode == "malformed_preflight" and operation == "protocol.malformed_preflight":
+        emit({"id": request_id, "type": "preflight", "target": "DEVICE-1",
+              "command": ["fastboot", 7], "destructive": True})
+        continue
+
     if mode == "invalid_utf8" and operation == "protocol.invalid_utf8":
         sys.stdout.flush()
         sys.stdout.buffer.write(b"\\xff\\n")
