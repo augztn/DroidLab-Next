@@ -34,6 +34,18 @@ void main() {
     }
   });
 
+  test('dashboard never falls back to the first device when selection is ambiguous', () {
+    final first = {'serial': 'ADB-1', 'transport': 'adb', 'state': 'device'};
+    final second = {'serial': 'ADB-2', 'transport': 'adb', 'state': 'device'};
+    final fastboot = {'serial': 'FB-1', 'transport': 'fastboot', 'state': 'fastboot'};
+
+    expect(resolveDashboardAdbTarget([first, second], null), isNull);
+    expect(resolveDashboardAdbTarget([first], null), same(first));
+    expect(resolveDashboardAdbTarget([first, second], 'ADB-2'), same(second));
+    expect(resolveDashboardAdbTarget([first, second], 'MISSING'), isNull);
+    expect(resolveDashboardAdbTarget([first, fastboot], 'FB-1'), isNull);
+  });
+
   test('Fastboot readiness accepts bootloader and userspace Fastbootd only', () {
     for (final state in ['fastboot', 'fastbootd']) {
       expect(
