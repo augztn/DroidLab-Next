@@ -505,6 +505,50 @@ class ProtocolTests(unittest.TestCase):
                 threading.Event(),
             )
 
+    def test_adb_server_control_commands_require_exclusive_lock(self):
+        for command in (
+            "kill-server",
+            "start-server",
+            "connect 192.0.2.1:5555",
+            "disconnect 192.0.2.1:5555",
+            "adb -H 127.0.0.1 -P 5037 kill-server",
+            "adb nodaemon server",
+        ):
+            with self.subTest(command=command):
+                self.assertTrue(server._adb_server_control_requires_exclusive({
+                    "command_text": command,
+                }))
+
+        for command in ("devices -l", "version", "pull /sdcard/log.txt ./log.txt"):
+            with self.subTest(command=command):
+                self.assertFalse(server._adb_server_control_requires_exclusive({
+                    "command_text": command,
+                }))
+
+    def test_adb_server_lock_allows_parallel_readers_and_excludes_writer(self):
+        lock = server._AdbServerLock()
+        self.assertTrue(lock.acquire_shared(0.1))
+        self.assertTrue(lock.acquire_shared(0.1))
+        self.assertFalse(lock.acquire_exclusive(0.02))
+        lock.release_shared()
+        lock.release_shared()
+
+        self.assertTrue(lock.acquire_exclusive(0.1))
+        self.assertFalse(lock.acquire_shared(0.02))
+        lock.release_exclusive()
+        self.assertTrue(lock.acquire_shared(0.1))
+        lock.release_shared()
+
+    def test_adb_operations_are_coordinated_with_server_lock(self):
+        for operation in (
+            "adb.shell", "adb.command", "adb.transfer", "debloat.package.apply",
+            "debloat.packages.list", "devices.list", "device.info",
+        ):
+            with self.subTest(operation=operation):
+                self.assertTrue(server._operation_uses_adb(operation))
+        self.assertFalse(server._operation_uses_adb("fastboot.flash"))
+        self.assertFalse(server._operation_uses_adb("payload.inspect"))
+
     def test_advanced_adb_locking_strips_executable_prefix(self):
         self.assertFalse(server._device_command_requires_lock(
             "adb.command", {"command_text": "adb devices -l"}
