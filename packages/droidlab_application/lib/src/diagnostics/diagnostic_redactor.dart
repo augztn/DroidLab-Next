@@ -33,6 +33,18 @@ String redactDiagnosticText(String value, {String? homeDirectory}) {
     RegExp(r'(serial|device(?:_id)?|target|imei)(\s*[:=]\s*)([A-Za-z0-9._:-]{5,})', caseSensitive: false),
     (m) => m[1]! + m[2]! + '<DEVICE_ID>',
   );
+  text = text.replaceAllMapped(
+    RegExp(r'(\[preflight\]\s+)(?!host\b)([^\s]+)(:\s*)', caseSensitive: false),
+    (m) => m[1]! + '<DEVICE_ID>' + m[3]!,
+  );
+  text = text.replaceAllMapped(
+    RegExp(r'(\s-s\s+)([^\s]+)', caseSensitive: false),
+    (m) => m[1]! + '<DEVICE_ID>',
+  );
+  text = text.replaceAllMapped(
+    RegExp(r'(\s-s=)([^\s]+)', caseSensitive: false),
+    (m) => m[1]! + '<DEVICE_ID>',
+  );
   text = text.replaceAll(
     RegExp(r'\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b'),
     '<MAC_ADDRESS>',
