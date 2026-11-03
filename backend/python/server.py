@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DroidLab versioned JSON Lines backend. stdout is protocol-only; diagnostics use stderr."""
 from __future__ import annotations
-import json, logging, math, os, re, shlex, signal, subprocess, sys, threading, time
+import json, logging, math, os, re, shlex, signal, subprocess, sys, tempfile, threading, time
 from pathlib import Path
 from typing import Any
 from droidlab.core.command_guards import (
@@ -343,6 +343,8 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             command = [tool_path("fastboot"), "-s", serial, "reboot"]
             if mode == "recovery":
                 command.append("recovery")
+            elif mode == "fastboot":
+                command.append("fastboot")
 
         response(request_id, "preflight", target=serial, command=command, destructive=False)
         result = run_streaming(
