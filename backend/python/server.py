@@ -36,6 +36,61 @@ _ACTIVE: dict[str, threading.Event] = {}
 _WORKER_SLOTS = threading.BoundedSemaphore(MAX_ACTIVE_REQUESTS)
 _DEVICE_LOCKS: dict[str, threading.Lock] = {}
 _DEVICE_LOCKS_LOCK = threading.Lock()
+
+
+class _AdbServerLock:
+    """Coordinate normal ADB work with commands that restart or alter its server."""
+
+    def __init__(self) -> None:
+        self._condition = threading.Condition()
+        self._readers = 0
+        self._writer = False
+        self._waiting_writers = 0
+
+    def acquire_shared(self, timeout: float) -> bool:
+        deadline = time.monotonic() + timeout
+        with self._condition:
+            while self._writer or self._waiting_writers:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
+                self._condition.wait(remaining)
+            self._readers += 1
+            return True
+
+    def release_shared(self) -> None:
+        with self._condition:
+            if self._readers <= 0:
+                raise RuntimeError("ADB shared lock released without ownership.")
+            self._readers -= 1
+            if self._readers == 0:
+                self._condition.notify_all()
+
+    def acquire_exclusive(self, timeout: float) -> bool:
+        deadline = time.monotonic() + timeout
+        with self._condition:
+            self._waiting_writers += 1
+            try:
+                while self._writer or self._readers:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        return False
+                    self._condition.wait(remaining)
+                self._writer = True
+                return True
+            finally:
+                self._waiting_writers -= 1
+
+    def release_exclusive(self) -> None:
+        with self._condition:
+            if not self._writer:
+                raise RuntimeError("ADB exclusive lock released without ownership.")
+            self._writer = False
+            self._condition.notify_all()
+
+
+_ADB_SERVER_LOCK = _AdbServerLock()
+_ADB_SERVER_LOCK_TIMEOUT = 5.0
 _MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active", "debloat.package.apply"}
 
 def emit(message: dict[str, Any]) -> None:
@@ -865,6 +920,40 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         return {"files": files}
     raise ValueError(f"Unknown operation: {operation}")
 
+def _operation_uses_adb(operation: str) -> bool:
+    return (
+        operation.startswith("adb.")
+        or operation.startswith("debloat.")
+        or operation in {"devices.list", "device.info"}
+    )
+
+
+def _adb_server_control_requires_exclusive(args: dict[str, Any]) -> bool:
+    raw = args.get("command_text", "")
+    try:
+        tokens = strip_adb_executable(split_command_text(raw))
+    except (TypeError, ValueError):
+        return True
+    index = 0
+    takes_value = {"-s", "-t", "-H", "-P", "-L"}
+    flags = {"-d", "-e"}
+    while index < len(tokens):
+        token = tokens[index]
+        if token in takes_value:
+            index += 2
+        elif token in flags or token.startswith("-s="):
+            index += 1
+        elif token.startswith("-"):
+            index += 1
+        else:
+            break
+    verb = tokens[index].lower() if index < len(tokens) else ""
+    return verb in {
+        "start-server", "kill-server", "connect", "disconnect",
+        "nodaemon", "server",
+    }
+
+
 def _device_command_requires_lock(operation: str, args: dict[str, Any]) -> bool:
     """Return whether an advanced command may mutate the selected device.
 
@@ -946,8 +1035,26 @@ def handle(
     request_id, operation, args = message["id"], message["operation"], message["args"]
     lock = None
     lock_acquired = False
+    adb_lock_mode = None
     try:
         response(request_id, "accepted", operation=operation)
+        if _operation_uses_adb(operation):
+            exclusive = (
+                operation == "adb.command"
+                and _adb_server_control_requires_exclusive(args)
+            )
+            acquired = (
+                _ADB_SERVER_LOCK.acquire_exclusive(_ADB_SERVER_LOCK_TIMEOUT)
+                if exclusive else
+                _ADB_SERVER_LOCK.acquire_shared(_ADB_SERVER_LOCK_TIMEOUT)
+            )
+            if not acquired:
+                raise RuntimeError(
+                    "ADB is busy with another device operation. Stop the active operation "
+                    "and retry this ADB server or device command."
+                )
+            adb_lock_mode = "exclusive" if exclusive else "shared"
+
         if _device_command_requires_lock(operation, args):
             serial = args.get("serial")
             if not isinstance(serial, str) or not serial:
@@ -982,6 +1089,10 @@ def handle(
     finally:
         if lock is not None and lock_acquired:
             lock.release()
+        if adb_lock_mode == "exclusive":
+            _ADB_SERVER_LOCK.release_exclusive()
+        elif adb_lock_mode == "shared":
+            _ADB_SERVER_LOCK.release_shared()
         with _ACTIVE_LOCK:
             _ACTIVE.pop(request_id, None)
         if release_worker_slot:
