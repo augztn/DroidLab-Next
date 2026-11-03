@@ -103,8 +103,15 @@ class DroidLabSettingsStore {
 
     // Only restore when the original primary file was successfully preserved.
     if (!await _file.exists() && await backup.exists()) {
-      return await _restoreBackup(backup, previousNotice: recoveryNotice) ??
-          _defaultSettings();
+      final recovered = await _restoreBackup(
+        backup,
+        previousNotice: recoveryNotice,
+      );
+      if (recovered != null) return recovered;
+    }
+    if (recoveryNotice != null) {
+      recoveryNotice =
+          '$recoveryNotice Defaults are active; review the preserved files before saving new settings.';
     }
     return _defaultSettings();
   }
@@ -168,7 +175,7 @@ class DroidLabSettingsStore {
       );
       await _file.rename(preserved.path);
       _unreadableConfigPreserved = true;
-      recoveryNotice = '${reason} The original file was preserved at ${preserved.path}. Defaults are active; review the recovered file before saving new settings.';
+      recoveryNotice = '${reason} The original file was preserved at ${preserved.path}.';
     } on FileSystemException catch (error) {
       _unreadableConfigPreserved = false;
       recoveryNotice = 'The settings file could not be read or preserved. No replacement has been written. Details: ${error.message}';
