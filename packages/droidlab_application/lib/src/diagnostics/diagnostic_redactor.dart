@@ -14,8 +14,8 @@ String redactDiagnosticText(String value, {String? homeDirectory}) {
     );
   }
   text = text.replaceAllMapped(
-    RegExp(r'(authorization\s*[:=]\s*bearer\s+)[^\s,;]+', caseSensitive: false),
-    (m) => m[1]! + '<REDACTED>',
+    RegExp(r'((?:proxy-)?authorization|cookie|set-cookie)\s*[:=]\s*[^\r\n]+', caseSensitive: false),
+    (m) => '${m[1]}: <REDACTED>',
   );
   text = text.replaceAllMapped(
     RegExp(r'((?:token|password|passwd|secret|api[_-]?key|client[_-]?secret)(?:\s*[:=]\s*|\s+))(?:\"[^\"]*\"|[^\s,;]+)', caseSensitive: false),
