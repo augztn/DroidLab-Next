@@ -4,12 +4,17 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('redacts credentials in common log formats', () {
     final value = redactDiagnosticText(
-      'Authorization: Bearer abc123 token=topsecret --api-key=secret '
-      'password hunter2 https://example.test/?access_token=xyz',
+      'Authorization: Bearer abc123 Authorization: Basic dXNlcjpwYXNz '
+      'Proxy-Authorization: Basic cHJveHk6c2VjcmV0 Cookie: sessionid=private '
+      'token=topsecret --api-key=secret password hunter2 '
+      'https://example.test/?access_token=xyz',
       homeDirectory: '/home/alex',
     );
 
     expect(value, isNot(contains('abc123')));
+    expect(value, isNot(contains('dXNlcjpwYXNz')));
+    expect(value, isNot(contains('cHJveHk6c2VjcmV0')));
+    expect(value, isNot(contains('sessionid=private')));
     expect(value, isNot(contains('topsecret')));
     expect(value, isNot(contains('secret')));
     expect(value, isNot(contains('hunter2')));
