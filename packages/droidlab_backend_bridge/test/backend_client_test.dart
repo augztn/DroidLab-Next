@@ -97,6 +97,29 @@ void main() {
     );
   });
 
+  test('malformed preflight payload fails the protocol instead of leaking lazy casts', () async {
+    final client = createClient(mode: 'malformed_preflight');
+    addTearDown(client.dispose);
+    await client.start();
+
+    await expectLater(
+      client.request('protocol.malformed_preflight', const {}),
+      throwsA(isA<BackendException>().having(
+        (error) => error.code,
+        'code',
+        'protocol',
+      )),
+    );
+    await expectLater(
+      client.request('must.not.be.sent', const {}),
+      throwsA(isA<BackendException>().having(
+        (error) => error.code,
+        'code',
+        'protocol',
+      )),
+    );
+  });
+
   test('timeout cancels request and ignores a late completion', () async {
     final client = createClient(mode: 'slow');
     addTearDown(client.dispose);
