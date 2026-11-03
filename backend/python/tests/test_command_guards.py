@@ -31,6 +31,9 @@ class CommandGuardTests(unittest.TestCase):
         self.assertTrue(is_destructive_fastboot(["flash", "boot", "boot.img"]))
         self.assertTrue(is_destructive_fastboot(["-w"]))
         self.assertTrue(is_destructive_fastboot(["flashing", "unlock"]))
+        self.assertTrue(is_destructive_fastboot(["--slot", "a", "flash", "boot", "boot.img"]))
+        self.assertTrue(is_destructive_fastboot(["--slot=b", "erase", "userdata"]))
+        self.assertFalse(is_destructive_fastboot(["--slot", "a", "getvar", "product"]))
         self.assertFalse(is_destructive_fastboot(["getvar", "product"]))
 
     def test_fastboot_reboot_bootloader_uses_supported_subcommand(self):

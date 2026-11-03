@@ -16,10 +16,11 @@ def _strip_executable(tokens,names):
  if values and PurePath(values[0].strip('"')).name.lower() in names: values.pop(0)
  return values
 def _skip_device_options(tokens):
- values,index=list(tokens),0; takes={"-s","-t","-H","-P","-L","-i","-p","-c"}
+ values,index=list(tokens),0; takes={"-s","-t","-H","-P","-L","-i","-p","-c","--slot"}
  while index<len(values):
   token=values[index].lower()
   if token in takes and index+1<len(values): index+=2
+  elif token.startswith("--slot="): index+=1
   elif token in {"-d","-e"}: index+=1
   else: break
  return values[index:]
