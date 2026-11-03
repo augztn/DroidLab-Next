@@ -91,12 +91,15 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     }
   }
 
-  Map<String, dynamic>? _selectedDevice() {
+  Map<String, dynamic>? _selectedDevice({String? transport}) {
     final data = ref.read(deviceListProvider).valueOrNull;
     final devices = (data?['devices'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>();
     for (final device in devices) {
-      if (device['serial'] == _serial.text.trim()) return device;
+      if (device['serial'] == _serial.text.trim() &&
+          (transport == null || device['transport'] == transport)) {
+        return device;
+      }
     }
     return null;
   }
@@ -166,12 +169,13 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     final command = _command.text.trim();
     if (command.isEmpty || _busy) return;
 
-    final target = _selectedDevice();
+    final fastbootArguments = _stripHostExecutable(command, 'fastboot');
+    final target = _selectedDevice(
+      transport: fastbootArguments != null ? 'fastboot' : 'adb',
+    );
     final serial = target?['serial'] as String?;
     final transport = target?['transport'] as String?;
     final state = target?['state'] as String?;
-
-    final fastbootArguments = _stripHostExecutable(command, 'fastboot');
     if (fastbootArguments != null) {
       final verb = fastbootArguments.split(RegExp(r'\s+')).first.toLowerCase();
       const discovery = {'devices', 'help', '--help', '--version', 'version'};
