@@ -23,9 +23,31 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       final selected = ref.read(selectedTargetSerialProvider);
       final adb = devices.where((d) => d['transport'] == 'adb' && d['state'] == 'device');
       final target = adb.where((d) => d['serial'] == selected).firstOrNull ?? adb.firstOrNull;
-      if (target == null) { if (mounted) setState(() { _serial = null; _batteryError = 'Connect an authorized ADB device to view metrics.'; _top = const []; _resourceError = null; }); return; }
+      if (target == null) {
+        if (mounted) setState(() {
+          _serial = null;
+          _level = null;
+          _temperature = null;
+          _updated = null;
+          _batteryError = 'Connect an authorized ADB device to view metrics.';
+          _top = const [];
+          _resourceError = null;
+        });
+        return;
+      }
       final serial = target['serial']?.toString();
       if (serial == null || serial.isEmpty) return;
+      if (_serial != serial && mounted) {
+        setState(() {
+          _serial = serial;
+          _level = null;
+          _temperature = null;
+          _updated = null;
+          _top = const [];
+          _batteryError = 'Loading battery metrics…';
+          _resourceError = 'Loading process metrics…';
+        });
+      }
       final client = ref.read(backendClientProvider);
       // Run device shell reads sequentially. The backend serializes ADB shell
       // operations per device, so dispatching both at once can reject one request
