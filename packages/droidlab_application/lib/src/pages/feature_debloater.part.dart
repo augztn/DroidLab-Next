@@ -316,9 +316,11 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
           }
         }
         final installed = item?['installed'] != false;
-        if ((action == 'disable' && _disabled.contains(package)) ||
-            (action == 'enable' && !_disabled.contains(package)) ||
-            (action == 'restore' && installed)) {
+        if (shouldSkipDebloatAction(
+          action: action,
+          installed: installed,
+          disabled: _disabled.contains(package),
+        )) {
           skipped.add(package);
           continue;
         }
