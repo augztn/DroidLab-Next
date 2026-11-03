@@ -679,10 +679,11 @@ class ProtocolTests(unittest.TestCase):
             "package:/data/app/ExampleUser/base.apk=com.example.user\n"
         )
         disabled = "package:com.example.user\n"
+        system = "package:com.example.app\n"
         with patch.object(server, "tool_path", return_value="adb"):
             with patch.object(server, "require_adb"):
                 with patch.object(server, "run_streaming", side_effect=[
-                    result(output), result(installed), result(disabled),
+                    result(output), result(installed), result(disabled), result(system),
                 ]) as run:
                     value = server.execute("id", "debloat.packages.list", {"serial": "SERIAL", "user_id": 0}, threading.Event())
         self.assertEqual([item["package"] for item in value["packages"]], ["com.example.app", "com.example.user"])
@@ -690,7 +691,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertTrue(value["packages"][0]["installed"])
         self.assertFalse(value["packages"][1]["system"])
         self.assertTrue(value["packages"][1]["disabled"])
-        self.assertEqual(len(run.call_args_list), 3)
+        self.assertEqual(len(run.call_args_list), 4)
 
     def test_debloat_apply_requires_exact_confirmation(self):
         with self.assertRaises(PermissionError):
