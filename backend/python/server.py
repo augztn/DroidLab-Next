@@ -874,7 +874,7 @@ def _device_command_requires_lock(operation: str, args: dict[str, Any]) -> bool:
     if operation == "adb.command":
         raw = args.get("command_text", "")
         try:
-            tokens = split_command_text(raw)
+            tokens = strip_adb_executable(split_command_text(raw))
         except (TypeError, ValueError):
             return True
         index = 0
