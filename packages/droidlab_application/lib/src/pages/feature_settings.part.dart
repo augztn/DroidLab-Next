@@ -277,9 +277,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ])),
           const SizedBox(width: 12),
           OutlinedButton.icon(
-            onPressed: _saving || !_loaded ? null : () async {
-              final next = _themeMode == 'dark' ? 'light' : 'dark';
-              setState(() => _themeMode = next);
+            onPressed: _saving || _installingPlatformTools || !_loaded ? null : () async {
+              final previous = _themeMode;
+              final next = previous == 'dark' ? 'light' : 'dark';
+              setState(() {
+                _themeMode = next;
+                _saving = true;
+              });
               try {
                 final settingsFuture = ref.read(droidLabSettingsProvider.future);
                 final settingsNotifier = ref.read(droidLabSettingsProvider.notifier);
@@ -289,9 +293,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 if (mounted) setState(() => _status = 'Appearance updated.');
               } catch (error) {
                 if (mounted) setState(() {
-                  _themeMode = next == 'dark' ? 'light' : 'dark';
+                  _themeMode = previous;
                   _status = 'Could not update appearance: $error';
                 });
+              } finally {
+                if (mounted) setState(() => _saving = false);
               }
             },
             icon: Icon(_themeMode == 'dark' ? Icons.light_mode_outlined : Icons.dark_mode_outlined, size: 17),
