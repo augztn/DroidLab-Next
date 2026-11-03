@@ -64,6 +64,14 @@ void main() {
       client.diagnostics.where((line) => line.contains('Protocol decode error')),
       hasLength(1),
     );
+    await expectLater(
+      client.request('must.not.be.sent', const {}),
+      throwsA(isA<BackendException>().having(
+        (error) => error.code,
+        'code',
+        'protocol',
+      )),
+    );
   });
 
   test('timeout cancels request and ignores a late completion', () async {
