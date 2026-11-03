@@ -84,45 +84,72 @@ class DroidLabSettingsStore {
     recoveryNotice = null;
     _unreadableConfigPreserved = false;
     final backup = File('${_file.path}.bak');
-    if (!await _file.exists() && await backup.exists()) {
-      try {
-        final recovered = jsonDecode(await backup.readAsString());
-        final settings = recovered is Map<String, dynamic>
-            ? DroidLabSettings.fromJson(recovered)
-            : recovered is Map
-                ? DroidLabSettings.fromJson(recovered.cast<String, dynamic>())
-                : throw const FormatException('Backup did not contain a JSON object.');
-        await backup.rename(_file.path);
-        _unreadableConfigPreserved = true;
-        recoveryNotice = 'Settings were restored from the backup after an interrupted save.';
-        return settings;
-      } on FormatException catch (error) {
-        recoveryNotice = 'The settings backup is invalid and was preserved at ${backup.path}: ${error.message}';
-        _unreadableConfigPreserved = false;
-        return _defaultSettings();
-      } on FileSystemException catch (error) {
-        recoveryNotice = 'The settings backup could not be restored: ${error.message}';
-        _unreadableConfigPreserved = false;
-        return _defaultSettings();
-      }
+
+    if (!await _file.exists()) {
+      return await _restoreBackup(backup) ?? _defaultSettings();
     }
+
     try {
-      final value = jsonDecode(await _file.readAsString());
-      if (value is Map<String, dynamic>) return DroidLabSettings.fromJson(value);
-      if (value is Map) return DroidLabSettings.fromJson(value.cast<String, dynamic>());
-      await _preserveCorruptConfig('The settings file did not contain a JSON object.');
+      return _decodeSettings(await _file.readAsString());
     } on FileSystemException catch (error) {
-      // First launch is normal. If a file exists but cannot be read, preserve
-      // it so a later save cannot silently discard potentially valid settings.
       if (await _file.exists()) {
         await _preserveCorruptConfig('The settings file could not be read: ${error.message}.');
       }
     } on FormatException catch (error) {
-      // Preserve malformed and unsupported future schemas instead of silently
-      // replacing the only copy when the user next saves settings.
+      // Preserve malformed and unsupported future schemas before considering
+      // the backup, so the original data remains available for inspection.
       await _preserveCorruptConfig(error.message);
     }
+
+    // Only restore when the original primary file was successfully preserved.
+    if (!await _file.exists() && await backup.exists()) {
+      return await _restoreBackup(backup, previousNotice: recoveryNotice) ??
+          _defaultSettings();
+    }
     return _defaultSettings();
+  }
+
+  DroidLabSettings _decodeSettings(String contents) {
+    final value = jsonDecode(contents);
+    if (value is Map<String, dynamic>) return DroidLabSettings.fromJson(value);
+    if (value is Map) return DroidLabSettings.fromJson(value.cast<String, dynamic>());
+    throw const FormatException('The settings file did not contain a JSON object.');
+  }
+
+  Future<DroidLabSettings?> _restoreBackup(
+    File backup, {
+    String? previousNotice,
+  }) async {
+    if (!await backup.exists()) return null;
+    try {
+      final settings = _decodeSettings(await backup.readAsString());
+      if (await _file.exists()) {
+        throw FileSystemException(
+          'The primary settings file could not be preserved; refusing to replace it.',
+          _file.path,
+        );
+      }
+      await backup.rename(_file.path);
+      _unreadableConfigPreserved = true;
+      recoveryNotice = [
+        if (previousNotice != null) previousNotice,
+        'Settings were restored from the backup after an interrupted or corrupt save.',
+      ].join(' ');
+      return settings;
+    } on FormatException catch (error) {
+      _unreadableConfigPreserved = false;
+      recoveryNotice = [
+        if (previousNotice != null) previousNotice,
+        'The settings backup is invalid and was preserved at ${backup.path}: ${error.message}',
+      ].join(' ');
+    } on FileSystemException catch (error) {
+      _unreadableConfigPreserved = false;
+      recoveryNotice = [
+        if (previousNotice != null) previousNotice,
+        'The settings backup could not be restored: ${error.message}',
+      ].join(' ');
+    }
+    return null;
   }
 
   DroidLabSettings _defaultSettings() => DroidLabSettings(
