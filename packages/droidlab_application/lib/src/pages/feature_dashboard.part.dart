@@ -45,6 +45,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         timeout: const Duration(seconds: 20),
       );
       final batteryText = batteryResult.data['output']?.toString() ?? '';
+      if (!mounted) return;
       final processesResult = await client.request(
         'adb.shell',
         {
@@ -60,6 +61,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         timeout: const Duration(seconds: 20),
       );
       final topText = processesResult.data['output']?.toString() ?? '';
+      if (!mounted) return;
       final lm = RegExp(r'^\s*level:\s*(\d+)', multiLine: true).firstMatch(batteryText);
       final tm = RegExp(r'^\s*temperature:\s*(-?\d+)', multiLine: true).firstMatch(batteryText);
       final level = lm == null ? null : int.tryParse(lm.group(1)!);
