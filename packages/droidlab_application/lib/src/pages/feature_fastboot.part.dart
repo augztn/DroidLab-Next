@@ -190,6 +190,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
                 ? 'bootloader'
                 : null;
         final transitioned = await _waitForDeviceTransport(
+          context: context,
           ref: ref,
           serial: serial,
           transport: expectedTransport,
