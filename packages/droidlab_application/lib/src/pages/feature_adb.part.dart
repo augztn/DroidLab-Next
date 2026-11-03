@@ -353,6 +353,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       if (mounted && rebootAccepted && (mode == 'bootloader' || mode == 'fastboot')) {
         final expectedFastbootMode = mode == 'fastboot' ? 'fastbootd' : 'bootloader';
         final transitioned = await _waitForDeviceTransport(
+          context: context,
           ref: ref,
           serial: serial,
           transport: 'fastboot',
@@ -367,6 +368,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       } else if (mounted && rebootAccepted) {
         // Recovery and normal Android boot remain on the ADB workspace.
         await _waitForDeviceTransport(
+          context: context,
           ref: ref,
           serial: serial,
           transport: 'adb',
