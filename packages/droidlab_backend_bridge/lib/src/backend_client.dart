@@ -27,7 +27,7 @@ class BackendClient {
   final StreamController<BackendEvent> _events = StreamController.broadcast();
   final List<String> _diagnostics = [];
   final Random _random = Random.secure();
-  bool _closing = false, _disposed = false;
+  bool _closing = false, _disposed = false, _protocolFailed = false;
 
   Stream<BackendEvent> get events => _events.stream;
   List<String> get diagnostics => List.unmodifiable(_diagnostics);
@@ -36,6 +36,12 @@ class BackendClient {
 
   Future<void> start() {
     if (_disposed) return Future.error(const BackendException('Backend client has been disposed.'));
+    if (_protocolFailed) {
+      return Future.error(const BackendException(
+        'Backend connection is unusable after a protocol failure. Dispose and create a new client.',
+        code: 'protocol',
+      ));
+    }
     if (_process != null) return Future.value();
     final inFlight = _starting;
     if (inFlight != null) return inFlight;
@@ -94,7 +100,9 @@ class BackendClient {
   }
 
   Future<BackendOperation> startOperation(String operation, Map<String, dynamic> args) async {
-    if (_disposed || _closing) throw const BackendException('Backend is not accepting requests.');
+    if (_disposed || _closing || _protocolFailed) {
+      throw const BackendException('Backend is not accepting requests.', code: 'protocol');
+    }
     if (_process == null) await start();
     // Disposal or an unexpected process exit can race with asynchronous start.
     // Capture and validate the process before registering/writing a request.
@@ -192,6 +200,7 @@ class BackendClient {
   }
 
   void _protocolFailure(String message) {
+    _protocolFailed = true;
     _recordDiagnostic(message);
     // stdout is protocol-only. Once a frame is invalid, no pending request can
     // safely rely on the stream to deliver its completion.
