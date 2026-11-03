@@ -34,7 +34,7 @@ String redactDiagnosticText(String value, {String? homeDirectory}) {
     (m) => m[1]! + m[2]! + '<DEVICE_ID>',
   );
   text = text.replaceAllMapped(
-    RegExp(r'(\[preflight\]\s+)(?!host\b)([^\s]+)(:\s*)', caseSensitive: false),
+    RegExp(r'(\[preflight\]\s+)(?!host\b)([^\r\n]+?)(:\s*)', caseSensitive: false),
     (m) => m[1]! + '<DEVICE_ID>' + m[3]!,
   );
   text = text.replaceAllMapped(
