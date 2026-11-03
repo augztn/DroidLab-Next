@@ -873,8 +873,8 @@ class ProtocolTests(unittest.TestCase):
 
     def test_debloat_inventory_rejects_truncated_machine_output(self):
         truncated = result(
-            "package:com.example.app\\n"
-            "[DroidLab: 3 additional output chunk(s) omitted]\\n"
+            "package:com.example.app\n"
+            "[DroidLab: 3 additional output chunk(s) omitted]\n"
         )
         with patch.object(server, "tool_path", return_value="adb"):
             with patch.object(server, "require_adb"):
