@@ -799,7 +799,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     final String? selectedAdbState = selectedTransport == 'adb'
         ? selectedState as String?
         : null;
-    final selectedFastboot = isFastbootDeviceReady(selectedDevice);
+    final selectedFastboot = selectedDevices.any(isFastbootDeviceReady);
     final canRunAdbCommands = selectedAdbState == 'device';
     final canReboot = canRunAdbCommands ||
         selectedAdbState == 'recovery' || selectedFastboot;
