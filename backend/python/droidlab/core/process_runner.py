@@ -88,7 +88,7 @@ def run_streaming(
     timeout: float | None = None,
     cancel_event: threading.Event | None = None,
     on_line: Callable[[str], None] | None = None,
-    max_output_chars: int = 64 * 1024,
+    max_output_chars: int = 2 * 1024 * 1024,
     max_queue_lines: int = 1000,
     popen_kwargs: dict[str, Any] | None = None,
 ) -> subprocess.CompletedProcess[str]:
