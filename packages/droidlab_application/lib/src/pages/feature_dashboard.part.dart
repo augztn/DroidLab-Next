@@ -18,6 +18,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     _polling = true;
     try {
       final data = await ref.read(deviceListProvider.future);
+      if (!mounted) return;
       final devices = (data['devices'] as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>();
       final selected = ref.read(selectedTargetSerialProvider);
       final adb = devices.where((d) => d['transport'] == 'adb' && d['state'] == 'device');
@@ -72,8 +73,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       // A closed backend stdin means the managed Python process exited while
       // the client still held its Process handle. Recreate the client on the
       // next poll instead of leaving both dashboard widgets permanently stale.
-      if (message.contains('Could not write to backend stdin') ||
-          message.contains('Backend process exited unexpectedly')) {
+      final transportFailure = error is BackendException &&
+          const {'protocol', 'process_exit'}.contains(error.code);
+      if (mounted && (transportFailure ||
+          message.contains('Could not write to backend stdin') ||
+          message.contains('Backend process exited unexpectedly'))) {
         ref.invalidate(backendClientProvider);
         ref.invalidate(backendReadyProvider);
         ref.invalidate(deviceListProvider);
