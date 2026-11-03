@@ -73,6 +73,14 @@ class ProcessRunnerTests(unittest.TestCase):
         self.assertLess(len(result.stdout), 256)
         self.assertIn("omitted", result.stdout)
 
+    def test_default_output_retention_fits_backend_protocol_budget(self):
+        result = run_streaming(
+            [sys.executable, "-c", "import sys; sys.stdout.write('\\\\x01' * (256 * 1024))"],
+            timeout=5,
+        )
+        self.assertLessEqual(len(result.stdout), 64 * 1024 + 128)
+        self.assertIn("additional output chunk(s) omitted", result.stdout)
+
     def test_long_output_line_is_read_in_bounded_chunks(self):
         result = run_streaming(
             [sys.executable, "-c", "import sys; sys.stdout.write('x' * 50000)"],
