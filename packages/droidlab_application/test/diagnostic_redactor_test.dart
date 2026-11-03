@@ -48,6 +48,12 @@ void main() {
     expect(value, isNot(contains('SERIAL-123')));
     expect(value, isNot(contains('192.168.1.20:5555')));
     expect(value, contains('[preflight] host:'));
+
+    final errors = redactDiagnosticText(
+      "ADB device 'ABC123' is unauthorized. Fastboot target \"192.168.1.2:5555\" is not present.",
+    );
+    expect(errors, isNot(contains('ABC123')));
+    expect(errors, isNot(contains('192.168.1.2:5555')));
   });
 
   test('preserves ordinary diagnostic context', () {
