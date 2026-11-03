@@ -30,6 +30,7 @@ part 'feature_settings.part.dart';
 part 'feature_shared.part.dart';
 
 Future<bool> _waitForDeviceTransport({
+  required BuildContext context,
   required WidgetRef ref,
   required String serial,
   required String transport,
@@ -42,9 +43,12 @@ Future<bool> _waitForDeviceTransport({
     if (attempt > 0) {
       await Future<void>.delayed(const Duration(milliseconds: 1500));
     }
+    if (!context.mounted) return false;
     ref.invalidate(deviceListProvider);
     try {
-      final data = await ref.read(deviceListProvider.future);
+      final pendingDevices = ref.read(deviceListProvider.future);
+      final data = await pendingDevices;
+      if (!context.mounted) return false;
       final devices = (data['devices'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>();
       if (devices.any((device) =>
@@ -54,6 +58,7 @@ Future<bool> _waitForDeviceTransport({
         return true;
       }
     } catch (_) {
+      if (!context.mounted) return false;
       // The device may be temporarily absent while USB re-enumerates.
     }
   }
