@@ -525,6 +525,71 @@ class ProtocolTests(unittest.TestCase):
                     "command_text": command,
                 }))
 
+    def test_server_control_waits_for_active_adb_device_operation(self):
+        lock = server._AdbServerLock()
+        first_entered = threading.Event()
+        release_first = threading.Event()
+        server_control_executed = threading.Event()
+
+        def execute(request_id, operation, args, cancel):
+            if request_id == "active-device":
+                first_entered.set()
+                self.assertTrue(release_first.wait(2))
+            else:
+                server_control_executed.set()
+            return {}
+
+        device_message = {
+            "id": "active-device",
+            "operation": "adb.shell",
+            "args": {"serial": "SERIAL"},
+        }
+        server_message = {
+            "id": "server-control",
+            "operation": "adb.command",
+            "args": {
+                "serial": None,
+                "command_text": "kill-server",
+                "confirmed": True,
+                "confirmation": {
+                    "operation": "adb.command",
+                    "serial": None,
+                    "command_text": "kill-server",
+                },
+            },
+        }
+
+        with patch.object(server, "_ADB_SERVER_LOCK", lock):
+            with patch.object(server, "execute", side_effect=execute):
+                with patch.object(server, "response"):
+                    device_thread = threading.Thread(
+                        target=server.handle,
+                        args=(device_message, threading.Event()),
+                    )
+                    server_thread = threading.Thread(
+                        target=server.handle,
+                        args=(server_message, threading.Event()),
+                    )
+                    device_thread.start()
+                    self.assertTrue(first_entered.wait(1))
+                    server_thread.start()
+
+                    deadline = time.monotonic() + 1
+                    with lock._condition:
+                        while lock._waiting_writers == 0:
+                            remaining = deadline - time.monotonic()
+                            self.assertGreater(remaining, 0)
+                            lock._condition.wait(remaining)
+
+                    self.assertFalse(server_control_executed.is_set())
+                    release_first.set()
+                    self.assertTrue(server_control_executed.wait(1))
+                    device_thread.join(1)
+                    server_thread.join(1)
+
+        self.assertFalse(device_thread.is_alive())
+        self.assertFalse(server_thread.is_alive())
+
     def test_adb_server_lock_allows_parallel_readers_and_excludes_writer(self):
         lock = server._AdbServerLock()
         self.assertTrue(lock.acquire_shared(0.1))
