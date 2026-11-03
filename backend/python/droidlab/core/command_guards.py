@@ -118,6 +118,9 @@ def explicit_device_selector(tokens,tool):
   elif token=="-s":
    if index+1>=len(values) or not values[index+1] or values[index+1].startswith("-"):raise ValueError("Missing serial after -s")
    candidate=values[index+1];index+=2
+  elif tool=="fastboot" and token.startswith("--slot="):
+   if token=="--slot=":raise ValueError("Missing value after --slot=")
+   index+=1;continue
   elif token in takes:
    if index+1>=len(values) or not values[index+1]:raise ValueError(f"Missing value after {token}")
    index+=2;continue
