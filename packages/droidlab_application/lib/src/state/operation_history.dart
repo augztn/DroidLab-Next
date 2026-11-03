@@ -42,7 +42,7 @@ String _safeSummary(String status, [String? summary]) {
           candidate == 'Logcat stream stopped.') {
         return candidate;
       }
-      if (RegExp(r'^[0-9]{1,6} image file\(s\) created\.$')
+      if (RegExp(r'^[0-9]{1,6} image file[(]s[)] created[.]$')
           .hasMatch(candidate)) {
         return candidate;
       }
