@@ -34,7 +34,7 @@ String redactDiagnosticText(String value, {String? homeDirectory}) {
     (m) => m[1]! + m[2]! + '<DEVICE_ID>',
   );
   text = text.replaceAllMapped(
-    RegExp(r'\b(?:ADB device|ADB target|Fastboot target|Device)\s+[\'\"]([^\'\"]+)[\'\"]', caseSensitive: false),
+    RegExp(r'\b(?:ADB device|ADB target|Fastboot target|Device)\s+[\x27\x22]([^\x27\x22]+)[\x27\x22]', caseSensitive: false),
     (m) => m[0]!.replaceFirst(m[1]!, '<DEVICE_ID>'),
   );
   text = text.replaceAllMapped(
