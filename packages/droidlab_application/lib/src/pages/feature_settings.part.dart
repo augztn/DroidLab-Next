@@ -60,7 +60,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _save() async {
-    if (_saving || !_loaded) return;
+    if (_saving || _installingPlatformTools || !_loaded) return;
     setState(() {
       _saving = true;
       _status = '';
@@ -372,7 +372,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 const SizedBox(height: 12),
                 Row(children: [
                   FilledButton.icon(
-                    onPressed: _saving ? null : _save,
+                    onPressed: _saving || _installingPlatformTools ? null : _save,
                     icon: _saving
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.save),
