@@ -212,6 +212,7 @@ void main() {
     expect(await operation, 'completed');
     expect(notifier.state.valueOrNull, hasLength(1));
     expect(notifier.state.value!.single.status, 'completed');
+    expect(notifier.state.value!.single.summary, 'Completed safely.');
   });
 
   test('unknown statuses are normalized to failed', () {
@@ -251,6 +252,7 @@ class _DeferredOperationStarter extends ConsumerWidget {
           await gate.future;
           return 'completed';
         },
+        successSummary: (_) => 'Completed safely.',
       ));
     },
     child: const Text('Start'),
