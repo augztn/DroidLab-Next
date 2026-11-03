@@ -161,7 +161,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _status = 'Downloading and validating Google Android Platform-Tools…';
     });
     try {
-      await ref.read(backendReadyProvider.future);
+      final client = ref.read(backendClientProvider);
+      final backendReady = ref.read(backendReadyProvider.future);
+      await backendReady;
+      if (!mounted) return;
       const intent = {
         'operation': 'system.platform_tools.install',
         'version': '37.0.1',
@@ -171,7 +174,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ref,
         operation: 'System: install Android Platform-Tools',
         target: 'Local host',
-        action: () => ref.read(backendClientProvider).request(
+        action: () => client.request(
           'system.platform_tools.install',
           {
             ...intent,
@@ -181,7 +184,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           timeout: const Duration(minutes: 5),
         ),
       );
-      final toolsResult = await ref.read(backendClientProvider).request(
+      final toolsResult = await client.request(
         'system.tools',
         const {},
       );
@@ -278,8 +281,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               final next = _themeMode == 'dark' ? 'light' : 'dark';
               setState(() => _themeMode = next);
               try {
-                final current = await ref.read(droidLabSettingsProvider.future);
-                await ref.read(droidLabSettingsProvider.notifier).saveSettings(current.copyWith(themeMode: next));
+                final settingsFuture = ref.read(droidLabSettingsProvider.future);
+                final settingsNotifier = ref.read(droidLabSettingsProvider.notifier);
+                final current = await settingsFuture;
+                if (!mounted) return;
+                await settingsNotifier.saveSettings(current.copyWith(themeMode: next));
                 if (mounted) setState(() => _status = 'Appearance updated.');
               } catch (error) {
                 if (mounted) setState(() {
