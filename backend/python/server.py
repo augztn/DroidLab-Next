@@ -127,7 +127,7 @@ def _bound_protocol_result(value: Any) -> Any:
                 omitted = len(item) - MAX_PROTOCOL_OUTPUT_CHARS
                 bounded[key] = (
                     item[:MAX_PROTOCOL_OUTPUT_CHARS]
-                    + f"\\n[DroidLab: output truncated; {omitted} additional characters omitted]"
+                    + f"\n[DroidLab: output truncated; {omitted} additional characters omitted]"
                 )
             else:
                 bounded[key] = _bound_protocol_result(item)
