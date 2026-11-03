@@ -44,7 +44,7 @@ class ProtocolTests(unittest.TestCase):
         import json
         from droidlab.core.process_runner import run_streaming
         result = run_streaming(
-            [sys.executable, "-c", "import sys; sys.stdout.write('\\\\x01' * (256 * 1024))"],
+            [sys.executable, "-c", "import sys; sys.stdout.write('\\x01' * (256 * 1024))"],
             timeout=5,
         )
         frame = json.dumps(
