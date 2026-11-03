@@ -526,6 +526,25 @@ class ProtocolTests(unittest.TestCase):
                     "command_text": command,
                 }))
 
+    def test_adb_server_lock_waits_honor_cancellation(self):
+        lock = server._AdbServerLock()
+        cancelled = threading.Event()
+
+        self.assertTrue(lock.acquire_exclusive(0.1))
+        cancelled.set()
+        with self.assertRaises(server.ProcessCancelledError):
+            lock.acquire_shared(1, cancelled)
+        lock.release_exclusive()
+
+        cancelled.clear()
+        self.assertTrue(lock.acquire_shared(0.1))
+        cancelled.set()
+        with self.assertRaises(server.ProcessCancelledError):
+            lock.acquire_exclusive(1, cancelled)
+        lock.release_shared()
+        self.assertTrue(lock.acquire_shared(0.1))
+        lock.release_shared()
+
     def test_server_control_waits_for_active_adb_device_operation(self):
         lock = server._AdbServerLock()
         first_entered = threading.Event()
