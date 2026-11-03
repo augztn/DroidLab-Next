@@ -34,6 +34,24 @@ void main() {
     }
   });
 
+  test('Fastboot readiness accepts bootloader and userspace Fastbootd only', () {
+    for (final state in ['fastboot', 'fastbootd']) {
+      expect(
+        isFastbootDeviceReady({'transport': 'fastboot', 'state': state}),
+        isTrue,
+      );
+    }
+    expect(
+      isFastbootDeviceReady({'transport': 'adb', 'state': 'device'}),
+      isFalse,
+    );
+    expect(
+      isFastbootDeviceReady({'transport': 'fastboot', 'state': 'unauthorized'}),
+      isFalse,
+    );
+    expect(isFastbootDeviceReady(null), isFalse);
+  });
+
   test('mixed or empty device discovery never forces a tool route', () {
     expect(preferredDeviceToolLocation({'devices': []}), isNull);
     expect(
