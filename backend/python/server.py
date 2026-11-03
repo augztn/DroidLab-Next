@@ -261,8 +261,11 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         index = 0
         takes_value = {"-s", "-t", "-H", "-P", "-L"}
         no_value = {"-d", "-e"}
+        alternate_target_selector = False
         while index < len(values):
             token = values[index]
+            if token in {"-t", "-d", "-e", "-H", "-P", "-L"}:
+                alternate_target_selector = True
             if token in takes_value:
                 index += 2
             elif token in no_value:
@@ -276,6 +279,11 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         verb = values[index].lower() if index < len(values) else ""
         discovery = verb in {"devices", "version", "help", "start-server", "kill-server", "connect", "disconnect"}
         if not discovery:
+            if alternate_target_selector:
+                raise ValueError(
+                    "Targeted ADB commands must use the selected device serial; "
+                    "transport and remote-server selectors are not allowed."
+                )
             if not serial:
                 raise ValueError("Select an authorized ADB device for this host command.")
             require_adb(serial, cancel_event=cancel)
