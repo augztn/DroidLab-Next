@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:droidlab_application/droidlab_application.dart';
 import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -171,6 +174,46 @@ void main() {
     expect(restored.summary, 'Operation completed.');
   });
 
+  testWidgets('operation history survives page disposal during an async action', (tester) async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-history-dispose-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final notifier = OperationHistoryNotifier(
+      supportDirectory: () async => temporary,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        operationHistoryProvider.overrideWith((ref) => notifier),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final gate = Completer<void>();
+    late Future<String> operation;
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        home: _DeferredOperationStarter(
+          gate: gate,
+          onStarted: (future) => operation = future,
+        ),
+      ),
+    ));
+    await tester.tap(find.text('Start'));
+    await tester.pump();
+
+    // Keep the provider container alive while disposing the page that owns
+    // the WidgetRef passed to trackOperation.
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: SizedBox.shrink()),
+    ));
+    gate.complete();
+
+    expect(await operation, 'completed');
+    expect(notifier.state.valueOrNull, hasLength(1));
+    expect(notifier.state.value!.single.status, 'completed');
+  });
+
   test('unknown statuses are normalized to failed', () {
     final restored = OperationRecord.fromJson({
       'id': 'op-legacy',
@@ -186,4 +229,30 @@ void main() {
     expect(restored.status, 'failed');
     expect(restored.summary, contains('omitted'));
   });
+}
+
+class _DeferredOperationStarter extends ConsumerWidget {
+  const _DeferredOperationStarter({
+    required this.gate,
+    required this.onStarted,
+  });
+
+  final Completer<void> gate;
+  final ValueChanged<Future<String>> onStarted;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => TextButton(
+    onPressed: () {
+      onStarted(trackOperation<String>(
+        ref,
+        operation: 'Device refresh',
+        target: 'SERIAL-PRIVATE',
+        action: () async {
+          await gate.future;
+          return 'completed';
+        },
+      ));
+    },
+    child: const Text('Start'),
+  );
 }
