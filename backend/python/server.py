@@ -147,7 +147,7 @@ tool_path = resolve_tool_path
 def _require_complete_output(result: subprocess.CompletedProcess[str], purpose: str) -> None:
     """Reject truncated output when callers need a complete machine-readable listing."""
     if re.search(
-        r"(?m)^\\[DroidLab: \\d+ additional output chunk\\(s\\) omitted\\]$",
+        r"(?m)^\[DroidLab: \d+ additional output chunk\(s\) omitted\]$",
         result.stdout or "",
     ):
         raise RuntimeError(
