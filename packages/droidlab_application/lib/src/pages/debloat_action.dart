@@ -1,18 +1,17 @@
 /// Returns whether a package should be skipped for a requested batch action.
 ///
-/// Uninstalled packages cannot be disabled, enabled, or uninstalled for a user.
-/// Restoring is only meaningful after the package was uninstalled for that user.
+/// State-changing actions require the package to be installed for this user;
+/// restore is only meaningful when it is no longer installed for that user.
 bool shouldSkipDebloatAction({
   required String action,
   required bool installed,
   required bool disabled,
 }) {
-  if (!installed) return true;
   return switch (action) {
-    'disable' => disabled,
-    'enable' => !disabled,
-    'restore' => true,
-    'uninstall' => false,
+    'disable' => !installed || disabled,
+    'enable' => !installed || !disabled,
+    'restore' => installed,
+    'uninstall' => !installed,
     _ => false,
   };
 }
