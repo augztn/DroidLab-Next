@@ -474,9 +474,6 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         operation: captureToFile ? 'ADB logcat file capture (1 hour)' : 'ADB logcat',
         target: serial,
         action: () => handle.result,
-        successSummary: (result) => result.data['duration_limit_reached'] == true
-            ? 'One-hour logcat capture completed.'
-            : 'Logcat stream stopped.',
       ).then((result) async {
         final manuallyStopped = _logcatManualStopRequestId == handle.requestId;
         if (manuallyStopped) _logcatManualStopRequestId = null;
