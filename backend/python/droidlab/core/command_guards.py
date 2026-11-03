@@ -7,7 +7,7 @@ _ADB_DESTRUCTIVE_VERBS = {"reboot","sideload","root","unroot","remount","disable
 _SHELL_DESTRUCTIVE_PATTERNS = (
  re.compile(r"(?:^|[;&|(){}\s])(?:[^\s;&|(){}]+/)?(?:mkfs(?:\.[\w-]+)?|dd|reboot|poweroff|shutdown|wipe|format)\b", re.I),
  re.compile(r"(?:^|[;&|(){}\s])setprop\b", re.I),
- re.compile(r"(?:^|[;&|(){}\\s])(?:pm\\s+(?:uninstall|disable-user|clear)\\b|cmd\\s+package\\s+(?:uninstall|disable-user|clear)\\b)", re.I),
+ re.compile(r"(?:^|[;&|(){}\s])(?:pm\s+(?:uninstall|disable-user|clear)\b|cmd\s+package\s+(?:uninstall|disable-user|clear)\b)", re.I),
  re.compile(r"(?:^|[;&|(){}\s])svc\b[^;&|(){}]*\bdisable\b", re.I),
 )
 _FASTBOOT_DESTRUCTIVE_VERBS = {"flash","flashall","erase","format","wipe","set_active","update","delete-logical-partition","create-logical-partition","resize-logical-partition"}
