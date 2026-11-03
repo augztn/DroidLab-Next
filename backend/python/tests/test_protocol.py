@@ -871,6 +871,23 @@ class ProtocolTests(unittest.TestCase):
         self.assertTrue(value["packages"][1]["disabled"])
         self.assertEqual(len(run.call_args_list), 4)
 
+    def test_debloat_inventory_rejects_truncated_machine_output(self):
+        truncated = result(
+            "package:com.example.app\\n"
+            "[DroidLab: 3 additional output chunk(s) omitted]\\n"
+        )
+        with patch.object(server, "tool_path", return_value="adb"):
+            with patch.object(server, "require_adb"):
+                with patch.object(server, "run_streaming", return_value=truncated) as run:
+                    with self.assertRaisesRegex(RuntimeError, "output was truncated"):
+                        server.execute(
+                            "id",
+                            "debloat.packages.list",
+                            {"serial": "SERIAL", "user_id": 0},
+                            threading.Event(),
+                        )
+        run.assert_called_once()
+
     def test_debloat_apply_requires_exact_confirmation(self):
         with self.assertRaises(PermissionError):
             server.execute("id", "debloat.package.apply", {
