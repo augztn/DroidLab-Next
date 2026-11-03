@@ -674,7 +674,10 @@ class ProtocolTests(unittest.TestCase):
 
     def test_debloat_inventory_parses_valid_package_ids_and_system_paths(self):
         output = "package:/system/app/Example/Example.apk=com.example.app\npackage:com.example.user\npackage:invalid package\n"
-        installed = "package:com.example.app\npackage:com.example.user\n"
+        installed = (
+            "package:/system/app/Example/Example.apk=com.example.app\n"
+            "package:/data/app/ExampleUser/base.apk=com.example.user\n"
+        )
         disabled = "package:com.example.user\n"
         with patch.object(server, "tool_path", return_value="adb"):
             with patch.object(server, "require_adb"):
