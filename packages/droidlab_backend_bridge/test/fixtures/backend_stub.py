@@ -43,7 +43,7 @@ for raw in sys.stdin:
         continue
 
     if mode == "malformed_response" and operation == "protocol.broken":
-        sys.stdout.write("{invalid-json}\\n")
+        sys.stdout.write("{invalid-json}\n")
         sys.stdout.flush()
         continue
 
