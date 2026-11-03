@@ -77,7 +77,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       );
       await ref.read(droidLabSettingsProvider.notifier).saveSettings(settings);
       if (mounted) setState(() => _status =
-          'Settings saved. Python/backend changes take effect after restarting DroidLab; device-tool paths are read by the backend on the next command.');
+          'Settings saved. Python/backend changes restart the managed backend automatically; device-tool paths are read by the backend on the next command.');
     } catch (error) {
       if (mounted) setState(() => _status = 'Could not save settings: $error');
     } finally {
