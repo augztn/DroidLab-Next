@@ -80,6 +80,7 @@ class _AdbServerLock:
                 return True
             finally:
                 self._waiting_writers -= 1
+                self._condition.notify_all()
 
     def release_exclusive(self) -> None:
         with self._condition:
