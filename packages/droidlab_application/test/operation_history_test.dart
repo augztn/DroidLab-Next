@@ -197,7 +197,6 @@ void main() {
     gate.complete();
 
     expect(await operation.timeout(const Duration(seconds: 5)), 'completed');
-    expect(notifier.state.valueOrNull, hasLength(1));
     expect(notifier.state.value!.single.status, 'completed');
     expect(notifier.state.value!.single.summary, '3 image file(s) created.');
   });
