@@ -46,6 +46,26 @@ void main() {
     );
   });
 
+  test('malformed protocol frame fails pending requests immediately', () async {
+    final client = createClient(mode: 'malformed_response');
+    addTearDown(client.dispose);
+    await client.start();
+
+    await expectLater(
+      client.request('protocol.broken', const {},
+          timeout: const Duration(seconds: 2)),
+      throwsA(isA<BackendException>().having(
+        (error) => error.code,
+        'code',
+        'protocol',
+      )),
+    );
+    expect(
+      client.diagnostics.where((line) => line.contains('Protocol decode error')),
+      hasLength(1),
+    );
+  });
+
   test('timeout cancels request and ignores a late completion', () async {
     final client = createClient(mode: 'slow');
     addTearDown(client.dispose);
