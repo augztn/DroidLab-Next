@@ -21,8 +21,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       if (!mounted) return;
       final devices = (data['devices'] as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>();
       final selected = ref.read(selectedTargetSerialProvider);
-      final adb = devices.where((d) => d['transport'] == 'adb' && d['state'] == 'device');
-      final target = adb.where((d) => d['serial'] == selected).firstOrNull ?? adb.firstOrNull;
+      final target = resolveDashboardAdbTarget(devices, selected);
       if (target == null) {
         if (mounted) setState(() {
           _serial = null;
