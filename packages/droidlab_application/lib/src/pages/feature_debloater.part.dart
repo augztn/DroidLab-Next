@@ -420,7 +420,6 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         SizedBox(
           width: 104,
           child: TextFormField(
-            key: ValueKey(_userId),
             initialValue: '$_userId',
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
