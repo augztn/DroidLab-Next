@@ -92,6 +92,12 @@ final deviceListProvider =
 });
 
 
+/// Returns whether a discovered device is ready for Fastboot commands.
+bool isFastbootDeviceReady(Map<String, dynamic>? device) =>
+    device != null &&
+    device['transport'] == 'fastboot' &&
+    const {'fastboot', 'fastbootd'}.contains(device['state']);
+
 /// Returns the device-tool route only when discovery identifies one transport
 /// unambiguously. Mixed ADB/Fastboot sessions and empty scans never force
 /// navigation.
