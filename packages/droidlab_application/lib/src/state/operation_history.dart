@@ -327,7 +327,7 @@ Future<T> trackOperation<T>(
   // app-scoped notifier before awaiting the operation so navigation cannot
   // turn a successful device operation into a late StateError.
   final history = ref.read(operationHistoryProvider.notifier);
-  return _trackOperationWithHistory(
+  return trackOperationWithHistory(
     history,
     operation: operation,
     target: target,
@@ -335,7 +335,7 @@ Future<T> trackOperation<T>(
   );
 }
 
-Future<T> _trackOperationWithHistory<T>(
+Future<T> trackOperationWithHistory<T>(
   OperationHistoryNotifier history, {
   required String operation,
   required String target,
