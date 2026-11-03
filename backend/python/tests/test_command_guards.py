@@ -167,6 +167,16 @@ class CommandGuardTests(unittest.TestCase):
             explicit_device_selector(["-s", "one", "-s", "two", "shell"], "adb")
         with self.assertRaises(ValueError):
             validate_device_selector(["-s", "other", "shell"], "adb", "selected")
+        self.assertEqual(
+            explicit_device_selector(["--slot=a", "-s", "serial-1", "getvar", "product"], "fastboot"),
+            "serial-1",
+        )
+        with self.assertRaises(ValueError):
+            validate_device_selector(
+                ["--slot=a", "-s", "other", "getvar", "product"],
+                "fastboot",
+                "selected",
+            )
 
     def test_transport_states(self):
         adb = "List of devices attached\nSERIAL device product:foo\nRECOVERY recovery\nOFFLINE offline\n"
