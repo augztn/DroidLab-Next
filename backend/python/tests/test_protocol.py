@@ -487,6 +487,17 @@ class ProtocolTests(unittest.TestCase):
                 threading.Event(),
             )
 
+    def test_advanced_adb_locking_strips_executable_prefix(self):
+        self.assertFalse(server._device_command_requires_lock(
+            "adb.command", {"command_text": "adb devices -l"}
+        ))
+        self.assertFalse(server._device_command_requires_lock(
+            "adb.command", {"command_text": "adb version"}
+        ))
+        self.assertTrue(server._device_command_requires_lock(
+            "adb.command", {"command_text": "adb install app.apk"}
+        ))
+
     def test_advanced_fastboot_command_locking_is_classified_per_command(self):
         self.assertTrue(server._device_command_requires_lock(
             "fastboot.command",
