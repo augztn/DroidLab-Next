@@ -21,6 +21,24 @@ def result(stdout="", returncode=0, stderr=""):
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_adb_scan_reports_merged_stderr_output_on_failure(self):
+        with patch.object(server, "run_capture", return_value=result("adb daemon unavailable", 1)):
+            with patch.object(server, "tool_path", return_value="adb"):
+                with self.assertRaisesRegex(RuntimeError, "adb daemon unavailable"):
+                    server.adb_scan()
+
+    def test_fastboot_scan_reports_merged_stderr_output_on_failure(self):
+        with patch.object(server, "run_capture", return_value=result("fastboot server unavailable", 1)):
+            with patch.object(server, "tool_path", return_value="fastboot"):
+                with self.assertRaisesRegex(RuntimeError, "fastboot server unavailable"):
+                    server.fastboot_scan()
+
+    def test_require_adb_reports_merged_stderr_output_on_scan_failure(self):
+        with patch.object(server, "run_capture", return_value=result("adb server refused connection", 1)):
+            with patch.object(server, "tool_path", return_value="adb"):
+                with self.assertRaisesRegex(RuntimeError, "adb server refused connection"):
+                    server.require_adb("SERIAL-1")
+
     def test_ping(self):
         value = server.execute("id", "system.ping", {}, threading.Event())
         self.assertEqual(value["status"], "ok")
