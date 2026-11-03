@@ -7,7 +7,7 @@ _ADB_DESTRUCTIVE_VERBS = {"reboot","sideload","root","unroot","remount","disable
 _SHELL_DESTRUCTIVE_PATTERNS = (
  re.compile(r"(?:^|[;&|(){}\s])(?:[^\s;&|(){}]+/)?(?:mkfs(?:\.[\w-]+)?|dd|reboot|poweroff|shutdown|wipe|format)\b", re.I),
  re.compile(r"(?:^|[;&|(){}\s])setprop\b", re.I),
- re.compile(r"(?:^|[;&|(){}\s])pm\s+(?:uninstall|disable-user)\b", re.I),
+ re.compile(r"(?:^|[;&|(){}\\s])(?:pm\\s+(?:uninstall|disable-user|clear)\\b|cmd\\s+package\\s+(?:uninstall|disable-user|clear)\\b)", re.I),
  re.compile(r"(?:^|[;&|(){}\s])svc\b[^;&|(){}]*\bdisable\b", re.I),
 )
 _FASTBOOT_DESTRUCTIVE_VERBS = {"flash","flashall","erase","format","wipe","set_active","update","delete-logical-partition","create-logical-partition","resize-logical-partition"}
@@ -97,7 +97,7 @@ def is_destructive_fastboot(tokens):
  if not lowered:return False
  verb=lowered[0]
  if verb in _FASTBOOT_DESTRUCTIVE_VERBS:return True
- if verb=="oem" and len(lowered)>1 and lowered[1]=="unlock":return True
+ if verb=="oem" and len(lowered)>1 and lowered[1] in {"unlock","lock"}:return True
  return verb=="flashing" and len(lowered)>1 and lowered[1] in {"unlock","unlock_critical","lock","lock_critical"}
 def is_valid_partition_name(name):return isinstance(name,str) and bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*",name))
 def explicit_device_selector(tokens,tool):
