@@ -176,7 +176,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       final verb = fastbootArguments.split(RegExp(r'\s+')).first.toLowerCase();
       const discovery = {'devices', 'help', '--help', '--version', 'version'};
       final isDiscovery = discovery.contains(verb);
-      if (!isDiscovery && (transport != 'fastboot' || serial == null || state != 'fastboot')) {
+      if (!isDiscovery && (serial == null || !isFastbootDeviceReady(target))) {
         setState(() => _output =
             'Select a detected Fastboot device before running a device-targeted Fastboot command. Discovery commands such as fastboot devices do not need a selected device.');
         return;
