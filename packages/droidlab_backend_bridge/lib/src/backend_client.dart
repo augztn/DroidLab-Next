@@ -69,8 +69,8 @@ class BackendClient {
           .transform(const LineSplitter())
           .listen(
         _handleLine,
-        onError: (Object error, StackTrace stack) => _failAll(
-          BackendException('Backend stdout stream failed.', cause: error),
+        onError: (Object error, StackTrace stack) => _protocolFailure(
+          'Backend stdout stream failed: $error',
         ),
         onDone: _handleExit,
       );
@@ -104,6 +104,13 @@ class BackendClient {
       throw const BackendException('Backend is not accepting requests.', code: 'protocol');
     }
     if (_process == null) await start();
+    // The protocol can fail while asynchronous startup is completing.
+    if (_protocolFailed) {
+      throw const BackendException(
+        'Backend connection is unusable after a protocol failure.',
+        code: 'protocol',
+      );
+    }
     // Disposal or an unexpected process exit can race with asynchronous start.
     // Capture and validate the process before registering/writing a request.
     final process = _process;
