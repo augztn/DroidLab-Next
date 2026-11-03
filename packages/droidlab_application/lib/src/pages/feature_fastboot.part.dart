@@ -459,29 +459,26 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     final allDevices = (devicesAsync.valueOrNull?['devices'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>().toList();
     final fastbootDevices = allDevices.where((device) => device['transport'] == 'fastboot').toList();
-    final serials = allDevices.map((device) => device['serial'] as String).toList();
-    if (globalTarget == null && fastbootDevices.length == 1) {
-      final onlySerial = fastbootDevices.single['serial'] as String;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && ref.read(selectedTargetSerialProvider) == null) {
-          ref.read(selectedTargetSerialProvider.notifier).state = onlySerial;
-        }
-      });
-    }
+    final serials = fastbootDevices.map((device) => device['serial'] as String).toList();
     final currentSelection = globalTarget ?? _selectedSerial ?? _serial.text.trim();
     final selectedSerial = serials.contains(currentSelection)
         ? currentSelection
         : fastbootDevices.length == 1
             ? fastbootDevices.single['serial'] as String
             : null;
+    if (selectedSerial != null && selectedSerial != globalTarget) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && ref.read(selectedTargetSerialProvider) == globalTarget) {
+          ref.read(selectedTargetSerialProvider.notifier).state = selectedSerial;
+        }
+      });
+    }
     if (selectedSerial != null && selectedSerial != _serial.text && !_busy) {
       _serial.text = selectedSerial;
     }
-    final matchingDevices = allDevices.where((device) => device['serial'] == selectedSerial).toList();
+    final matchingDevices = fastbootDevices.where((device) => device['serial'] == selectedSerial).toList();
     final selectedDevice = matchingDevices.isEmpty ? null : matchingDevices.first;
-    final fastbootTarget = selectedDevice != null &&
-        selectedDevice['transport'] == 'fastboot' &&
-        selectedDevice['state'] == 'fastboot';
+    final fastbootTarget = isFastbootDeviceReady(selectedDevice);
     final targetSelector = SizedBox(
       width: 390,
       child: Row(children: [
@@ -490,7 +487,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           isExpanded: true,
           decoration: const InputDecoration(labelText: 'Target Serial'),
           hint: const Text('Select a device'),
-          items: allDevices.map((device) {
+          items: fastbootDevices.map((device) {
             final serial = device['serial'] as String;
             final model = device['model']?.toString() ?? device['product']?.toString() ?? 'Android';
             final transport = device['transport']?.toString() ?? 'unknown';
