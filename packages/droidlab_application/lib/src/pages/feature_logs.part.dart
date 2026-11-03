@@ -42,7 +42,7 @@ class _LogsPageState extends ConsumerState<LogsPage> {
       suggestedName: 'droidlab-operation-console.json',
       acceptedTypeGroups: const [XTypeGroup(label: 'JSON files', extensions: ['json'])],
     );
-    if (location == null) return;
+    if (location == null || !context.mounted) return;
     try {
       final lines = ref.read(operationConsoleLinesProvider);
       final payload = {
@@ -72,7 +72,7 @@ class _LogsPageState extends ConsumerState<LogsPage> {
         XTypeGroup(label: 'DroidLab log files', extensions: ['log', 'txt']),
       ],
     );
-    if (location == null) return;
+    if (location == null || !context.mounted) return;
     try {
       final diagnostics = ref.read(backendClientProvider).diagnostics;
       final home = Platform.environment['USERPROFILE'] ??
@@ -124,7 +124,7 @@ class _LogsPageState extends ConsumerState<LogsPage> {
         XTypeGroup(label: 'Diagnostic text report', extensions: ['txt', 'log']),
       ],
     );
-    if (location == null) return;
+    if (location == null || !context.mounted) return;
     try {
       final home = Platform.environment['HOME'] ??
           Platform.environment['USERPROFILE'] ?? Directory.current.path;
