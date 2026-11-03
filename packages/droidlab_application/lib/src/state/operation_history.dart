@@ -322,11 +322,29 @@ Future<T> trackOperation<T>(
   required String target,
   required Future<T> Function() action,
   String Function(T result)? successSummary,
+}) {
+  // WidgetRef becomes invalid when its owning page is disposed. Capture the
+  // app-scoped notifier before awaiting the operation so navigation cannot
+  // turn a successful device operation into a late StateError.
+  final history = ref.read(operationHistoryProvider.notifier);
+  return _trackOperationWithHistory(
+    history,
+    operation: operation,
+    target: target,
+    action: action,
+  );
+}
+
+Future<T> _trackOperationWithHistory<T>(
+  OperationHistoryNotifier history, {
+  required String operation,
+  required String target,
+  required Future<T> Function() action,
 }) async {
   final started = DateTime.now();
   try {
     final result = await action();
-    await ref.read(operationHistoryProvider.notifier).record(OperationRecord(
+    await history.record(OperationRecord(
       id: started.microsecondsSinceEpoch.toString(),
       timestamp: DateTime.now(),
       operation: historyOperationLabel(operation),
@@ -337,7 +355,7 @@ Future<T> trackOperation<T>(
     return result;
   } on Object catch (error) {
     final cancelled = error is BackendException && error.code == 'cancelled';
-    await ref.read(operationHistoryProvider.notifier).record(OperationRecord(
+    await history.record(OperationRecord(
       id: started.microsecondsSinceEpoch.toString(),
       timestamp: DateTime.now(),
       operation: historyOperationLabel(operation),
