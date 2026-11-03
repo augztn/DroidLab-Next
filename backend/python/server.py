@@ -71,7 +71,7 @@ def bounded_timeout(value: Any, default: float, maximum: float) -> float:
 def adb_scan(cancel_event: threading.Event | None = None) -> list[dict[str, Any]]:
     result = run_capture([tool_path("adb"), "devices", "-l"], 10, cancel_event)
     if result.returncode:
-        raise RuntimeError(f"ADB scan failed: {result.stderr.strip() or result.returncode}")
+        raise RuntimeError(f"ADB scan failed: {result.stdout.strip() or result.returncode}")
     devices = []
     for line in result.stdout.splitlines()[1:]:
         fields = line.split()
@@ -87,7 +87,7 @@ def adb_scan(cancel_event: threading.Event | None = None) -> list[dict[str, Any]
 def fastboot_scan(cancel_event: threading.Event | None = None) -> list[dict[str, Any]]:
     result = run_capture([tool_path("fastboot"), "devices", "-l"], 8, cancel_event)
     if result.returncode:
-        raise RuntimeError(f"Fastboot scan failed: {result.stderr.strip() or result.returncode}")
+        raise RuntimeError(f"Fastboot scan failed: {result.stdout.strip() or result.returncode}")
     devices = []
     for line in result.stdout.splitlines():
         fields = line.split()
@@ -151,7 +151,7 @@ def require_adb(serial: Any, states: tuple[str, ...] = ("device",), cancel_event
                 "then refresh devices. No command was dispatched."
             )
         if result.returncode:
-            raise RuntimeError(f"ADB device scan failed: {result.stderr.strip() or result.returncode}")
+            raise RuntimeError(f"ADB device scan failed: {result.stdout.strip() or result.returncode}")
         raise RuntimeError(
             f"ADB target {serial!r} is not present in an allowed state ({', '.join(states)}). "
             "Refresh devices and select an online, authorized device. No command was dispatched."
