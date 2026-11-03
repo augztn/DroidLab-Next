@@ -131,6 +131,23 @@ class ProtocolTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             server.execute("id", "adb.command", args, threading.Event())
 
+    def test_advanced_adb_rejects_alternate_target_and_remote_server_selectors(self):
+        for selector in ("-t 7", "-d", "-e", "-H 192.0.2.10", "-P 5038", "-L tcp:localhost:5037"):
+            with self.subTest(selector=selector):
+                command_text = f"{selector} install app.apk"
+                args = {
+                    "serial": "SERIAL",
+                    "command_text": command_text,
+                    "confirmed": True,
+                    "confirmation": {
+                        "operation": "adb.command",
+                        "serial": "SERIAL",
+                        "command_text": command_text,
+                    },
+                }
+                with self.assertRaisesRegex(ValueError, "selected device serial"):
+                    server.execute("id", "adb.command", args, threading.Event())
+
     def test_advanced_adb_targeted_command_requires_selected_device(self):
         command_text = "install app.apk"
         args = {
