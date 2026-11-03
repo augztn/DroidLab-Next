@@ -398,8 +398,10 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           },
         }),
       );
-      if (mounted) setState(() => _output = result.data.toString());
-      ref.invalidate(deviceListProvider);
+      if (mounted) {
+        setState(() => _output = result.data.toString());
+        ref.invalidate(deviceListProvider);
+      }
     } catch (error) {
       if (mounted) setState(() => _output = error.toString());
     } finally {
