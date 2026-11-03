@@ -566,6 +566,9 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         disabled_result = run_streaming([*base, "-d", "--user", str(user_id)], timeout=30, cancel_event=cancel)
         if disabled_result.returncode:
             raise RuntimeError(f"Could not inspect disabled packages ({disabled_result.returncode}): {disabled_result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        system_result = run_streaming([*base, "-s", "-u", "--user", str(user_id)], timeout=30, cancel_event=cancel)
+        if system_result.returncode:
+            raise RuntimeError(f"Could not classify system packages ({system_result.returncode}): {system_result.stdout[-MAX_RETAINED_OUTPUT:]}")
         def package_lines(output: str) -> set[str]:
             packages: set[str] = set()
             for line in output.splitlines():
@@ -580,6 +583,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             return packages
         installed = package_lines(installed_result.stdout)
         disabled = package_lines(disabled_result.stdout)
+        system_packages = package_lines(system_result.stdout)
         system_prefixes = (
             "/system/", "/system_ext/", "/product/", "/vendor/", "/odm/",
             "/apex/", "/oem/", "/system_dlkm/", "/vendor_dlkm/", "/odm_dlkm/",
@@ -597,7 +601,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             if package not in packages:
                 packages[package] = {
                     "package": package, "apk_path": path if separator else "",
-                    "system": path.startswith(system_prefixes),
+                    "system": package in system_packages or path.startswith(system_prefixes),
                     "installed": package in installed, "disabled": package in disabled,
                 }
         return {"serial": serial, "user_id": user_id, "packages": [packages[key] for key in sorted(packages, key=str.casefold)]}
