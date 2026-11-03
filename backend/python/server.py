@@ -28,7 +28,7 @@ from droidlab.core.file_transfer import (
 
 PROTOCOL_VERSION = 1
 MAX_LINE_BYTES = 1024 * 1024
-MAX_RETAINED_OUTPUT = 2 * 1024 * 1024
+MAX_RETAINED_OUTPUT = 64 * 1024
 MAX_ACTIVE_REQUESTS = 8
 _WRITE_LOCK = threading.Lock()
 _ACTIVE_LOCK = threading.Lock()
@@ -128,7 +128,7 @@ def run_capture(command: list[str], timeout: float = 10,
         command,
         timeout=timeout,
         cancel_event=cancel_event,
-        max_output_chars=512 * 1024,
+        max_output_chars=MAX_RETAINED_OUTPUT,
     )
 
 def bounded_timeout(value: Any, default: float, maximum: float) -> float:
