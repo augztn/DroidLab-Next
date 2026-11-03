@@ -237,29 +237,3 @@ void main() {
   });
 }
 
-class _DeferredOperationStarter extends ConsumerWidget {
-  const _DeferredOperationStarter({
-    required this.gate,
-    required this.onStarted,
-  });
-
-  final Completer<void> gate;
-  final ValueChanged<Future<String>> onStarted;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) => TextButton(
-    onPressed: () {
-      onStarted(trackOperation<String>(
-        ref,
-        operation: 'Device refresh',
-        target: 'SERIAL-PRIVATE',
-        action: () async {
-          await gate.future;
-          return 'completed';
-        },
-        successSummary: (_) => 'Completed safely.',
-      ));
-    },
-    child: const Text('Start'),
-  );
-}
