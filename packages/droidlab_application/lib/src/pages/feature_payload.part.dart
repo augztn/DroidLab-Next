@@ -70,6 +70,12 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   }
 
   Future<void> _refreshMountedLocations() async {
+    final backendReady = Platform.isWindows
+        ? ref.read(backendReadyProvider.future)
+        : null;
+    final backendClient = Platform.isWindows
+        ? ref.read(backendClientProvider)
+        : null;
     final roots = <Directory>[];
     if (Platform.isLinux) {
       final home = Platform.environment['HOME'] ?? '';
@@ -90,8 +96,9 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
     final seen = <String>{};
     if (Platform.isWindows) {
       try {
-        await ref.read(backendReadyProvider.future);
-        final result = await ref.read(backendClientProvider).request(
+        await backendReady!;
+        if (!mounted) return;
+        final result = await backendClient!.request(
           'storage.removable_drives',
           const {},
         );
