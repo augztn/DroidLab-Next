@@ -74,6 +74,29 @@ void main() {
     );
   });
 
+  test('invalid UTF-8 on protocol stdout permanently fails the connection', () async {
+    final client = createClient(mode: 'invalid_utf8');
+    addTearDown(client.dispose);
+    await client.start();
+
+    await expectLater(
+      client.request('protocol.invalid_utf8', const {}),
+      throwsA(isA<BackendException>().having(
+        (error) => error.code,
+        'code',
+        'protocol',
+      )),
+    );
+    await expectLater(
+      client.request('must.not.be.sent', const {}),
+      throwsA(isA<BackendException>().having(
+        (error) => error.code,
+        'code',
+        'protocol',
+      )),
+    );
+  });
+
   test('timeout cancels request and ignores a late completion', () async {
     final client = createClient(mode: 'slow');
     addTearDown(client.dispose);
