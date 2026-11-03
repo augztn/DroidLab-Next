@@ -567,8 +567,17 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if disabled_result.returncode:
             raise RuntimeError(f"Could not inspect disabled packages ({disabled_result.returncode}): {disabled_result.stdout[-MAX_RETAINED_OUTPUT:]}")
         def package_lines(output: str) -> set[str]:
-            return {line.strip()[len("package:"):] for line in output.splitlines()
-                    if line.strip().startswith("package:")}
+            packages: set[str] = set()
+            for line in output.splitlines():
+                value = line.strip()
+                if not value.startswith("package:"):
+                    continue
+                package_entry = value[len("package:"):]
+                # With -f, PackageManager emits package:<apk-path>=<package-id>.
+                # Without -f, it emits package:<package-id>.
+                path, separator, package = package_entry.rpartition("=")
+                packages.add(package if separator else package_entry)
+            return packages
         installed = package_lines(installed_result.stdout)
         disabled = package_lines(disabled_result.stdout)
         system_prefixes = (
