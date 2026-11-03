@@ -92,6 +92,21 @@ final deviceListProvider =
 });
 
 
+/// Resolve a device-manager target without guessing when several are connected.
+Map<String, dynamic>? resolveDeviceManagerTarget(
+  Iterable<Map<String, dynamic>> devices,
+  String? selectedSerial,
+) {
+  final available = devices.toList(growable: false);
+  if (selectedSerial != null && selectedSerial.isNotEmpty) {
+    for (final device in available) {
+      if (device['serial'] == selectedSerial) return device;
+    }
+    return null;
+  }
+  return available.length == 1 ? available.single : null;
+}
+
 /// Resolve the dashboard target without silently choosing among devices.
 Map<String, dynamic>? resolveDashboardAdbTarget(
   Iterable<Map<String, dynamic>> devices,
