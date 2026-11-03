@@ -147,7 +147,7 @@ class BackendClient {
 
   void _handleLine(String line) {
     if (utf8.encode(line).length > config.maxLineBytes) {
-      _failAll(const BackendException('Backend emitted an oversized protocol message.', code: 'protocol'));
+      _protocolFailure('Backend emitted an oversized protocol message.');
       return;
     }
     try {
@@ -187,8 +187,15 @@ class BackendClient {
         throw FormatException('Unknown protocol event type: $type');
       }
     } on Object catch (error) {
-      _recordDiagnostic('Protocol decode error: $error');
+      _protocolFailure('Protocol decode error: $error');
     }
+  }
+
+  void _protocolFailure(String message) {
+    _recordDiagnostic(message);
+    // stdout is protocol-only. Once a frame is invalid, no pending request can
+    // safely rely on the stream to deliver its completion.
+    _failAll(BackendException(message, code: 'protocol'));
   }
 
   void _recordDiagnostic(String line) {
