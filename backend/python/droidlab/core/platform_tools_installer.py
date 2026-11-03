@@ -290,7 +290,35 @@ def install_platform_tools(
 
             backup = destination.parent / f".{destination.name}.previous"
             if backup.exists() or backup.is_symlink():
-                _remove_path(backup)
+                if destination.exists() or destination.is_symlink():
+                    raise RuntimeError(
+                        f"An earlier Platform-Tools backup exists at {backup}; "
+                        "both installations were preserved for manual recovery."
+                    )
+                if backup.is_symlink() or not backup.is_dir():
+                    raise RuntimeError(
+                        f"The previous Platform-Tools backup is not a regular directory: {backup}"
+                    )
+                backup_adb = backup / adb_name
+                backup_fastboot = backup / fastboot_name
+                if (
+                    backup_adb.is_symlink()
+                    or backup_fastboot.is_symlink()
+                    or not backup_adb.is_file()
+                    or not backup_fastboot.is_file()
+                ):
+                    raise RuntimeError(
+                        f"The previous Platform-Tools backup is incomplete and was preserved: {backup}"
+                    )
+                try:
+                    _verified_probe(probe, backup_adb, ["version"])
+                    _verified_probe(probe, backup_fastboot, ["--version"])
+                except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                    raise RuntimeError(
+                        f"The previous Platform-Tools backup could not be verified and was preserved: {backup}"
+                    ) from exc
+                backup.rename(destination)
+
             moved_old = False
             try:
                 if destination.exists():
