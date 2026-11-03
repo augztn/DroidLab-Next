@@ -177,8 +177,21 @@ class BackendClient {
       if (type == 'output') {
         _events.add(BackendOutput(requestId: id, stream: value['stream'] as String? ?? 'stdout', line: value['line'] as String? ?? ''));
       } else if (type == 'preflight') {
-        final command = (value['command'] as List<dynamic>? ?? const []).cast<String>();
-        _events.add(BackendPreflight(requestId: id, target: value['target'] as String? ?? '', command: command, destructive: value['destructive'] as bool? ?? false));
+        final rawCommand = value['command'];
+        final target = value['target'];
+        final destructive = value['destructive'];
+        if (rawCommand is! List ||
+            rawCommand.any((argument) => argument is! String) ||
+            target is! String ||
+            destructive is! bool) {
+          throw const FormatException('Invalid preflight event payload.');
+        }
+        _events.add(BackendPreflight(
+          requestId: id,
+          target: target,
+          command: List<String>.unmodifiable(rawCommand.cast<String>()),
+          destructive: destructive,
+        ));
       } else if (type == 'accepted') {
         _events.add(BackendAccepted(requestId: id));
       } else if (type == 'completed') {
