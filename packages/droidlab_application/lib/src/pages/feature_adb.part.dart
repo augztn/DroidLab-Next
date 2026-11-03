@@ -281,19 +281,11 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
           'Select an authorized ADB device for Android shell commands. Host commands must start with adb; Fastboot commands must start with fastboot.');
       return;
     }
-    final potentiallyDestructive = RegExp(
-      r'(^|[;&|]\s*)(rm\s+-.*r|mkfs(\.[\w-]+)?|dd\s|reboot\\b|poweroff\\b|shutdown\\b|setprop\\b|pm\s+(uninstall|disable-user)\\b|svc\b.*\bdisable\\b|wipe\\b|format\\b)',
-      caseSensitive: false,
-    ).hasMatch(command);
     final confirmed = await _confirmCommand(
-      title: potentiallyDestructive
-          ? 'Potentially destructive device-shell command'
-          : 'Confirm Android shell command',
+      title: 'Confirm Android shell command',
       target: serial,
       command: 'adb -s $serial shell $command',
-      warning: potentiallyDestructive
-          ? 'This command may modify system state or remove data. Review it carefully before execution.'
-          : 'Review the exact device target and command before dispatch.',
+      warning: 'Android shell commands are unrestricted and may modify system state, change device behavior, or remove data. Review the exact target and command before execution.',
     );
     if (!confirmed) return;
 
