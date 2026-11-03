@@ -29,6 +29,7 @@ from droidlab.core.file_transfer import (
 PROTOCOL_VERSION = 1
 MAX_LINE_BYTES = 1024 * 1024
 MAX_RETAINED_OUTPUT = 64 * 1024
+MAX_PROTOCOL_OUTPUT_CHARS = 64 * 1024
 MAX_ACTIVE_REQUESTS = 8
 _WRITE_LOCK = threading.Lock()
 _ACTIVE_LOCK = threading.Lock()
@@ -117,7 +118,28 @@ def emit(message: dict[str, Any]) -> None:
         sys.stdout.write(encoded + "\n")
         sys.stdout.flush()
 
+def _bound_protocol_result(value: Any) -> Any:
+    """Bound user-visible command output without truncating internal parsing."""
+    if isinstance(value, dict):
+        bounded = {}
+        for key, item in value.items():
+            if key == "output" and isinstance(item, str) and len(item) > MAX_PROTOCOL_OUTPUT_CHARS:
+                omitted = len(item) - MAX_PROTOCOL_OUTPUT_CHARS
+                bounded[key] = (
+                    item[:MAX_PROTOCOL_OUTPUT_CHARS]
+                    + f"\\n[DroidLab: output truncated; {omitted} additional characters omitted]"
+                )
+            else:
+                bounded[key] = _bound_protocol_result(item)
+        return bounded
+    if isinstance(value, list):
+        return [_bound_protocol_result(item) for item in value]
+    return value
+
+
 def response(request_id: str, kind: str, **kwargs: Any) -> None:
+    if kind == "completed" and isinstance(kwargs.get("result"), dict):
+        kwargs["result"] = _bound_protocol_result(kwargs["result"])
     emit({"id": request_id, "type": kind, **kwargs})
 
 tool_path = resolve_tool_path
