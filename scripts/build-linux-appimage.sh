@@ -41,6 +41,10 @@ install -m 0755 "$PAYLOAD_DUMPER" "$APPDIR/usr/bin/payload-dumper-go"
   echo "Bundled payload-dumper-go failed its startup smoke test." >&2
   exit 1
 }
+"$APPDIR/usr/bin/payload-dumper-go" --help >/dev/null 2>&1 || {
+  echo "Bundled payload-dumper-go failed its startup smoke test." >&2
+  exit 1
+}
 # Also ship the CLI beside the regular extracted Linux desktop bundle.
 install -m 0755 "$PAYLOAD_DUMPER" "apps/desktop/build/linux/x64/release/bundle/payload-dumper-go"
 wget -q "https://raw.githubusercontent.com/ssut/payload-dumper-go/${BACKEND_VERSION}/LICENSE" -O "$APPDIR/usr/share/licenses/payload-dumper-go/LICENSE"
