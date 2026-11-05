@@ -20,6 +20,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   String? _cachedPartitionQuery;
   List<Map<String, dynamic>> _cachedVisibleParts = const [];
   String _status = 'Drop an OTA ZIP or payload BIN file here, or enter its path.';
+  String _lastSourcePath = '';
   bool _busy = false;
   bool _sha = false;
   double? _progress;
@@ -31,6 +32,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
         Platform.environment['USERPROFILE'] ??
         Directory.current.path;
     _output.text = '$home${Platform.pathSeparator}DroidLab';
+    _source.addListener(_handleSourceChanged);
     _events = ref.read(backendClientProvider).events.listen((event) {
       if (event is BackendOutput && event.stream == 'payload' && mounted) {
         final match = RegExp(r'(\d{1,3})%').firstMatch(event.line);
@@ -52,16 +54,38 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   @override
   void dispose() {
     unawaited(_events?.cancel() ?? Future<void>.value());
+    _source.removeListener(_handleSourceChanged);
     _source.dispose();
     _output.dispose();
     _partitionFilter.dispose();
     super.dispose();
   }
 
+  void _handleSourceChanged() {
+    final source = _source.text.trim();
+    if (source == _lastSourcePath) return;
+    _lastSourcePath = source;
+    if (!mounted) return;
+    setState(() {
+      _parts = [];
+      _selected.clear();
+      _cachedPartitionQuery = null;
+      _cachedVisibleParts = const [];
+      _status = source.isEmpty
+          ? 'Choose an OTA ZIP or payload.bin file.'
+          : 'Input changed. Inspect the new payload to load its partitions.';
+    });
+  }
+
+  void _setSourcePath(String path) {
+    if (_source.text == path) return;
+    _source.text = path;
+  }
+
   Future<void> _browseSource() async {
     const group = XTypeGroup(label: 'OTA and payload files', extensions: ['zip', 'bin']);
     final file = await openFile(acceptedTypeGroups: [group]);
-    if (file != null && mounted) setState(() => _source.text = file.path);
+    if (file != null && mounted) _setSourcePath(file.path);
   }
 
   Future<void> _browseOutput() async {
@@ -174,7 +198,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
         XTypeGroup(label: 'OTA and payload files', extensions: ['zip', 'bin']),
       ],
     );
-    if (location != null && mounted) setState(() => _source.text = location.path);
+    if (location != null && mounted) _setSourcePath(location.path);
   }
 
   Future<void> _openOutput() async {
@@ -190,7 +214,21 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   }
 
   void _drop(DropDoneDetails detail) {
-    if (detail.files.isNotEmpty) setState(() => _source.text = detail.files.first.path);
+    final candidates = detail.files
+        .where((file) {
+          final path = file.path.toLowerCase();
+          return path.endsWith('.bin') || path.endsWith('.zip');
+        })
+        .toList(growable: false);
+    if (candidates.isEmpty) {
+      setState(() => _status = 'Drop a payload.bin file or Android OTA ZIP package.');
+      return;
+    }
+    final chosen = candidates.firstWhere(
+      (file) => file.name.toLowerCase() == 'payload.bin',
+      orElse: () => candidates.first,
+    );
+    _setSourcePath(chosen.path);
   }
 
   Future<void> _inspect() async {
