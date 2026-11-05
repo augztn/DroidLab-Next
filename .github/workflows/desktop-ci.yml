@@ -1,7 +1,7 @@
 name: Desktop CI
 on:
   push:
-    branches: [main, 'rewrite/**', 'hardening/**', 'feature/**']
+    branches: [main, 'rewrite/**', 'hardening/**', 'feature/**', 'ui/**']
   pull_request:
     branches: [main, 'rewrite/**']
   workflow_dispatch:
