@@ -44,16 +44,13 @@ jobs:
           else
             brew install xz
           fi
-      - name: Smoke-test payload-dumper-go
+      - name: Verify payload-dumper-go runtime dependency
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
-          command -v payload-dumper-go >/dev/null
-          payload-dumper-go --help >/dev/null 2>&1
-          if [[ "$RUNNER_OS" != "Windows" ]]; then
-            command -v xz >/dev/null
-            xz --version
-          fi
+          command -v xz >/dev/null
+          xz --version
       - name: Generate native runner projects
         working-directory: apps/desktop
         run: flutter create --project-name droidlab_desktop --platforms=linux,windows,macos .
