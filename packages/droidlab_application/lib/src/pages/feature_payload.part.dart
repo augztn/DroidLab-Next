@@ -270,16 +270,43 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
         LayoutBuilder(builder: (context, constraints) {
           final wide = constraints.maxWidth >= 1000;
           final source = Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Expanded(child: _TextField(controller: _source, label: 'OTA ZIP or payload.bin source path')),
+            Expanded(child: _TextField(
+              controller: _source,
+              label: 'INPUT FILE · OTA ZIP or payload.bin',
+            )),
             const SizedBox(width: 8),
-            OutlinedButton(onPressed: _browseSource, child: const Text('Browse…')),
+            Tooltip(
+              message: 'Browse for the OTA ZIP or payload.bin input file',
+              child: OutlinedButton.icon(
+                onPressed: _browseSource,
+                icon: const Icon(Icons.file_open_outlined),
+                label: const Text('Browse input'),
+              ),
+            ),
           ]);
           final output = Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Expanded(child: _TextField(controller: _output, label: 'Non-overwriting publication directory')),
+            Expanded(child: _TextField(
+              controller: _output,
+              label: 'OUTPUT FOLDER · extracted image destination',
+            )),
             const SizedBox(width: 8),
-            OutlinedButton(onPressed: _browseOutput, child: const Text('Choose…')),
+            Tooltip(
+              message: 'Choose a destination folder for extracted images',
+              child: OutlinedButton.icon(
+                onPressed: _browseOutput,
+                icon: const Icon(Icons.folder_open_outlined),
+                label: const Text('Browse output'),
+              ),
+            ),
             const SizedBox(width: 6),
-            OutlinedButton(onPressed: _openOutput, child: const Text('Open folder')),
+            Tooltip(
+              message: 'Open the selected output folder in your file manager',
+              child: OutlinedButton.icon(
+                onPressed: _openOutput,
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Open folder'),
+              ),
+            ),
           ]);
           return wide
             ? Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -314,11 +341,11 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
               ),
               OutlinedButton(
                 onPressed: _selectedMount == null ? null : _useMountedOutput,
-                child: const Text('Use for output'),
+                child: const Text('Set as output folder'),
               ),
               OutlinedButton(
                 onPressed: _selectedMount == null ? null : _browseMountedInput,
-                child: const Text('Browse drive'),
+                child: const Text('Choose input from drive'),
               ),
             ],
           );
