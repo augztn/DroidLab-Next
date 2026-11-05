@@ -1,7 +1,7 @@
 name: Desktop CI
 on:
   push:
-    branches: [main, 'rewrite/**', 'hardening/**']
+    branches: [main, 'rewrite/**', 'hardening/**', 'feature/**']
   pull_request:
     branches: [main, 'rewrite/**']
   workflow_dispatch:
@@ -48,9 +48,14 @@ jobs:
           path: apps/desktop/pubspec.lock
           if-no-files-found: error
           retention-days: 7
-      - name: Analyze
-        working-directory: apps/desktop
-        run: flutter analyze --fatal-infos
+      - name: Analyze desktop and all Dart packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for package in apps/desktop packages/droidlab_domain packages/droidlab_design_system packages/droidlab_application packages/droidlab_backend_bridge; do
+            echo "Analyzing $package"
+            (cd "$package" && flutter analyze --fatal-infos)
+          done
       - name: Unit and widget tests
         working-directory: apps/desktop
         run: flutter test
@@ -62,6 +67,9 @@ jobs:
         run: flutter test
       - name: Application package tests
         working-directory: packages/droidlab_application
+        run: flutter test
+      - name: Backend bridge lifecycle tests
+        working-directory: packages/droidlab_backend_bridge
         run: flutter test
       - name: Build desktop release
         working-directory: apps/desktop
@@ -100,7 +108,11 @@ jobs:
       - name: Install AppImage tooling
         if: runner.os == 'Linux'
         run: |
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O "$RUNNER_TEMP/appimagetool"
+          set -euo pipefail
+          url='https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage'
+          expected='ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0'
+          wget -q "$url" -O "$RUNNER_TEMP/appimagetool"
+          echo "$expected  $RUNNER_TEMP/appimagetool" | sha256sum --check --status
           sudo install -m 0755 "$RUNNER_TEMP/appimagetool" /usr/local/bin/appimagetool
       - name: Build Linux AppImage
         if: runner.os == 'Linux'

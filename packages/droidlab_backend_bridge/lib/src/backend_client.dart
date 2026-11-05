@@ -27,7 +27,7 @@ class BackendClient {
   final StreamController<BackendEvent> _events = StreamController.broadcast();
   final List<String> _diagnostics = [];
   final Random _random = Random.secure();
-  bool _closing = false, _disposed = false;
+  bool _closing = false, _disposed = false, _protocolFailed = false;
 
   Stream<BackendEvent> get events => _events.stream;
   List<String> get diagnostics => List.unmodifiable(_diagnostics);
@@ -36,6 +36,12 @@ class BackendClient {
 
   Future<void> start() {
     if (_disposed) return Future.error(const BackendException('Backend client has been disposed.'));
+    if (_protocolFailed) {
+      return Future.error(const BackendException(
+        'Backend connection is unusable after a protocol failure. Dispose and create a new client.',
+        code: 'protocol',
+      ));
+    }
     if (_process != null) return Future.value();
     final inFlight = _starting;
     if (inFlight != null) return inFlight;
@@ -63,8 +69,8 @@ class BackendClient {
           .transform(const LineSplitter())
           .listen(
         _handleLine,
-        onError: (Object error, StackTrace stack) => _failAll(
-          BackendException('Backend stdout stream failed.', cause: error),
+        onError: (Object error, StackTrace stack) => _protocolFailure(
+          'Backend stdout stream failed: $error',
         ),
         onDone: _handleExit,
       );
@@ -94,8 +100,17 @@ class BackendClient {
   }
 
   Future<BackendOperation> startOperation(String operation, Map<String, dynamic> args) async {
-    if (_disposed || _closing) throw const BackendException('Backend is not accepting requests.');
+    if (_disposed || _closing || _protocolFailed) {
+      throw const BackendException('Backend is not accepting requests.', code: 'protocol');
+    }
     if (_process == null) await start();
+    // The protocol can fail while asynchronous startup is completing.
+    if (_protocolFailed) {
+      throw const BackendException(
+        'Backend connection is unusable after a protocol failure.',
+        code: 'protocol',
+      );
+    }
     // Disposal or an unexpected process exit can race with asynchronous start.
     // Capture and validate the process before registering/writing a request.
     final process = _process;
@@ -147,7 +162,7 @@ class BackendClient {
 
   void _handleLine(String line) {
     if (utf8.encode(line).length > config.maxLineBytes) {
-      _failAll(const BackendException('Backend emitted an oversized protocol message.', code: 'protocol'));
+      _protocolFailure('Backend emitted an oversized protocol message.');
       return;
     }
     try {
@@ -162,8 +177,21 @@ class BackendClient {
       if (type == 'output') {
         _events.add(BackendOutput(requestId: id, stream: value['stream'] as String? ?? 'stdout', line: value['line'] as String? ?? ''));
       } else if (type == 'preflight') {
-        final command = (value['command'] as List<dynamic>? ?? const []).cast<String>();
-        _events.add(BackendPreflight(requestId: id, target: value['target'] as String? ?? '', command: command, destructive: value['destructive'] as bool? ?? false));
+        final rawCommand = value['command'];
+        final target = value['target'];
+        final destructive = value['destructive'];
+        if (rawCommand is! List ||
+            rawCommand.any((argument) => argument is! String) ||
+            target is! String ||
+            destructive is! bool) {
+          throw const FormatException('Invalid preflight event payload.');
+        }
+        _events.add(BackendPreflight(
+          requestId: id,
+          target: target,
+          command: List<String>.unmodifiable(rawCommand.cast<String>()),
+          destructive: destructive,
+        ));
       } else if (type == 'accepted') {
         _events.add(BackendAccepted(requestId: id));
       } else if (type == 'completed') {
@@ -187,8 +215,16 @@ class BackendClient {
         throw FormatException('Unknown protocol event type: $type');
       }
     } on Object catch (error) {
-      _recordDiagnostic('Protocol decode error: $error');
+      _protocolFailure('Protocol decode error: $error');
     }
+  }
+
+  void _protocolFailure(String message) {
+    _protocolFailed = true;
+    _recordDiagnostic(message);
+    // stdout is protocol-only. Once a frame is invalid, no pending request can
+    // safely rely on the stream to deliver its completion.
+    _failAll(BackendException(message, code: 'protocol'));
   }
 
   void _recordDiagnostic(String line) {

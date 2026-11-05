@@ -190,6 +190,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
                 ? 'bootloader'
                 : null;
         final transitioned = await _waitForDeviceTransport(
+          context: context,
           ref: ref,
           serial: serial,
           transport: expectedTransport,
@@ -397,8 +398,10 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           },
         }),
       );
-      if (mounted) setState(() => _output = result.data.toString());
-      ref.invalidate(deviceListProvider);
+      if (mounted) {
+        setState(() => _output = result.data.toString());
+        ref.invalidate(deviceListProvider);
+      }
     } catch (error) {
       if (mounted) setState(() => _output = error.toString());
     } finally {
@@ -455,209 +458,338 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
   @override
   Widget build(BuildContext context) {
     final devicesAsync = ref.watch(deviceListProvider);
-    final devices = (devicesAsync.valueOrNull?['devices'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .where((device) => device['transport'] == 'fastboot')
-        .toList();
-    final serials = devices.map((device) => device['serial'] as String).toList();
-    // A single connected Fastboot device is unambiguous, so select it
-    // automatically. Multiple devices still require an explicit user choice.
-    final currentSelection = _selectedSerial ?? _serial.text.trim();
+    final globalTarget = ref.watch(selectedTargetSerialProvider);
+    final allDevices = (devicesAsync.valueOrNull?['devices'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>().toList();
+    final fastbootDevices = allDevices.where((device) => device['transport'] == 'fastboot').toList();
+    final serials = fastbootDevices.map((device) => device['serial'] as String).toList();
+    final currentSelection = globalTarget ?? _selectedSerial ?? _serial.text.trim();
     final selectedSerial = serials.contains(currentSelection)
         ? currentSelection
-        : serials.length == 1
-            ? serials.single
+        : fastbootDevices.length == 1
+            ? fastbootDevices.single['serial'] as String
             : null;
+    if (selectedSerial != null && selectedSerial != globalTarget) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && ref.read(selectedTargetSerialProvider) == globalTarget) {
+          ref.read(selectedTargetSerialProvider.notifier).state = selectedSerial;
+        }
+      });
+    }
     if (selectedSerial != null && selectedSerial != _serial.text && !_busy) {
       _serial.text = selectedSerial;
     }
-    return _PageFrame(
-    title: 'Fastboot Toolkit',
-    subtitle: 'Destructive actions require fresh target validation and an explicit confirmation.',
-    child: ListView(children: [
-      Row(children: [
+    final matchingDevices = fastbootDevices.where((device) => device['serial'] == selectedSerial).toList();
+    final selectedDevice = matchingDevices.isEmpty ? null : matchingDevices.first;
+    final fastbootTarget = isFastbootDeviceReady(selectedDevice);
+    final targetSelector = SizedBox(
+      width: 390,
+      child: Row(children: [
         Expanded(child: DropdownButtonFormField<String>(
           initialValue: selectedSerial,
           isExpanded: true,
-          decoration: const InputDecoration(
-            labelText: 'Detected Fastboot devices',
-            border: OutlineInputBorder(),
-          ),
-          hint: const Text('Select a Fastboot device'),
-          items: devices.map((device) => DropdownMenuItem<String>(
-            value: device['serial'] as String,
-            child: Text(
-              '${device['serial']} · ${device['mode'] == 'fastbootd' ? 'Fastbootd' : device['mode'] == 'bootloader' ? 'Bootloader Fastboot' : 'Fastboot mode unknown'}',
-              overflow: TextOverflow.ellipsis,
-            ),
-          )).toList(),
-          onChanged: (value) => setState(() {
-            _selectedSerial = value;
-            _serial.text = value ?? '';
-          }),
-        )),
-        const SizedBox(width: 8),
-        IconButton.filledTonal(
-          tooltip: 'Refresh devices',
-          onPressed: _busy ? null : () => ref.invalidate(deviceListProvider),
-          icon: const Icon(Icons.refresh),
-        ),
-      ]),
-      if (devicesAsync.hasError) Text('Device scan failed: ${devicesAsync.error}'),
-      if (devices.isEmpty)
-        const Padding(
-          padding: EdgeInsets.only(top: 8),
-          child: Text('No Fastboot device detected. Use ADB Toolkit → Fastbootd to enter userspace Fastboot, or reboot to bootloader, then refresh.'),
-        ),
-      const SizedBox(height: 12),
-      if (_discoveredPartitions.isNotEmpty)
-        DropdownButtonFormField<String>(
-          initialValue: _discoveredPartitions.any((item) => item['name'] == _partition.text)
-              ? _partition.text
-              : null,
-          decoration: const InputDecoration(
-            labelText: 'Discovered partitions',
-            border: OutlineInputBorder(),
-          ),
-          items: _discoveredPartitions.map((item) {
-            final name = item['name'] as String;
-            final size = item['size']?.toString();
-            return DropdownMenuItem<String>(
-              value: name,
-              child: Text(size == null ? name : '$name · $size'),
-            );
+          decoration: const InputDecoration(labelText: 'Target Serial'),
+          hint: const Text('Select a device'),
+          items: fastbootDevices.map((device) {
+            final serial = device['serial'] as String;
+            final model = device['model']?.toString() ?? device['product']?.toString() ?? 'Android';
+            final transport = device['transport']?.toString() ?? 'unknown';
+            final mode = device['mode']?.toString() ?? transport;
+            return DropdownMenuItem(value: serial,
+              child: Text('$serial ($model · $mode)', overflow: TextOverflow.ellipsis));
           }).toList(),
-          onChanged: (value) {
-            if (value != null) setState(() => _partition.text = value);
+          onChanged: _busy ? null : (value) {
+            setState(() {
+              _selectedSerial = value;
+              _serial.text = value ?? '';
+            });
+            ref.read(selectedTargetSerialProvider.notifier).state = value;
           },
-        ),
-      _TextField(controller: _partition, label: 'Partition name', hint: 'boot_a'),
-      const SizedBox(height: 12),
-      Row(children: [
-        Expanded(child: DropTarget(
-          onDragDone: _acceptImageDrop,
-          child: _TextField(controller: _image, label: 'Image path', hint: 'Drop a partition .img or enter its path'),
         )),
-        const SizedBox(width: 8),
-        OutlinedButton(onPressed: _browseFastbootImage, child: const Text('Browse image…')),
+        const SizedBox(width: 6),
+        IconButton(tooltip: 'Refresh devices', onPressed: _busy ? null : () => ref.invalidate(deviceListProvider),
+          icon: const Icon(Icons.refresh)),
       ]),
-      const SizedBox(height: 12),
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        OutlinedButton.icon(
-          onPressed: _busy || selectedSerial == null ? null : _discoverPartitions,
-          icon: const Icon(Icons.list_alt),
-          label: const Text('Discover partitions'),
+    );
+    Widget panel(String title, String subtitle, List<Widget> children) {
+      final icon = switch (title) {
+        'Guarded Partition Flash (fastboot.flash)' => Icons.system_update_alt_rounded,
+        'A/B Active Slot Switcher (fastboot.set_active)' => Icons.swap_horiz_rounded,
+        'Guarded Erase & Factory Wipe' => Icons.delete_sweep_outlined,
+        'Mode-Aware Fastboot Reboot' => Icons.restart_alt_rounded,
+        _ => Icons.terminal_rounded,
+      };
+      return Card(
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(21),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.11),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(icon, size: 21, color: Theme.of(context).colorScheme.primary),
+              ),
+              const SizedBox(width: 13),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700, letterSpacing: -0.2)),
+                const SizedBox(height: 4),
+                Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.45)),
+              ])),
+            ]),
+            const SizedBox(height: 19),
+            ...children,
+          ]),
         ),
-        OutlinedButton.icon(
-          onPressed: _busy || selectedSerial == null ? null : () => _readFastbootInfo(selectedSerial),
-          icon: const Icon(Icons.info_outline),
-          label: const Text('Device info'),
+      );
+    }
+    final flashPanel = panel(
+      'Guarded Partition Flash (fastboot.flash)',
+      'Validates the partition allowlist, unlocked bootloader state, and fresh transport scan before dispatch.',
+      [
+        if (_discoveredPartitions.isNotEmpty)
+          DropdownButtonFormField<String>(
+            initialValue: _discoveredPartitions.any((item) => item['name'] == _partition.text) ? _partition.text : null,
+            decoration: const InputDecoration(labelText: 'Discovered partitions'),
+            items: _discoveredPartitions.map((item) {
+              final name = item['name'] as String;
+              final size = item['size']?.toString();
+              return DropdownMenuItem(value: name, child: Text(size == null ? name : '$name · $size'));
+            }).toList(),
+            onChanged: (value) { if (value != null) setState(() => _partition.text = value); },
+          ),
+        _TextField(controller: _partition, label: 'Target partition (ASCII allowlist + _a / _b suffix)', hint: 'boot'),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: DropTarget(
+            onDragDone: _acceptImageDrop,
+            child: _TextField(controller: _image, label: 'Verified image path (.img)', hint: 'Drop a partition image or enter its path'),
+          )),
+          const SizedBox(width: 8),
+          OutlinedButton(onPressed: _browseFastbootImage, child: const Text('Browse image…')),
+        ]),
+        const SizedBox(height: 12),
+        FilledButton(
+          onPressed: _busy || !fastbootTarget ? null : () => _mutate('fastboot.flash'),
+          child: const Text('Preview & Confirm Flash'),
         ),
-        FilledButton.icon(
-          onPressed: _busy ? null : () => _mutate('fastboot.flash'),
-          icon: const Icon(Icons.flash_on),
-          label: const Text('Flash image'),
-        ),
-        OutlinedButton.icon(
-          onPressed: _busy ? null : () => _mutate('fastboot.erase'),
-          icon: const Icon(Icons.delete_outline),
-          label: const Text('Erase selected partition'),
-        ),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          OutlinedButton.icon(
+            onPressed: _busy || !fastbootTarget ? null : _discoverPartitions,
+            icon: const Icon(Icons.list_alt), label: const Text('Discover partitions')),
+          OutlinedButton.icon(
+            onPressed: _busy || !fastbootTarget ? null : () => _readFastbootInfo(selectedSerial!),
+            icon: const Icon(Icons.info_outline), label: const Text('Device info')),
+        ]),
+      ],
+    );
+    final slotPanel = panel(
+      'A/B Active Slot Switcher (fastboot.set_active)',
+      'Uses primary --set-active syntax with automatic legacy set_active fallback.',
+      [
+        Row(children: [
+          Expanded(child: FilledButton(
+            onPressed: _busy || !fastbootTarget ? null : () => _setActiveSlot('a'),
+            child: const Text('Set Active Slot A'),
+          )),
+          const SizedBox(width: 10),
+          Expanded(child: OutlinedButton(
+            onPressed: _busy || !fastbootTarget ? null : () => _setActiveSlot('b'),
+            child: const Text('Set Active Slot B'),
+          )),
+        ]),
+        const SizedBox(height: 8),
         OutlinedButton(
-          onPressed: _busy ? null : () => _rebootFastboot('system'),
-          child: const Text('Reboot system'),
-        ),
-        OutlinedButton(
-          onPressed: _busy ? null : () => _rebootFastboot('recovery'),
-          child: const Text('Reboot recovery'),
-        ),
-        OutlinedButton(
-          onPressed: _busy ? null : () => _rebootFastboot('bootloader'),
-          child: const Text('Reboot bootloader'),
-        ),
-        FilledButton.tonal(
-          onPressed: _busy ? null : () => _rebootFastboot('fastbootd'),
-          child: const Text('Reboot to Fastbootd'),
-        ),
-      ]),
-      const SizedBox(height: 16),
-      Text('ERASE & FORMAT', style: Theme.of(context).textTheme.titleSmall),
-      const SizedBox(height: 8),
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        OutlinedButton(
-          onPressed: _busy ? null : () {
-            _partition.text = 'cache';
-            _mutate('fastboot.erase');
-          },
-          child: const Text('Erase cache'),
-        ),
-        OutlinedButton(
-          onPressed: _busy ? null : () {
-            _partition.text = 'userdata';
-            _mutate('fastboot.erase');
-          },
-          child: const Text('Erase userdata'),
-        ),
-        FilledButton.tonal(
-          onPressed: _busy ? null : _wipeUserdata,
-          child: const Text('Wipe data (fastboot -w)'),
-        ),
-      ]),
-      const SizedBox(height: 16),
-      Text('BOOT SLOT', style: Theme.of(context).textTheme.titleSmall),
-      const SizedBox(height: 8),
-      Wrap(spacing: 8, children: [
-        OutlinedButton(
-          onPressed: _busy ? null : () => _setActiveSlot('a'),
-          child: const Text('Set active slot A'),
-        ),
-        OutlinedButton(
-          onPressed: _busy ? null : () => _setActiveSlot('b'),
-          child: const Text('Set active slot B'),
-        ),
-        FilledButton.tonal(
-          onPressed: _busy || selectedSerial == null ? null : () => _setActiveSlot('other'),
+          onPressed: _busy || !fastbootTarget ? null : () => _setActiveSlot('other'),
           child: const Text('Switch to other slot'),
         ),
-      ]),
-      const SizedBox(height: 16),
-      Text('ADVANCED FASTBOOT COMMAND', style: Theme.of(context).textTheme.titleSmall),
-      const SizedBox(height: 8),
-      _TextField(
-        controller: _advancedCommand,
-        label: 'Fastboot arguments',
-        hint: 'getvar all · flashing get_unlock_ability',
-        onChanged: (value) => setState(() {
-          _advancedPreview = _fastbootCommandPreview(value);
-        }),
-      ),
-      const SizedBox(height: 8),
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        OutlinedButton(
-          onPressed: () => setState(() {
-            _advancedPreview = _fastbootCommandPreview(_advancedCommand.text);
-          }),
-          child: const Text('Preview command'),
-        ),
-        FilledButton(
-          onPressed: _busy ? null : _runAdvancedCommand,
-          child: const Text('Run command'),
-        ),
-        TextButton(
-          onPressed: () => setState(() {
-            _advancedCommand.clear();
-            _advancedPreview = '';
-          }),
-          child: const Text('Clear command'),
-        ),
-      ]),
-      if (_advancedPreview.isNotEmpty)
-        SelectableText(_advancedPreview, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace')),
-      const SizedBox(height: 18),
-      if (_busy) const LinearProgressIndicator(),
-      _OutputPanel(output: _output.isEmpty ? 'Fastboot operation results appear here.' : _output),
-    ]),
-  );
+      ],
+    );
+    final erasePanel = panel(
+      'Guarded Erase & Factory Wipe',
+      'Destructive partition erase requires exact partition confirmation.',
+      [
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          OutlinedButton(
+            onPressed: _busy || !fastbootTarget ? null : () => _mutate('fastboot.erase'),
+            child: const Text('Erase selected partition'),
+          ),
+          OutlinedButton(
+            onPressed: _busy || !fastbootTarget ? null : () { _partition.text = 'cache'; _mutate('fastboot.erase'); },
+            child: const Text('Erase cache'),
+          ),
+          OutlinedButton(
+            onPressed: _busy || !fastbootTarget ? null : () { _partition.text = 'userdata'; _mutate('fastboot.erase'); },
+            child: const Text('Erase userdata'),
+          ),
+          FilledButton.tonal(
+            onPressed: _busy || !fastbootTarget ? null : _wipeUserdata,
+            child: const Text('Factory wipe'),
+          ),
+        ]),
+      ],
+    );
+    final rebootPanel = panel(
+      'Mode-Aware Fastboot Reboot',
+      'Select the next device transport. Reboot operations require a fresh target check.',
+      [
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('system'), child: const Text('Reboot system')),
+          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('recovery'), child: const Text('Reboot recovery')),
+          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('bootloader'), child: const Text('Reboot bootloader')),
+          FilledButton.tonal(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('fastbootd'), child: const Text('Reboot to Fastbootd')),
+        ]),
+      ],
+    );
+    final advancedPanel = panel(
+      'Advanced Fastboot Command',
+      'Preview the exact argument vector before execution.',
+      [
+        _TextField(controller: _advancedCommand, label: 'Fastboot arguments',
+          hint: 'getvar all · flashing get_unlock_ability',
+          onChanged: (value) => setState(() => _advancedPreview = _fastbootCommandPreview(value))),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, children: [
+          OutlinedButton(onPressed: () => setState(() => _advancedPreview = _fastbootCommandPreview(_advancedCommand.text)),
+            child: const Text('Preview command')),
+          FilledButton(onPressed: _busy || !fastbootTarget ? null : _runAdvancedCommand,
+            child: const Text('Run command')),
+          TextButton(onPressed: () => setState(() { _advancedCommand.clear(); _advancedPreview = ''; }),
+            child: const Text('Clear')),
+        ]),
+        if (_advancedPreview.isNotEmpty)
+          SelectableText(_advancedPreview, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace')),
+      ],
+    );
+    return _PageFrame(
+      title: 'Fastboot Toolkit & Guarded Flashing',
+      subtitle: 'Strict ASCII partition allowlist · Distinguishes bootloader Fastboot vs Userspace Fastbootd',
+      actions: [targetSelector],
+      child: LayoutBuilder(builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 1100;
+        final warning = selectedDevice != null && !fastbootTarget
+          ? Card(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(color: Theme.of(context).colorScheme.tertiary),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(children: [
+                  Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.tertiary),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(
+                    'Selected target ${selectedDevice['serial']} is currently in ${selectedDevice['transport']} mode. Fastboot mutations require bootloader Fastboot or Fastbootd transport.',
+                    style: Theme.of(context).textTheme.bodySmall)),
+                  TextButton(onPressed: () => context.go('/adb'), child: const Text('Open ADB Toolkit')),
+                ]),
+              ),
+            )
+          : null;
+        final left = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          flashPanel,
+          const SizedBox(height: 14),
+          rebootPanel,
+        ]);
+        final right = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          slotPanel,
+          const SizedBox(height: 14),
+          erasePanel,
+          const SizedBox(height: 14),
+          advancedPanel,
+        ]);
+        final deviceLabel = selectedDevice == null
+            ? 'No target selected'
+            : (selectedDevice['model']?.toString().trim().isNotEmpty == true
+                ? selectedDevice['model'].toString()
+                : selectedDevice['product']?.toString() ?? 'Android device');
+        final transportLabel = selectedDevice == null
+            ? 'Waiting for a device'
+            : '${selectedDevice['transport'] ?? 'unknown'} · ${selectedDevice['mode'] ?? selectedDevice['state'] ?? 'unknown'}';
+        final targetStatus = Card(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            child: Row(children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: (fastbootTarget
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant).withValues(alpha: 0.11),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(
+                  fastbootTarget ? Icons.usb_rounded : Icons.usb_off_rounded,
+                  color: fastbootTarget
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(deviceLabel, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 3),
+                Text(selectedSerial == null ? 'Connect a device or select one above' : '$selectedSerial  ·  $transportLabel',
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontFamily: selectedSerial == null ? null : 'monospace')),
+              ])),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                decoration: BoxDecoration(
+                  color: (fastbootTarget
+                      ? Theme.of(context).colorScheme.tertiary
+                      : Theme.of(context).colorScheme.surfaceContainerHighest).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                ),
+                child: Text(
+                  fastbootTarget ? 'FASTBOOT READY' : selectedDevice == null ? 'NOT CONNECTED' : 'WRONG MODE',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: fastbootTarget
+                        ? Theme.of(context).colorScheme.tertiary
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                    letterSpacing: 0.45),
+                ),
+              ),
+            ]),
+          ),
+        );
+        return Column(children: [
+          targetStatus,
+          const SizedBox(height: 14),
+          if (warning != null) ...[warning, const SizedBox(height: 12)],
+          if (devicesAsync.hasError)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text('Device scan failed: ${devicesAsync.error}', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ),
+          if (_busy) const LinearProgressIndicator(),
+          Expanded(child: wide
+            ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: SingleChildScrollView(child: left)),
+                const SizedBox(width: 24),
+                Expanded(child: SingleChildScrollView(child: right)),
+              ])
+            : ListView(children: [flashPanel, const SizedBox(height: 14), slotPanel,
+                const SizedBox(height: 14), erasePanel, const SizedBox(height: 14), rebootPanel,
+                const SizedBox(height: 14), advancedPanel])),
+          if (_output.isNotEmpty) ...[const SizedBox(height: 12), _OutputPanel(output: _output)],
+        ]);
+      }),
+    );
   }
 }
 

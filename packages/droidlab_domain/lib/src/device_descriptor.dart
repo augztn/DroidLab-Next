@@ -9,6 +9,7 @@ enum DeviceConnectionState {
   unauthorized,
   offline,
   fastboot,
+  fastbootd,
   unknown,
 }
 
@@ -32,7 +33,9 @@ final class DeviceDescriptor {
 
   bool get isReady =>
       (transport == DeviceTransport.adb && state == DeviceConnectionState.device) ||
-      (transport == DeviceTransport.fastboot && state == DeviceConnectionState.fastboot);
+      (transport == DeviceTransport.fastboot &&
+          (state == DeviceConnectionState.fastboot ||
+              state == DeviceConnectionState.fastbootd));
 
   factory DeviceDescriptor.fromJson(Map<String, Object?> json) {
     final serial = json['serial'];
@@ -51,6 +54,7 @@ final class DeviceDescriptor {
       'unauthorized' => DeviceConnectionState.unauthorized,
       'offline' => DeviceConnectionState.offline,
       'fastboot' => DeviceConnectionState.fastboot,
+      'fastbootd' => DeviceConnectionState.fastbootd,
       _ => DeviceConnectionState.unknown,
     };
     final rawDetails = json['details'];

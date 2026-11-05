@@ -8,6 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/backend_device_repository.dart';
 import 'app_settings.dart';
 
+/// Explicit workstation target shared by the shell and device tool pages.
+final selectedTargetSerialProvider = StateProvider<String?>((ref) => null);
+
 final backendClientProvider = Provider<BackendClient>((ref) {
   // Only process-launch settings invalidate this provider. Theme and device
   // tool-path edits must not tear down an otherwise healthy backend process.
@@ -89,6 +92,44 @@ final deviceListProvider =
 });
 
 
+/// Resolve a device-manager target without guessing when several are connected.
+Map<String, dynamic>? resolveDeviceManagerTarget(
+  Iterable<Map<String, dynamic>> devices,
+  String? selectedSerial,
+) {
+  final available = devices.toList(growable: false);
+  if (selectedSerial != null && selectedSerial.isNotEmpty) {
+    for (final device in available) {
+      if (device['serial'] == selectedSerial) return device;
+    }
+    return null;
+  }
+  return available.length == 1 ? available.single : null;
+}
+
+/// Resolve the dashboard target without silently choosing among devices.
+Map<String, dynamic>? resolveDashboardAdbTarget(
+  Iterable<Map<String, dynamic>> devices,
+  String? selectedSerial,
+) {
+  final authorized = devices.where(
+    (device) => device['transport'] == 'adb' && device['state'] == 'device',
+  ).toList(growable: false);
+  if (selectedSerial != null && selectedSerial.isNotEmpty) {
+    for (final device in authorized) {
+      if (device['serial'] == selectedSerial) return device;
+    }
+    return null;
+  }
+  return authorized.length == 1 ? authorized.single : null;
+}
+
+/// Returns whether a discovered device is ready for Fastboot commands.
+bool isFastbootDeviceReady(Map<String, dynamic>? device) =>
+    device != null &&
+    device['transport'] == 'fastboot' &&
+    const {'fastboot', 'fastbootd'}.contains(device['state']);
+
 /// Returns the device-tool route only when discovery identifies one transport
 /// unambiguously. Mixed ADB/Fastboot sessions and empty scans never force
 /// navigation.
@@ -114,3 +155,6 @@ final discoveredDevicesProvider =
   await ref.watch(backendReadyProvider.future);
   return ref.watch(deviceRepositoryProvider).discover();
 });
+
+/// Bounded live operation-console history shared with the Logs workspace.
+final operationConsoleLinesProvider = StateProvider<List<String>>((ref) => const []);

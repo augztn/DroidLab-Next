@@ -17,7 +17,7 @@ chmod +x DroidLab-0.1.0-x86_64.AppImage
 ./DroidLab-0.1.0-x86_64.AppImage
 ```
 
-No package installation is required. The current backend still uses the host Python 3.10+ runtime; the launcher checks Python and prints a direct diagnostic if it is missing or too old. Windows and macOS can install ADB/Fastboot per-user through the explicit Google license acceptance flow; Linux uses host-installed Android SDK Platform-Tools. The AppImage relies on the target system's compatible glibc and desktop/GTK runtime libraries, as is normal for Linux AppImages. Physical-device workflows require Android platform-tools on the host.
+The AppImage does not require installing DroidLab itself, but the host must provide Python 3.10 or newer, Android SDK Platform-Tools (`adb` and `fastboot`), compatible glibc, and the desktop/GTK runtime libraries required by Flutter. The launcher checks the Python version and prints a direct diagnostic if it is missing or too old. Windows and macOS can install ADB/Fastboot per-user through the explicit Google license-acceptance flow; Linux uses host-installed Android SDK Platform-Tools. Physical-device workflows cannot run until the host tools are installed and a supported device is connected.
 
 ## Signing and notarization secrets
 

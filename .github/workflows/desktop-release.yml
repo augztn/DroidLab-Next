@@ -41,12 +41,23 @@ jobs:
       - name: Generate native runners
         working-directory: apps/desktop
         run: flutter create --project-name droidlab_desktop --platforms=linux,windows,macos .
+      - name: Apply official DroidLab native icons
+        run: |
+          python -m pip install --disable-pip-version-check 'Pillow==11.3.0'
+          python scripts/apply_app_icons.py
       - name: Resolve dependencies
         working-directory: apps/desktop
         run: flutter pub get --enforce-lockfile
-      - name: Analyze and test
-        working-directory: apps/desktop
-        run: flutter analyze --fatal-infos && flutter test
+      - name: Analyze and test all Dart packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for package in apps/desktop packages/droidlab_domain packages/droidlab_design_system packages/droidlab_application packages/droidlab_backend_bridge; do
+            echo "Analyzing $package"
+            (cd "$package" && flutter analyze --fatal-infos)
+            echo "Testing $package"
+            (cd "$package" && flutter test)
+          done
       - name: Build release
         working-directory: apps/desktop
         run: flutter build ${{ matrix.platform }} --release
@@ -147,7 +158,11 @@ jobs:
       - name: Install AppImage tooling
         if: runner.os == 'Linux'
         run: |
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O "$RUNNER_TEMP/appimagetool"
+          set -euo pipefail
+          url='https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage'
+          expected='ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0'
+          wget -q "$url" -O "$RUNNER_TEMP/appimagetool"
+          echo "$expected  $RUNNER_TEMP/appimagetool" | sha256sum --check --status
           sudo install -m 0755 "$RUNNER_TEMP/appimagetool" /usr/local/bin/appimagetool
       - name: Build Linux AppImage
         if: runner.os == 'Linux'

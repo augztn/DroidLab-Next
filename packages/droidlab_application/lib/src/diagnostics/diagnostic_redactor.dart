@@ -14,8 +14,8 @@ String redactDiagnosticText(String value, {String? homeDirectory}) {
     );
   }
   text = text.replaceAllMapped(
-    RegExp(r'(authorization\s*[:=]\s*bearer\s+)[^\s,;]+', caseSensitive: false),
-    (m) => m[1]! + '<REDACTED>',
+    RegExp(r'((?:proxy-)?authorization|cookie|set-cookie)\s*[:=]\s*[^\r\n]+', caseSensitive: false),
+    (m) => '${m[1]}: <REDACTED>',
   );
   text = text.replaceAllMapped(
     RegExp(r'((?:token|password|passwd|secret|api[_-]?key|client[_-]?secret)(?:\s*[:=]\s*|\s+))(?:\"[^\"]*\"|[^\s,;]+)', caseSensitive: false),
@@ -32,6 +32,22 @@ String redactDiagnosticText(String value, {String? homeDirectory}) {
   text = text.replaceAllMapped(
     RegExp(r'(serial|device(?:_id)?|target|imei)(\s*[:=]\s*)([A-Za-z0-9._:-]{5,})', caseSensitive: false),
     (m) => m[1]! + m[2]! + '<DEVICE_ID>',
+  );
+  text = text.replaceAllMapped(
+    RegExp(r'\b(?:ADB device|ADB target|Fastboot target|Device)\s+[\x27\x22]([^\x27\x22]+)[\x27\x22]', caseSensitive: false),
+    (m) => m[0]!.replaceFirst(m[1]!, '<DEVICE_ID>'),
+  );
+  text = text.replaceAllMapped(
+    RegExp(r'(\[preflight\]\s+)(?!host\b)([^\r\n]+?)(:\s*)', caseSensitive: false),
+    (m) => m[1]! + '<DEVICE_ID>' + m[3]!,
+  );
+  text = text.replaceAllMapped(
+    RegExp(r'(\s-s\s+)([^\s]+)', caseSensitive: false),
+    (m) => m[1]! + '<DEVICE_ID>',
+  );
+  text = text.replaceAllMapped(
+    RegExp(r'(\s-s=)([^\s]+)', caseSensitive: false),
+    (m) => m[1]! + '<DEVICE_ID>',
   );
   text = text.replaceAll(
     RegExp(r'\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b'),

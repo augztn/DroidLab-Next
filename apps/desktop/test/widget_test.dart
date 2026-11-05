@@ -33,8 +33,7 @@ void main() {
     expect(find.text('ADB Toolkit'), findsOneWidget);
     expect(find.text('Fastboot Toolkit'), findsOneWidget);
     expect(find.text('Logs & Diagnostics'), findsOneWidget);
-    expect(find.text('Operation History'), findsOneWidget);
-    expect(find.text('OPERATION CONSOLE'), findsOneWidget);
+    expect(find.textContaining('Operation Console (Bounded'), findsOneWidget);
   });
 
   testWidgets('sidebar navigation opens the Fastboot workflow', (tester) async {
@@ -53,14 +52,10 @@ void main() {
     await tester.tap(find.text('Fastboot Toolkit'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text(
-        'Destructive actions require fresh target validation and an explicit confirmation.',
-      ),
-      findsOneWidget,
-    );
-    expect(find.text('Detected Fastboot devices'), findsOneWidget);
-    expect(find.text('Flash image'), findsOneWidget);
+    expect(find.text('Fastboot Toolkit & Guarded Flashing'), findsOneWidget);
+    expect(find.text('Guarded Partition Flash (fastboot.flash)'), findsOneWidget);
+    expect(find.text('Preview & Confirm Flash'), findsOneWidget);
+    expect(find.text('A/B Active Slot Switcher (fastboot.set_active)'), findsOneWidget);
   });
 
   testWidgets('Settings exposes persistent themes and executable paths',
@@ -84,7 +79,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Settings'), findsWidgets);
-    expect(find.text('Color theme'), findsOneWidget);
+    expect(find.text('Appearance & Theme Identity'), findsOneWidget);
+    expect(find.text('Cyberpunk Glass'), findsOneWidget);
+    expect(find.text('Standard Dark'), findsOneWidget);
+    expect(find.text('OLED Black'), findsOneWidget);
+    expect(find.text('Switch to Light Surface'), findsOneWidget);
     expect(find.text('Python executable'), findsOneWidget);
     expect(find.text('Backend script'), findsOneWidget);
     expect(find.text('ADB executable'), findsOneWidget);

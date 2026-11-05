@@ -14,6 +14,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _fastboot = TextEditingController();
   final _payloadDumper = TextEditingController();
   String _theme = 'cyberpunk_glass';
+  String _themeMode = 'dark';
   bool _loaded = false;
   bool _saving = false;
   bool _installingPlatformTools = false;
@@ -31,6 +32,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _payloadDumper.text = settings.payloadDumperPath;
       setState(() {
         _theme = settings.theme;
+        _themeMode = settings.themeMode;
         _loaded = true;
         _status = ref.read(droidLabSettingsStoreProvider).recoveryNotice ?? '';
       });
@@ -58,7 +60,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _save() async {
-    if (_saving || !_loaded) return;
+    if (_saving || _installingPlatformTools || !_loaded) return;
     setState(() {
       _saving = true;
       _status = '';
@@ -66,6 +68,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     try {
       final settings = DroidLabSettings(
         theme: _theme,
+        themeMode: _themeMode,
         pythonPath: _python.text.trim(),
         backendPath: _backend.text.trim(),
         adbPath: _adb.text.trim(),
@@ -74,7 +77,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       );
       await ref.read(droidLabSettingsProvider.notifier).saveSettings(settings);
       if (mounted) setState(() => _status =
-          'Settings saved. Python/backend changes take effect after restarting DroidLab; device-tool paths are read by the backend on the next command.');
+          'Settings saved. Python/backend changes restart the managed backend automatically; device-tool paths are read by the backend on the next command.');
     } catch (error) {
       if (mounted) setState(() => _status = 'Could not save settings: $error');
     } finally {
@@ -158,7 +161,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _status = 'Downloading and validating Google Android Platform-Tools…';
     });
     try {
-      await ref.read(backendReadyProvider.future);
+      final client = ref.read(backendClientProvider);
+      final backendReady = ref.read(backendReadyProvider.future);
+      await backendReady;
+      if (!mounted) return;
       const intent = {
         'operation': 'system.platform_tools.install',
         'version': '37.0.1',
@@ -168,7 +174,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ref,
         operation: 'System: install Android Platform-Tools',
         target: 'Local host',
-        action: () => ref.read(backendClientProvider).request(
+        action: () => client.request(
           'system.platform_tools.install',
           {
             ...intent,
@@ -178,7 +184,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           timeout: const Duration(minutes: 5),
         ),
       );
-      final toolsResult = await ref.read(backendClientProvider).request(
+      final toolsResult = await client.request(
         'system.tools',
         const {},
       );
@@ -199,6 +205,38 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     } finally {
       if (mounted) setState(() => _installingPlatformTools = false);
     }
+  }
+
+  Widget _themeChoice(BuildContext context, String value, String title, String token, IconData icon) {
+    final selected = _theme == value;
+    final colors = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: () => setState(() => _theme = value),
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        constraints: const BoxConstraints(minHeight: 94),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected ? colors.primary.withValues(alpha: 0.09) : colors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: selected ? colors.primary : colors.outlineVariant, width: selected ? 1.4 : 1),
+        ),
+        child: Row(children: [
+          Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
+            color: selected ? colors.primary : colors.onSurfaceVariant, size: 20),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 5),
+            Text(token, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceVariant, fontFamily: 'monospace')),
+          ])),
+        ]),
+      ),
+    );
   }
 
   Widget _toolField(String label, TextEditingController controller, String hint) {
@@ -226,82 +264,131 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final appearance = Card(child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Appearance & Theme Identity',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 5),
+            Text('Choose a color palette and surface appearance for DroidLab.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ])),
+          const SizedBox(width: 12),
+          OutlinedButton.icon(
+            onPressed: _saving || _installingPlatformTools || !_loaded ? null : () async {
+              final previous = _themeMode;
+              final next = previous == 'dark' ? 'light' : 'dark';
+              setState(() {
+                _themeMode = next;
+                _saving = true;
+              });
+              try {
+                final settingsFuture = ref.read(droidLabSettingsProvider.future);
+                final settingsNotifier = ref.read(droidLabSettingsProvider.notifier);
+                final current = await settingsFuture;
+                if (!mounted) return;
+                await settingsNotifier.saveSettings(current.copyWith(themeMode: next));
+                if (mounted) setState(() => _status = 'Appearance updated.');
+              } catch (error) {
+                if (mounted) setState(() {
+                  _themeMode = previous;
+                  _status = 'Could not update appearance: $error';
+                });
+              } finally {
+                if (mounted) setState(() => _saving = false);
+              }
+            },
+            icon: Icon(_themeMode == 'dark' ? Icons.light_mode_outlined : Icons.dark_mode_outlined, size: 17),
+            label: Text(_themeMode == 'dark' ? 'Switch to Light Surface' : 'Switch to Dark Surface'),
+          ),
+        ]),
+        const SizedBox(height: 18),
+        LayoutBuilder(builder: (context, constraints) {
+          final compact = constraints.maxWidth < 560;
+          final themes = const [
+            ('cyberpunk_glass', 'Cyberpunk Glass', 'cyberpunk_glass', Icons.auto_awesome_outlined),
+            ('standard_dark', 'Standard Dark', 'standard_dark', Icons.contrast),
+            ('oled_black', 'OLED Black', 'oled_black', Icons.dark_mode_outlined),
+          ];
+          return compact
+            ? Column(children: [
+                for (final item in themes) Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _themeChoice(context, item.$1, item.$2, item.$3, item.$4),
+                ),
+              ])
+            : Row(children: [
+                for (var i = 0; i < themes.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 12),
+                  Expanded(child: _themeChoice(context, themes[i].$1, themes[i].$2, themes[i].$3, themes[i].$4)),
+                ],
+              ]);
+        }),
+      ]),
+    ));
+    final tools = Card(child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Executable Overrides & Platform-Tools Bootstrap',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 5),
+        Text('Blank overrides use app-managed tools first, then system PATH.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        const SizedBox(height: 16),
+        _toolField('Python executable', _python, 'python3 or full executable path'),
+        _toolField('Backend script', _backend, 'server.py'),
+        _toolField('ADB executable', _adb, 'adb'),
+        _toolField('Fastboot executable', _fastboot, 'fastboot'),
+        _toolField('Payload dumper', _payloadDumper, 'payload-dumper-go'),
+        if (Platform.isWindows || Platform.isMacOS) ...[
+          const SizedBox(height: 8),
+          FilledButton.tonalIcon(
+            onPressed: _installingPlatformTools || _saving ? null : _installPlatformTools,
+            icon: _installingPlatformTools
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.download),
+            label: Text(_installingPlatformTools ? 'Installing Platform-Tools…' : 'Download & Verify Platform-Tools'),
+          ),
+          const SizedBox(height: 8),
+          Text('Downloads official Google tools after license acceptance and installs them per-user. Existing explicit overrides remain higher priority.',
+            style: Theme.of(context).textTheme.bodySmall),
+        ],
+        const SizedBox(height: 10),
+        Text('Configuration: ~/DroidLab/config.json',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace')),
+      ]),
+    ));
     return _PageFrame(
-      title: 'Settings',
-      subtitle: 'Appearance and executable paths. Blank tool paths use app-managed tools first, then system PATH.',
+      title: 'Workstation Settings (`~/DroidLab/config.json`)',
+      subtitle: 'Theme palette tokens, executable override resolution, and Google Platform-Tools per-user bootstrap',
       child: !_loaded
           ? const Center(child: CircularProgressIndicator())
-          : ListView(children: [
-              Card(child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('APPEARANCE', style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: _theme,
-                    decoration: const InputDecoration(labelText: 'Color theme'),
-                    items: const [
-                      DropdownMenuItem(value: 'cyberpunk_glass', child: Text('Charcoal Blue (legacy default)')),
-                      DropdownMenuItem(value: 'standard_dark', child: Text('Charcoal')),
-                      DropdownMenuItem(value: 'oled_black', child: Text('OLED Black')),
-                    ],
-                    onChanged: (value) => setState(() => _theme = value ?? _theme),
+          : LayoutBuilder(builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 950;
+              return Column(children: [
+                Expanded(child: wide
+                  ? Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      Expanded(child: SingleChildScrollView(child: appearance)),
+                      const SizedBox(width: 24),
+                      Expanded(child: SingleChildScrollView(child: tools)),
+                    ])
+                  : ListView(children: [appearance, const SizedBox(height: 14), tools])),
+                const SizedBox(height: 12),
+                Row(children: [
+                  FilledButton.icon(
+                    onPressed: _saving || _installingPlatformTools ? null : _save,
+                    icon: _saving
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.save),
+                    label: const Text('Save settings'),
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(_status, style: Theme.of(context).textTheme.bodySmall)),
                 ]),
-              )),
-              const SizedBox(height: 14),
-              Card(child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('TOOL LOCATIONS', style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 12),
-                  _toolField('Python executable', _python, 'python3 or full executable path'),
-                  _toolField('Backend script', _backend, 'server.py'),
-                  _toolField('ADB executable', _adb, 'adb'),
-                  _toolField('Fastboot executable', _fastboot, 'fastboot'),
-                  _toolField('Payload dumper', _payloadDumper, 'payload-dumper-go'),
-                  if (Platform.isWindows || Platform.isMacOS) ...[
-                    const SizedBox(height: 4),
-                    FilledButton.tonalIcon(
-                      onPressed: _installingPlatformTools || _saving
-                          ? null
-                          : _installPlatformTools,
-                      icon: _installingPlatformTools
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.download),
-                      label: Text(_installingPlatformTools
-                          ? 'Installing Platform-Tools…'
-                          : 'Install Android Platform-Tools'),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Downloads the official Google tools after license acceptance and installs them per-user. Existing explicit executable overrides remain higher priority.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  Text(
-                    'Settings are stored at ~/DroidLab/config.json, compatible with the legacy application.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ]),
-              )),
-              const SizedBox(height: 12),
-              Row(children: [
-                FilledButton.icon(
-                  onPressed: _saving ? null : _save,
-                  icon: _saving
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.save),
-                  label: const Text('Save settings'),
-                ),
-                const SizedBox(width: 12),
-                Expanded(child: Text(_status, style: Theme.of(context).textTheme.bodySmall)),
-              ]),
-            ]),
+              ]);
+            }),
     );
   }
 }

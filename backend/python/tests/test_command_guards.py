@@ -25,12 +25,19 @@ class CommandGuardTests(unittest.TestCase):
         self.assertTrue(is_destructive_adb(["shell", "rm", "-rf", "/data"]))
         self.assertTrue(is_destructive_adb(["shell", "sh", "-c", "rm -rf /data"]))
         self.assertTrue(is_destructive_adb(["reboot", "bootloader"]))
+        self.assertTrue(is_destructive_adb(["shell", "pm", "clear", "com.example.app"]))
+        self.assertTrue(is_destructive_adb(["shell", "cmd", "package", "clear", "com.example.app"]))
         self.assertFalse(is_destructive_adb(["shell", "getprop", "ro.build.version.release"]))
 
     def test_fastboot_destructive_detection(self):
         self.assertTrue(is_destructive_fastboot(["flash", "boot", "boot.img"]))
         self.assertTrue(is_destructive_fastboot(["-w"]))
         self.assertTrue(is_destructive_fastboot(["flashing", "unlock"]))
+        self.assertTrue(is_destructive_fastboot(["oem", "lock"]))
+        self.assertTrue(is_destructive_fastboot(["fastboot", "oem", "unlock"]))
+        self.assertTrue(is_destructive_fastboot(["--slot", "a", "flash", "boot", "boot.img"]))
+        self.assertTrue(is_destructive_fastboot(["--slot=b", "erase", "userdata"]))
+        self.assertFalse(is_destructive_fastboot(["--slot", "a", "getvar", "product"]))
         self.assertFalse(is_destructive_fastboot(["getvar", "product"]))
 
     def test_fastboot_reboot_bootloader_uses_supported_subcommand(self):
@@ -58,6 +65,24 @@ class CommandGuardTests(unittest.TestCase):
             ["fastboot", "-s", "DEVICE-1", "reboot", "bootloader"],
         )
         self.assertEqual(result["exit_code"], 0)
+
+    def test_advanced_adb_commands_use_conservative_mutation_locking(self):
+        self.assertTrue(server._device_command_requires_lock(
+            "adb.command", {"command_text": "shell getprop ro.build.version.release"}
+        ))
+        self.assertTrue(server._device_command_requires_lock(
+            "adb.command", {"command_text": "install app.apk"}
+        ))
+        self.assertTrue(server._device_command_requires_lock(
+            "adb.command", {"command_text": "future-device-mutating-verb"}
+        ))
+
+    def test_advanced_adb_read_only_and_host_commands_skip_device_lock(self):
+        for command in ("devices", "version", "logcat -d", "pull /sdcard/log.txt ./"):
+            with self.subTest(command=command):
+                self.assertFalse(server._device_command_requires_lock(
+                    "adb.command", {"command_text": command}
+                ))
 
     def test_fastboot_wipe_flag_never_uses_read_only_lock_classification(self):
         self.assertTrue(server._device_command_requires_lock(
@@ -142,6 +167,16 @@ class CommandGuardTests(unittest.TestCase):
             explicit_device_selector(["-s", "one", "-s", "two", "shell"], "adb")
         with self.assertRaises(ValueError):
             validate_device_selector(["-s", "other", "shell"], "adb", "selected")
+        self.assertEqual(
+            explicit_device_selector(["--slot=a", "-s", "serial-1", "getvar", "product"], "fastboot"),
+            "serial-1",
+        )
+        with self.assertRaises(ValueError):
+            validate_device_selector(
+                ["--slot=a", "-s", "other", "getvar", "product"],
+                "fastboot",
+                "selected",
+            )
 
     def test_transport_states(self):
         adb = "List of devices attached\nSERIAL device product:foo\nRECOVERY recovery\nOFFLINE offline\n"

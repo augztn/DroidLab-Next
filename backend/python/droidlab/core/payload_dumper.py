@@ -5,6 +5,7 @@ from pathlib import Path
 from .command_guards import is_valid_partition_name
 from .tool_resolver import resolve_tool_path
 from .process_runner import run_streaming, ProcessCancelledError
+from .file_transfer import publish_file_no_replace
 class BackendError(RuntimeError): pass
 INSPECTION_TIMEOUT=120
 EXTRACTION_TIMEOUT=3600
@@ -61,7 +62,7 @@ def extract(source,output_dir,selected=None,progress=None,cancel_event=None,fing
    dest=out/artifact.relative_to(stage); dest.parent.mkdir(parents=True,exist_ok=True)
    if not dest.parent.resolve().is_relative_to(root):raise BackendError("Artifact resolves outside output directory.")
    if dest.exists() or dest.is_symlink():raise BackendError(f"Output already exists and will not be overwritten: {dest}")
-   os.link(artifact,dest); published.append(dest); artifact.unlink()
+   publish_file_no_replace(artifact,dest); published.append(dest); artifact.unlink()
   results=[]
   for path in published:
    item={"path":str(path),"name":path.name,"size_bytes":path.stat().st_size}

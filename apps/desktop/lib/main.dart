@@ -24,7 +24,11 @@ class DroidLabApp extends ConsumerWidget {
       darkTheme: DroidLabTheme.dark(
         themeName: settings.valueOrNull?.theme ?? 'cyberpunk_glass',
       ),
-      themeMode: ThemeMode.system,
+      themeMode: switch (settings.valueOrNull?.themeMode ?? 'dark') {
+        'light' => ThemeMode.light,
+        'system' => ThemeMode.system,
+        _ => ThemeMode.dark,
+      },
       routerConfig: router,
     );
   }

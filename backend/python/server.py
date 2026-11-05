@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DroidLab versioned JSON Lines backend. stdout is protocol-only; diagnostics use stderr."""
 from __future__ import annotations
-import json, logging, math, os, re, shlex, signal, subprocess, sys, threading, time
+import json, logging, math, os, re, shlex, signal, subprocess, sys, tempfile, threading, time
 from pathlib import Path
 from typing import Any
 from droidlab.core.command_guards import (
@@ -15,6 +15,7 @@ from droidlab.core.device_metadata import (
 )
 from droidlab.core.fastboot_command import strip_adb_executable, strip_fastboot_executable
 from droidlab.core import payload_dumper
+from droidlab.core.debloat_catalog import lookup_guidance, load_catalog
 from droidlab.core.tool_resolver import resolve_tool_path
 from droidlab.core.windows_volumes import list_removable_drives
 from droidlab.core.platform_tools_installer import (
@@ -27,7 +28,8 @@ from droidlab.core.file_transfer import (
 
 PROTOCOL_VERSION = 1
 MAX_LINE_BYTES = 1024 * 1024
-MAX_RETAINED_OUTPUT = 2 * 1024 * 1024
+MAX_RETAINED_OUTPUT = 64 * 1024
+MAX_PROTOCOL_OUTPUT_CHARS = 64 * 1024
 MAX_ACTIVE_REQUESTS = 8
 _WRITE_LOCK = threading.Lock()
 _ACTIVE_LOCK = threading.Lock()
@@ -35,7 +37,79 @@ _ACTIVE: dict[str, threading.Event] = {}
 _WORKER_SLOTS = threading.BoundedSemaphore(MAX_ACTIVE_REQUESTS)
 _DEVICE_LOCKS: dict[str, threading.Lock] = {}
 _DEVICE_LOCKS_LOCK = threading.Lock()
-_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active"}
+
+
+class _AdbServerLock:
+    """Coordinate normal ADB work with commands that restart or alter its server."""
+
+    def __init__(self) -> None:
+        self._condition = threading.Condition()
+        self._readers = 0
+        self._writer = False
+        self._waiting_writers = 0
+
+    def acquire_shared(
+        self,
+        timeout: float,
+        cancel_event: threading.Event | None = None,
+    ) -> bool:
+        deadline = time.monotonic() + timeout
+        with self._condition:
+            while self._writer or self._waiting_writers:
+                if cancel_event is not None and cancel_event.is_set():
+                    raise ProcessCancelledError("Cancelled while waiting for the ADB server.")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
+                self._condition.wait(min(remaining, 0.1))
+            if cancel_event is not None and cancel_event.is_set():
+                raise ProcessCancelledError("Cancelled before acquiring the ADB server.")
+            self._readers += 1
+            return True
+
+    def release_shared(self) -> None:
+        with self._condition:
+            if self._readers <= 0:
+                raise RuntimeError("ADB shared lock released without ownership.")
+            self._readers -= 1
+            if self._readers == 0:
+                self._condition.notify_all()
+
+    def acquire_exclusive(
+        self,
+        timeout: float,
+        cancel_event: threading.Event | None = None,
+    ) -> bool:
+        deadline = time.monotonic() + timeout
+        with self._condition:
+            self._waiting_writers += 1
+            try:
+                while self._writer or self._readers:
+                    if cancel_event is not None and cancel_event.is_set():
+                        raise ProcessCancelledError("Cancelled while waiting for the ADB server.")
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        return False
+                    self._condition.wait(min(remaining, 0.1))
+                if cancel_event is not None and cancel_event.is_set():
+                    raise ProcessCancelledError("Cancelled before acquiring the ADB server.")
+                self._writer = True
+                return True
+            finally:
+                self._waiting_writers -= 1
+                self._condition.notify_all()
+
+    def release_exclusive(self) -> None:
+        with self._condition:
+            if not self._writer:
+                raise RuntimeError("ADB exclusive lock released without ownership.")
+            self._writer = False
+            self._condition.notify_all()
+
+
+_ADB_SERVER_LOCK = _AdbServerLock()
+_ADB_SERVER_LOCK_TIMEOUT = 5.0
+_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active", "debloat.package.apply"}
 
 def emit(message: dict[str, Any]) -> None:
     envelope = {"version": PROTOCOL_VERSION, "timestamp": time.time(), **message}
@@ -44,10 +118,42 @@ def emit(message: dict[str, Any]) -> None:
         sys.stdout.write(encoded + "\n")
         sys.stdout.flush()
 
+def _bound_protocol_result(value: Any) -> Any:
+    """Bound user-visible command output without truncating internal parsing."""
+    if isinstance(value, dict):
+        bounded = {}
+        for key, item in value.items():
+            if key == "output" and isinstance(item, str) and len(item) > MAX_PROTOCOL_OUTPUT_CHARS:
+                omitted = len(item) - MAX_PROTOCOL_OUTPUT_CHARS
+                bounded[key] = (
+                    item[:MAX_PROTOCOL_OUTPUT_CHARS]
+                    + f"\n[DroidLab: output truncated; {omitted} additional characters omitted]"
+                )
+            else:
+                bounded[key] = _bound_protocol_result(item)
+        return bounded
+    if isinstance(value, list):
+        return [_bound_protocol_result(item) for item in value]
+    return value
+
+
 def response(request_id: str, kind: str, **kwargs: Any) -> None:
+    if kind == "completed" and isinstance(kwargs.get("result"), dict):
+        kwargs["result"] = _bound_protocol_result(kwargs["result"])
     emit({"id": request_id, "type": kind, **kwargs})
 
 tool_path = resolve_tool_path
+
+def _require_complete_output(result: subprocess.CompletedProcess[str], purpose: str) -> None:
+    """Reject truncated output when callers need a complete machine-readable listing."""
+    if re.search(
+        r"(?m)^\[DroidLab: \d+ additional output chunk\(s\) omitted\]$",
+        result.stdout or "",
+    ):
+        raise RuntimeError(
+            f"{purpose} output was truncated; no partial inventory was used. Refresh and retry."
+        )
+
 
 def run_capture(command: list[str], timeout: float = 10,
                 cancel_event: threading.Event | None = None) -> subprocess.CompletedProcess[str]:
@@ -55,7 +161,7 @@ def run_capture(command: list[str], timeout: float = 10,
         command,
         timeout=timeout,
         cancel_event=cancel_event,
-        max_output_chars=512 * 1024,
+        max_output_chars=MAX_RETAINED_OUTPUT,
     )
 
 def bounded_timeout(value: Any, default: float, maximum: float) -> float:
@@ -70,7 +176,7 @@ def bounded_timeout(value: Any, default: float, maximum: float) -> float:
 def adb_scan(cancel_event: threading.Event | None = None) -> list[dict[str, Any]]:
     result = run_capture([tool_path("adb"), "devices", "-l"], 10, cancel_event)
     if result.returncode:
-        raise RuntimeError(f"ADB scan failed: {result.stderr.strip() or result.returncode}")
+        raise RuntimeError(f"ADB scan failed: {result.stdout.strip() or result.returncode}")
     devices = []
     for line in result.stdout.splitlines()[1:]:
         fields = line.split()
@@ -86,7 +192,7 @@ def adb_scan(cancel_event: threading.Event | None = None) -> list[dict[str, Any]
 def fastboot_scan(cancel_event: threading.Event | None = None) -> list[dict[str, Any]]:
     result = run_capture([tool_path("fastboot"), "devices", "-l"], 8, cancel_event)
     if result.returncode:
-        raise RuntimeError(f"Fastboot scan failed: {result.stderr.strip() or result.returncode}")
+        raise RuntimeError(f"Fastboot scan failed: {result.stdout.strip() or result.returncode}")
     devices = []
     for line in result.stdout.splitlines():
         fields = line.split()
@@ -150,7 +256,7 @@ def require_adb(serial: Any, states: tuple[str, ...] = ("device",), cancel_event
                 "then refresh devices. No command was dispatched."
             )
         if result.returncode:
-            raise RuntimeError(f"ADB device scan failed: {result.stderr.strip() or result.returncode}")
+            raise RuntimeError(f"ADB device scan failed: {result.stdout.strip() or result.returncode}")
         raise RuntimeError(
             f"ADB target {serial!r} is not present in an allowed state ({', '.join(states)}). "
             "Refresh devices and select an online, authorized device. No command was dispatched."
@@ -260,8 +366,11 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         index = 0
         takes_value = {"-s", "-t", "-H", "-P", "-L"}
         no_value = {"-d", "-e"}
+        alternate_target_selector = False
         while index < len(values):
             token = values[index]
+            if token in {"-t", "-d", "-e", "-H", "-P", "-L"}:
+                alternate_target_selector = True
             if token in takes_value:
                 index += 2
             elif token in no_value:
@@ -275,6 +384,11 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         verb = values[index].lower() if index < len(values) else ""
         discovery = verb in {"devices", "version", "help", "start-server", "kill-server", "connect", "disconnect"}
         if not discovery:
+            if alternate_target_selector:
+                raise ValueError(
+                    "Targeted ADB commands must use the selected device serial; "
+                    "transport and remote-server selectors are not allowed."
+                )
             if not serial:
                 raise ValueError("Select an authorized ADB device for this host command.")
             require_adb(serial, cancel_event=cancel)
@@ -342,6 +456,8 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             command = [tool_path("fastboot"), "-s", serial, "reboot"]
             if mode == "recovery":
                 command.append("recovery")
+            elif mode == "fastboot":
+                command.append("fastboot")
 
         response(request_id, "preflight", target=serial, command=command, destructive=False)
         result = run_streaming(
@@ -382,7 +498,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             command = [tool_path("adb"), "-s", serial, "pull", source, str(destination)]
         else:
             raise ValueError("direction must be 'push' or 'pull'.")
-        response(request_id, "preflight", target=serial, command=command, destructive=False)
+        response(request_id, "preflight", target=serial, command=command, destructive=direction == "push")
         if direction == "pull":
             # Pull into a private sibling directory, then publish with an atomic
             # hard-link. This closes the check/use race and never overwrites a
@@ -522,17 +638,148 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         else:
             raise RuntimeError("Unsupported device transport.")
         return {"serial": serial, "transport": device.get("transport"), "state": device.get("state"), "metadata": values}
-    if operation == "adb.device_info":
+    if operation == "debloat.catalog.list":
+        entries, recommendations = load_catalog()
+        return {
+            "schema_version": 1,
+            "source": "nightx24/ADB-App-Manager",
+            "entries": [entries[key].to_dict() for key in sorted(entries, key=str.casefold)],
+            "recommendations": [
+                {"package": package, "risk": value[0], "impact": value[1]}
+                for package, value in sorted(recommendations.items(), key=lambda item: item[0].casefold())
+            ],
+        }
+    if operation == "debloat.package.guidance":
+        package = args.get("package")
+        if not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
+            raise ValueError("Invalid Android package name.")
+        return lookup_guidance(package)
+    if operation == "debloat.packages.list":
         serial = args.get("serial")
+        user_id = args.get("user_id", 0)
+        if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id < 0 or user_id > 2147483647:
+            raise ValueError("user_id must be a non-negative Android user ID.")
         require_adb(serial, cancel_event=cancel)
-        keys = ["ro.product.manufacturer", "ro.product.model", "ro.product.device",
-            "ro.build.version.release", "ro.build.version.sdk", "ro.boot.slot_suffix"]
-        result = run_streaming([tool_path("adb"), "-s", serial, "shell", "getprop"],
+        binary = tool_path("adb")
+        base = [binary, "-s", serial, "shell", "pm", "list", "packages"]
+        result = run_streaming([*base, "-u", "-f", "--user", str(user_id)], timeout=60, cancel_event=cancel)
+        if result.returncode:
+            raise RuntimeError(f"Package inventory failed ({result.returncode}): {result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        _require_complete_output(result, "Package inventory")
+        installed_result = run_streaming([*base, "-f", "--user", str(user_id)], timeout=45, cancel_event=cancel)
+        if installed_result.returncode:
+            raise RuntimeError(f"Could not inspect installed packages ({installed_result.returncode}): {installed_result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        _require_complete_output(installed_result, "Installed-package inventory")
+        disabled_result = run_streaming([*base, "-d", "--user", str(user_id)], timeout=30, cancel_event=cancel)
+        if disabled_result.returncode:
+            raise RuntimeError(f"Could not inspect disabled packages ({disabled_result.returncode}): {disabled_result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        _require_complete_output(disabled_result, "Disabled-package inventory")
+        system_result = run_streaming([*base, "-s", "-u", "--user", str(user_id)], timeout=30, cancel_event=cancel)
+        if system_result.returncode:
+            raise RuntimeError(f"Could not classify system packages ({system_result.returncode}): {system_result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        _require_complete_output(system_result, "System-package classification")
+        def package_lines(output: str) -> set[str]:
+            packages: set[str] = set()
+            for line in output.splitlines():
+                value = line.strip()
+                if not value.startswith("package:"):
+                    continue
+                package_entry = value[len("package:"):]
+                # With -f, PackageManager emits package:<apk-path>=<package-id>.
+                # Without -f, it emits package:<package-id>.
+                path, separator, package = package_entry.rpartition("=")
+                packages.add(package if separator else package_entry)
+            return packages
+        installed = package_lines(installed_result.stdout)
+        disabled = package_lines(disabled_result.stdout)
+        system_packages = package_lines(system_result.stdout)
+        system_prefixes = (
+            "/system/", "/system_ext/", "/product/", "/vendor/", "/odm/",
+            "/apex/", "/oem/", "/system_dlkm/", "/vendor_dlkm/", "/odm_dlkm/",
+        )
+        packages = {}
+        for line in result.stdout.splitlines():
+            value = line.strip()
+            if not value.startswith("package:"):
+                continue
+            body = value[len("package:"):]
+            path, separator, package = body.rpartition("=")
+            package = package if separator else body
+            if not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
+                continue
+            if package not in packages:
+                packages[package] = {
+                    "package": package, "apk_path": path if separator else "",
+                    "system": package in system_packages or path.startswith(system_prefixes),
+                    "installed": package in installed, "disabled": package in disabled,
+                }
+        return {"serial": serial, "user_id": user_id, "packages": [packages[key] for key in sorted(packages, key=str.casefold)]}
+    if operation == "debloat.package.state":
+        serial, package = args.get("serial"), args.get("package")
+        user_id = args.get("user_id", 0)
+        if not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
+            raise ValueError("Invalid Android package name.")
+        if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id < 0 or user_id > 2147483647:
+            raise ValueError("user_id must be a non-negative Android user ID.")
+        require_adb(serial, cancel_event=cancel)
+        result = run_streaming([tool_path("adb"), "-s", serial, "shell", "pm", "list", "packages", "-d", "--user", str(user_id)],
             timeout=30, cancel_event=cancel)
         if result.returncode:
-            raise RuntimeError(f"getprop failed: {result.stdout[-MAX_RETAINED_OUTPUT:]}")
-        properties = parse_getprop_output(result.stdout)
-        return {"serial": serial, "properties": {key: properties.get(key, "") for key in keys}}
+            raise RuntimeError(f"Could not inspect disabled packages: {result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        disabled = any(line.strip() == "package:" + package for line in result.stdout.splitlines())
+        return {"serial": serial, "package": package, "user_id": user_id, "state": "disabled" if disabled else "enabled"}
+    if operation == "debloat.package.apply":
+        serial, package, action = args.get("serial"), args.get("package"), args.get("action")
+        user_id = args.get("user_id", 0)
+        if not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
+            raise ValueError("Invalid Android package name.")
+        if action not in {"disable", "uninstall", "enable", "restore"}:
+            raise ValueError("Unsupported package action.")
+        if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id < 0 or user_id > 2147483647:
+            raise ValueError("user_id must be a non-negative Android user ID.")
+        intent = {"operation": "debloat.package.apply", "serial": serial, "package": package, "action": action, "user_id": user_id}
+        require_confirmation(args, "Android package state change", intent)
+        require_adb(serial, cancel_event=cancel)
+        inventory_args = ["-u"] if action == "restore" else []
+        inventory = run_capture(
+            [tool_path("adb"), "-s", serial, "shell", "pm", "list", "packages", *inventory_args, "--user", str(user_id)],
+            30, cancel,
+        )
+        if inventory.returncode or not any(line.strip() == "package:" + package for line in inventory.stdout.splitlines()):
+            message = ("The package is not known to this Android system image; it cannot be restored with install-existing."
+                       if action == "restore" else
+                       "The selected package is not installed for this user. Refresh the package list; no change was applied.")
+            raise RuntimeError(message)
+        if action == "restore":
+            installed = run_capture(
+                [tool_path("adb"), "-s", serial, "shell", "pm", "list", "packages", "--user", str(user_id)],
+                30, cancel,
+            )
+            if installed.returncode:
+                raise RuntimeError("Could not verify package installation state; no change was applied.")
+            if any(line.strip() == "package:" + package for line in installed.stdout.splitlines()):
+                raise RuntimeError("The package is already installed for this user; use Enable if it is disabled.")
+        commands = {
+            "disable": ["shell", "pm", "disable-user", "--user", str(user_id), package],
+            "uninstall": ["shell", "pm", "uninstall", "--user", str(user_id), package],
+            "enable": ["shell", "pm", "enable", "--user", str(user_id), package],
+            "restore": ["shell", "cmd", "package", "install-existing", "--user", str(user_id), package],
+        }
+        command = [tool_path("adb"), "-s", serial, *commands[action]]
+        response(request_id, "preflight", target=serial, command=command, destructive=action in {"disable", "uninstall"})
+        result = run_streaming(command, timeout=90, cancel_event=cancel,
+            on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
+        if result.returncode:
+            raise RuntimeError(f"Package {action} failed ({result.returncode}): {result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        output = result.stdout.strip()
+        accepted = (
+            (action == "uninstall" and "success" in output.casefold()) or
+            (action in {"disable", "enable"} and ("new state:" in output.casefold() or "enabled" in output.casefold() or "disabled" in output.casefold())) or
+            (action == "restore" and ("success" in output.casefold() or "installed" in output.casefold()))
+        )
+        if not accepted:
+            raise RuntimeError(f"Package manager did not confirm {action}: {output or 'empty response'}")
+        return {"serial": serial, "package": package, "action": action, "user_id": user_id, "output": output}
     if operation == "adb.logcat.start":
         serial, filters = args.get("serial"), args.get("filters", [])
         require_adb(serial, cancel_event=cancel)
@@ -727,6 +974,40 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         return {"files": files}
     raise ValueError(f"Unknown operation: {operation}")
 
+def _operation_uses_adb(operation: str) -> bool:
+    return (
+        operation.startswith("adb.")
+        or operation.startswith("debloat.")
+        or operation in {"devices.list", "device.info"}
+    )
+
+
+def _adb_server_control_requires_exclusive(args: dict[str, Any]) -> bool:
+    raw = args.get("command_text", "")
+    try:
+        tokens = strip_adb_executable(split_command_text(raw))
+    except (TypeError, ValueError):
+        return True
+    index = 0
+    takes_value = {"-s", "-t", "-H", "-P", "-L"}
+    flags = {"-d", "-e"}
+    while index < len(tokens):
+        token = tokens[index]
+        if token in takes_value:
+            index += 2
+        elif token in flags or token.startswith("-s="):
+            index += 1
+        elif token.startswith("-"):
+            index += 1
+        else:
+            break
+    verb = tokens[index].lower() if index < len(tokens) else ""
+    return verb in {
+        "start-server", "kill-server", "connect", "disconnect",
+        "nodaemon", "server",
+    }
+
+
 def _device_command_requires_lock(operation: str, args: dict[str, Any]) -> bool:
     """Return whether an advanced command may mutate the selected device.
 
@@ -736,7 +1017,7 @@ def _device_command_requires_lock(operation: str, args: dict[str, Any]) -> bool:
     if operation == "adb.command":
         raw = args.get("command_text", "")
         try:
-            tokens = split_command_text(raw)
+            tokens = strip_adb_executable(split_command_text(raw))
         except (TypeError, ValueError):
             return True
         index = 0
@@ -808,8 +1089,26 @@ def handle(
     request_id, operation, args = message["id"], message["operation"], message["args"]
     lock = None
     lock_acquired = False
+    adb_lock_mode = None
     try:
         response(request_id, "accepted", operation=operation)
+        if _operation_uses_adb(operation):
+            exclusive = (
+                operation == "adb.command"
+                and _adb_server_control_requires_exclusive(args)
+            )
+            acquired = (
+                _ADB_SERVER_LOCK.acquire_exclusive(_ADB_SERVER_LOCK_TIMEOUT, cancel)
+                if exclusive else
+                _ADB_SERVER_LOCK.acquire_shared(_ADB_SERVER_LOCK_TIMEOUT, cancel)
+            )
+            if not acquired:
+                raise RuntimeError(
+                    "ADB is busy with another device operation. Stop the active operation "
+                    "and retry this ADB server or device command."
+                )
+            adb_lock_mode = "exclusive" if exclusive else "shared"
+
         if _device_command_requires_lock(operation, args):
             serial = args.get("serial")
             if not isinstance(serial, str) or not serial:
@@ -844,6 +1143,10 @@ def handle(
     finally:
         if lock is not None and lock_acquired:
             lock.release()
+        if adb_lock_mode == "exclusive":
+            _ADB_SERVER_LOCK.release_exclusive()
+        elif adb_lock_mode == "shared":
+            _ADB_SERVER_LOCK.release_shared()
         with _ACTIVE_LOCK:
             _ACTIVE.pop(request_id, None)
         if release_worker_slot:

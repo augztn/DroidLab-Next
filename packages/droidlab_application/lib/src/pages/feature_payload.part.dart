@@ -17,6 +17,8 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   String? _selectedMount;
   StreamSubscription<BackendEvent>? _events;
   List<Map<String, dynamic>> _parts = [];
+  String? _cachedPartitionQuery;
+  List<Map<String, dynamic>> _cachedVisibleParts = const [];
   String _status = 'Drop an OTA ZIP or payload BIN file here, or enter its path.';
   bool _busy = false;
   bool _sha = false;
@@ -68,6 +70,12 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   }
 
   Future<void> _refreshMountedLocations() async {
+    final backendReady = Platform.isWindows
+        ? ref.read(backendReadyProvider.future)
+        : null;
+    final backendClient = Platform.isWindows
+        ? ref.read(backendClientProvider)
+        : null;
     final roots = <Directory>[];
     if (Platform.isLinux) {
       final home = Platform.environment['HOME'] ?? '';
@@ -88,8 +96,9 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
     final seen = <String>{};
     if (Platform.isWindows) {
       try {
-        await ref.read(backendReadyProvider.future);
-        final result = await ref.read(backendClientProvider).request(
+        await backendReady!;
+        if (!mounted) return;
+        final result = await backendClient!.request(
           'storage.removable_drives',
           const {},
         );
@@ -198,6 +207,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
       if (!mounted) return;
       setState(() {
         _parts = parts;
+        _cachedPartitionQuery = null;
         _selected.clear();
         _status = 'Found ' + parts.length.toString() + ' partitions.';
       });
@@ -240,58 +250,96 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
     }
   }
 
+  List<Map<String, dynamic>> get _visibleParts {
+    final query = _partitionFilter.text.trim().toLowerCase();
+    if (_cachedPartitionQuery == query) return _cachedVisibleParts;
+    _cachedPartitionQuery = query;
+    _cachedVisibleParts = query.isEmpty
+        ? _parts
+        : _parts.where((part) =>
+            (part['name'] as String).toLowerCase().contains(query)
+          ).toList(growable: false);
+    return _cachedVisibleParts;
+  }
+
   @override
-  Widget build(BuildContext context) => _PageFrame(
-    title: 'Firmware & Payload',
-    subtitle: 'Inspect OTA ZIP and payload BIN contents, review partition metadata, and extract verified image artifacts without overwriting existing files.',
-    child: DropTarget(
-      onDragDone: _drop,
-      child: ListView(children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Expanded(child: _TextField(controller: _source, label: 'OTA ZIP or payload BIN path')),
-          const SizedBox(width: 8),
-          OutlinedButton(onPressed: _browseSource, child: const Text('Browse…')),
-        ]),
-        const SizedBox(height: 10),
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Expanded(child: _TextField(controller: _output, label: 'Output directory')),
-          const SizedBox(width: 8),
-          OutlinedButton(onPressed: _browseOutput, child: const Text('Choose…')),
-          const SizedBox(width: 6),
-          OutlinedButton(onPressed: _openOutput, child: const Text('Open folder')),
-        ]),
-        const SizedBox(height: 10),
-        Row(children: [
-          Expanded(child: DropdownButtonFormField<String>(
+  Widget build(BuildContext context) {
+    final sourcePanel = Card(child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        LayoutBuilder(builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 1000;
+          final source = Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Expanded(child: _TextField(controller: _source, label: 'OTA ZIP or payload.bin source path')),
+            const SizedBox(width: 8),
+            OutlinedButton(onPressed: _browseSource, child: const Text('Browse…')),
+          ]);
+          final output = Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Expanded(child: _TextField(controller: _output, label: 'Non-overwriting publication directory')),
+            const SizedBox(width: 8),
+            OutlinedButton(onPressed: _browseOutput, child: const Text('Choose…')),
+            const SizedBox(width: 6),
+            OutlinedButton(onPressed: _openOutput, child: const Text('Open folder')),
+          ]);
+          return wide
+            ? Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Expanded(child: source),
+                const SizedBox(width: 16),
+                Expanded(child: output),
+              ])
+            : Column(children: [source, const SizedBox(height: 10), output]);
+        }),
+        const SizedBox(height: 12),
+        LayoutBuilder(builder: (context, constraints) {
+          final compact = constraints.maxWidth < 680;
+          final drivePicker = DropdownButtonFormField<String>(
             initialValue: _selectedMount,
             isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Mounted removable drive',
-              border: OutlineInputBorder(),
-            ),
+            decoration: const InputDecoration(labelText: 'Mounted removable drive'),
             hint: const Text('Select mounted storage'),
             items: _mountedLocations.map((item) => DropdownMenuItem<String>(
               value: item.path,
-              child: Text(item.label + ' · ' + item.path, overflow: TextOverflow.ellipsis),
+              child: Text('${item.label} · ${item.path}', overflow: TextOverflow.ellipsis),
             )).toList(),
             onChanged: (value) => setState(() => _selectedMount = value),
-          )),
-          const SizedBox(width: 8),
-          IconButton.filledTonal(
-            tooltip: 'Refresh mounted drives',
-            onPressed: _refreshMountedLocations,
-            icon: const Icon(Icons.refresh),
-          ),
-          OutlinedButton(
-            onPressed: _selectedMount == null ? null : _useMountedOutput,
-            child: const Text('Use for output'),
-          ),
-          OutlinedButton(
-            onPressed: _selectedMount == null ? null : _browseMountedInput,
-            child: const Text('Browse drive'),
-          ),
-        ]),
-        const SizedBox(height: 12),
+          );
+          final driveActions = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              IconButton.filledTonal(
+                tooltip: 'Refresh mounted drives',
+                onPressed: _refreshMountedLocations,
+                icon: const Icon(Icons.refresh),
+              ),
+              OutlinedButton(
+                onPressed: _selectedMount == null ? null : _useMountedOutput,
+                child: const Text('Use for output'),
+              ),
+              OutlinedButton(
+                onPressed: _selectedMount == null ? null : _browseMountedInput,
+                child: const Text('Browse drive'),
+              ),
+            ],
+          );
+          return compact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    drivePicker,
+                    const SizedBox(height: 8),
+                    driveActions,
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: drivePicker),
+                    const SizedBox(width: 8),
+                    driveActions,
+                  ],
+                );
+        }),
+        const SizedBox(height: 14),
         Wrap(spacing: 8, runSpacing: 8, children: [
           FilledButton(onPressed: _busy ? null : _inspect, child: const Text('Inspect payload')),
           FilledButton.icon(
@@ -300,65 +348,84 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
             label: const Text('Extract selected (or all if none selected)'),
           ),
           FilterChip(
-            label: const Text('SHA-256 fingerprints'),
+            label: const Text('Compute SHA-256 digest'),
             selected: _sha,
             onSelected: (value) => setState(() => _sha = value),
           ),
         ]),
-        const SizedBox(height: 12),
-        Text(_status),
-        if (_parts.isNotEmpty) ...[
-          Row(children: [
-            Text(
-              _parts.length.toString() + ' partitions · ' +
-              _selected.length.toString() + ' selected · ' +
-              _parts.where((part) => _selected.contains(part['name']))
-                .fold<int>(0, (sum, part) => sum + ((part['size_bytes'] as num?)?.toInt() ?? 0)).toString() + ' B selected',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: () => setState(() => _selected.addAll(_parts.map((p) => p['name'] as String))),
-              child: const Text('Select all'),
-            ),
-            TextButton(
-              onPressed: () => setState(_selected.clear),
-              child: const Text('Select none'),
-            ),
-          ]),
-          _TextField(
-            controller: _partitionFilter,
-            label: 'Filter partitions',
-            hint: 'Search by partition name',
-            onChanged: (_) => setState(() {}),
-          ),
-          for (final part in _parts.where((part) =>
-            (part['name'] as String).toLowerCase().contains(_partitionFilter.text.trim().toLowerCase())))
-            CheckboxListTile(
-              dense: true,
-              value: _selected.contains(part['name']),
-              title: Text(part['name'] as String),
-              subtitle: Text(part['size_bytes'].toString() + ' bytes'),
-              onChanged: (value) => setState(() {
-                final name = part['name'] as String;
-                if (value == true) {
-                  _selected.add(name);
-                } else {
-                  _selected.remove(name);
-                }
-              }),
-            ),
-        ],
-        const SizedBox(height: 12),
-        Text('ACTIVITY LOG', style: Theme.of(context).textTheme.labelLarge),
-        const SizedBox(height: 6),
+        const SizedBox(height: 10),
+        Text(_status, style: Theme.of(context).textTheme.bodySmall),
+      ]),
+    ));
+    final partitionPanel = Card(child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Expanded(child: Text(
+            '${_parts.length} partitions · ${_selected.length} selected',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          )),
+          TextButton(onPressed: () => setState(() => _selected.addAll(_parts.map((p) => p['name'] as String))),
+            child: const Text('Select all')),
+          TextButton(onPressed: () => setState(_selected.clear), child: const Text('Select none')),
+        ]),
+        const SizedBox(height: 8),
+        _TextField(controller: _partitionFilter, label: 'Filter partitions', hint: 'boot, vbmeta, system…',
+          onChanged: (_) => setState(() {})),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 360,
+          child: _visibleParts.isEmpty
+            ? const Center(child: Text('No partitions match this filter.'))
+            : ListView.separated(
+                itemCount: _visibleParts.length,
+                separatorBuilder: (_, __) => Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
+                itemBuilder: (context, index) {
+                  final part = _visibleParts[index];
+                  final name = part['name'] as String;
+                  return CheckboxListTile(
+                    dense: true,
+                    value: _selected.contains(name),
+                    title: Text(name, style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w600)),
+                    subtitle: Text('${part['size_bytes']} bytes'),
+                    onChanged: _busy ? null : (value) => setState(() {
+                      if (value == true) {
+                        _selected.add(name);
+                      } else {
+                        _selected.remove(name);
+                      }
+                    }),
+                  );
+                },
+              ),
+        ),
+      ]),
+    ));
+    final activityPanel = Card(child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('Activity Log', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
         _OutputPanel(output: _activityLines.isEmpty ? _status : _activityLines.join('\n')),
         if (_busy) ...[
+          const SizedBox(height: 10),
           LinearProgressIndicator(value: _progress),
-          if (_progress != null)
-            Text('Extraction progress: ${(_progress! * 100).round()}%'),
+          if (_progress != null) Text('Extraction progress: ${(_progress! * 100).round()}%'),
         ],
       ]),
-    ),
-  );
+    ));
+    return _PageFrame(
+      title: 'Firmware & OTA Payload Extractor',
+      subtitle: 'Isolated staging directory · Rejects empty/symlink artifacts · Atomic non-overwriting publication',
+      child: DropTarget(
+        onDragDone: _drop,
+        child: ListView(children: [
+          sourcePanel,
+          if (_parts.isNotEmpty) ...[const SizedBox(height: 14), partitionPanel],
+          const SizedBox(height: 14),
+          activityPanel,
+        ]),
+      ),
+    );
+  }
 }

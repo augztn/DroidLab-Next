@@ -23,6 +23,7 @@ String historyOperationLabel(String operation) {
       value.startsWith('fastboot switch')) return 'Fastboot slot change';
   if (value.startsWith('discover fastboot')) return 'Discover Fastboot partitions';
   if (value.startsWith('payload extraction')) return 'Payload extraction';
+  if (value.startsWith('android package')) return 'Android package management';
   if (value.startsWith('device')) return 'Device operation';
   if (value.startsWith('system')) return 'System operation';
   if (value.startsWith('operation')) return 'Operation';
@@ -30,32 +31,47 @@ String historyOperationLabel(String operation) {
 }
 
 /// Persisted history intentionally contains no device serials, file paths,
-/// command arguments, backend output, or caller-provided success messages.
+/// command arguments, backend output, or arbitrary caller-provided messages.
 String _safeTarget(String _) => 'Local target';
 
-String _safeSummary(String status) {
+String _safeSummary(String status, [String? summary]) {
   switch (status) {
     case 'completed':
+      final candidate = summary?.trim() ?? '';
+      if (candidate == 'One-hour logcat capture completed.' ||
+          candidate == 'Logcat stream stopped.') {
+        return candidate;
+      }
+      if (RegExp(r'^[0-9]{1,6} image file[(]s[)] created[.]$')
+          .hasMatch(candidate)) {
+        return candidate;
+      }
+      if (candidate.startsWith('Report saved to ')) {
+        // Keep the useful outcome, never persist a user-controlled file path.
+        return 'Report saved.';
+      }
       return 'Operation completed.';
     case 'cancelled':
       return 'Operation cancelled.';
     case 'failed':
-      return 'Operation failed. Detailed error text was omitted from local history.';
     default:
       return 'Operation failed. Detailed error text was omitted from local history.';
   }
 }
 
-OperationRecord _sanitizeRecord(OperationRecord record) => OperationRecord(
-  id: record.id,
-  timestamp: record.timestamp,
-  operation: historyOperationLabel(record.operation),
-  target: _safeTarget(record.target),
-  status: const {'completed', 'cancelled', 'failed'}.contains(record.status)
+OperationRecord _sanitizeRecord(OperationRecord record) {
+  final status = const {'completed', 'cancelled', 'failed'}.contains(record.status)
       ? record.status
-      : 'failed',
-  summary: _safeSummary(record.status),
-);
+      : 'failed';
+  return OperationRecord(
+    id: record.id,
+    timestamp: record.timestamp,
+    operation: historyOperationLabel(record.operation),
+    target: _safeTarget(record.target),
+    status: status,
+    summary: _safeSummary(status, record.summary),
+  );
+}
 
 /// Returns a deliberately non-diagnostic failure summary for local history.
 String operationFailureSummary(Object error) {
@@ -106,10 +122,13 @@ class OperationRecord {
 }
 
 class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRecord>>> {
-  OperationHistoryNotifier() : super(const AsyncLoading()) {
+  OperationHistoryNotifier({Future<Directory> Function()? supportDirectory})
+      : _supportDirectory = supportDirectory,
+        super(const AsyncLoading()) {
     _loaded = _load();
   }
 
+  final Future<Directory> Function()? _supportDirectory;
   late final Future<void> _loaded;
   static const _maximumRecords = 500;
   static const _schemaVersion = 1;
@@ -117,13 +136,14 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
   String? persistenceError;
 
   Future<File> _historyFile() async {
-    final directory = await getApplicationSupportDirectory();
+    final directory = await (_supportDirectory?.call() ?? getApplicationSupportDirectory());
     return File('${directory.path}${Platform.pathSeparator}operation_history.json');
   }
 
   Future<void> _load() async {
     try {
       final file = await _historyFile();
+      await _recoverHistoryFile(file);
       if (!await file.exists()) {
         state = const AsyncData([]);
         return;
@@ -176,6 +196,10 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
 
   Future<void> record(OperationRecord record) async {
     await _loaded;
+    if (state.hasError) {
+      persistenceError = 'History could not be loaded; writes are blocked to preserve the existing files.';
+      return;
+    }
     final safeRecord = _sanitizeRecord(record);
     final current = state.valueOrNull ?? const <OperationRecord>[];
     final records = <OperationRecord>[safeRecord, ...current]
@@ -192,6 +216,10 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
 
   Future<void> clear() async {
     await _loaded;
+    if (state.hasError) {
+      persistenceError = 'History could not be loaded; clear is blocked to preserve the existing files.';
+      return;
+    }
     state = const AsyncData([]);
     _writeTail = _writeTail.catchError((_) {}).then((_) async {
       final file = await _historyFile();
@@ -209,6 +237,7 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
     final file = await _historyFile();
     await file.parent.create(recursive: true);
     final temporary = File('${file.path}.tmp');
+    final backup = File('${file.path}.bak');
     await temporary.writeAsString(
       jsonEncode({
         'schema_version': _schemaVersion,
@@ -216,14 +245,86 @@ class OperationHistoryNotifier extends StateNotifier<AsyncValue<List<OperationRe
       }),
       flush: true,
     );
+
+    var movedOriginal = false;
     try {
+      // Windows cannot rename over an existing file. Preserve the old copy
+      // until the new file is installed, and roll back on publication failure.
+      if (await backup.exists()) await backup.delete();
+      if (await file.exists()) {
+        await file.rename(backup.path);
+        movedOriginal = true;
+      }
       await temporary.rename(file.path);
-    } on FileSystemException {
-      if (await file.exists()) await file.delete();
-      await temporary.rename(file.path);
+      if (movedOriginal && await backup.exists()) await backup.delete();
+    } on Object {
+      if (movedOriginal && !await file.exists() && await backup.exists()) {
+        await backup.rename(file.path);
+      }
+      rethrow;
+    } finally {
+      if (await temporary.exists()) await temporary.delete();
     }
   }
-}
+
+  Future<void> _recoverHistoryFile(File file) async {
+    final backup = File('${file.path}.bak');
+    if (!await backup.exists()) return;
+
+    final primaryValid = await _isValidHistoryFile(file);
+    if (primaryValid) {
+      await backup.delete();
+      return;
+    }
+
+    if (!await _isValidHistoryFile(backup)) {
+      // Keep both files untouched and block writes. With no primary, treating
+      // this as an empty history would let the next write erase the backup.
+      throw const FormatException(
+        'The operation history backup is invalid and was preserved.',
+      );
+    }
+
+    if (await file.exists()) {
+      final corrupt = File(
+        '${file.path}.corrupt.${DateTime.now().toUtc().microsecondsSinceEpoch}',
+      );
+      await file.rename(corrupt.path);
+    }
+    await backup.rename(file.path);
+  }
+
+  Future<bool> _isValidHistoryFile(File candidate) async {
+    if (!await candidate.exists()) return false;
+    try {
+      final decoded = jsonDecode(await candidate.readAsString());
+      final List<dynamic> records;
+      if (decoded is List<dynamic>) {
+        records = decoded;
+      } else if (decoded is Map<String, dynamic> &&
+          decoded['schema_version'] == _schemaVersion &&
+          decoded['records'] is List<dynamic>) {
+        records = decoded['records'] as List<dynamic>;
+      } else {
+        return false;
+      }
+      for (final value in records) {
+        if (value is! Map<String, dynamic> ||
+            value['id'] is! String ||
+            value['timestamp'] is! String ||
+            value['operation'] is! String ||
+            value['status'] is! String ||
+            (value['target'] != null && value['target'] is! String) ||
+            (value['summary'] != null && value['summary'] is! String)) {
+          return false;
+        }
+        DateTime.parse(value['timestamp'] as String);
+      }
+      return true;
+    } on Object {
+      return false;
+    }
+  }}
 
 final operationHistoryProvider = StateNotifierProvider<
     OperationHistoryNotifier, AsyncValue<List<OperationRecord>>>(
@@ -236,22 +337,42 @@ Future<T> trackOperation<T>(
   required String target,
   required Future<T> Function() action,
   String Function(T result)? successSummary,
+}) {
+  // WidgetRef becomes invalid when its owning page is disposed. Capture the
+  // app-scoped notifier before awaiting the operation so navigation cannot
+  // turn a successful device operation into a late StateError.
+  final history = ref.read(operationHistoryProvider.notifier);
+  return trackOperationWithHistory(
+    history,
+    operation: operation,
+    target: target,
+    action: action,
+    successSummary: successSummary,
+  );
+}
+
+Future<T> trackOperationWithHistory<T>(
+  OperationHistoryNotifier history, {
+  required String operation,
+  required String target,
+  required Future<T> Function() action,
+  String Function(T result)? successSummary,
 }) async {
   final started = DateTime.now();
   try {
     final result = await action();
-    await ref.read(operationHistoryProvider.notifier).record(OperationRecord(
+    await history.record(OperationRecord(
       id: started.microsecondsSinceEpoch.toString(),
       timestamp: DateTime.now(),
       operation: historyOperationLabel(operation),
       target: target,
       status: 'completed',
-      summary: 'Operation completed.',
+      summary: successSummary?.call(result) ?? 'Operation completed.',
     ));
     return result;
   } on Object catch (error) {
     final cancelled = error is BackendException && error.code == 'cancelled';
-    await ref.read(operationHistoryProvider.notifier).record(OperationRecord(
+    await history.record(OperationRecord(
       id: started.microsecondsSinceEpoch.toString(),
       timestamp: DateTime.now(),
       operation: historyOperationLabel(operation),

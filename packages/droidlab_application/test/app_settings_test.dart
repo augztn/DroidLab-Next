@@ -15,8 +15,52 @@ void main() {
     final settings = await DroidLabSettingsStore(file: file).load();
 
     expect(settings.theme, 'oled_black');
+    expect(settings.themeMode, 'dark');
     expect(settings.adbPath, isEmpty);
     expect(settings.fastbootPath, isEmpty);
+  });
+
+  test('recovers settings backup after interrupted atomic save', () async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-settings-recovery-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final file = File(temporary.path + '/config.json');
+    final backup = File('${file.path}.bak');
+    final staleTemporary = File('${file.path}.tmp');
+    await backup.writeAsString(
+      '{"schema_version":1,"theme":"oled_black","adb_path":"/recovered/adb"}',
+    );
+    await staleTemporary.writeAsString('incomplete write');
+
+    final store = DroidLabSettingsStore(file: file);
+    final settings = await store.load();
+
+    expect(settings.theme, 'oled_black');
+    expect(settings.adbPath, '/recovered/adb');
+    expect(store.recoveryNotice, contains('restored from the backup'));
+    expect(await file.exists(), isTrue);
+    expect(await backup.exists(), isFalse);
+    expect(await staleTemporary.exists(), isTrue);
+    expect((await DroidLabSettingsStore(file: file).load()).adbPath, '/recovered/adb');
+  });
+
+  test('preserves invalid backup rather than replacing it with defaults', () async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-invalid-backup-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final file = File(temporary.path + '/config.json');
+    final backup = File('${file.path}.bak');
+    await backup.writeAsString('{invalid');
+
+    final store = DroidLabSettingsStore(file: file);
+    final settings = await store.load();
+
+    expect(settings.theme, 'cyberpunk_glass');
+    expect(store.recoveryNotice, contains('backup is invalid'));
+    expect(await backup.readAsString(), '{invalid');
+    await expectLater(
+      store.save(const DroidLabSettings(theme: 'oled_black')),
+      throwsA(isA<FileSystemException>()),
+    );
+    expect(await backup.readAsString(), '{invalid');
   });
 
   test('persists theme and executable overrides in legacy config location', () async {
@@ -26,6 +70,7 @@ void main() {
     final store = DroidLabSettingsStore(file: file);
     const settings = DroidLabSettings(
       theme: 'standard_dark',
+      themeMode: 'light',
       pythonPath: '/opt/python/bin/python3',
       backendPath: '/opt/droidlab/server.py',
       adbPath: '/opt/platform-tools/adb',
@@ -37,6 +82,7 @@ void main() {
     final loaded = await store.load();
 
     expect(loaded.toJson(), settings.toJson());
+    expect(loaded.themeMode, 'light');
   });
 
   test('preserves malformed config and exposes a recovery notice', () async {
@@ -54,6 +100,35 @@ void main() {
     final recovered = temporary.listSync().whereType<File>().single;
     expect(recovered.path, contains('.corrupt.'));
     expect(await recovered.readAsString(), '{ invalid json');
+  });
+
+  test('recovers a valid backup when the primary settings file is corrupt', () async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-corrupt-primary-backup-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final file = File(temporary.path + '/config.json');
+    final backup = File('${file.path}.bak');
+    await file.writeAsString('{ invalid primary json');
+    await backup.writeAsString(
+      '{"schema_version":1,"theme":"oled_black","adb_path":"/backup/adb"}',
+    );
+
+    final store = DroidLabSettingsStore(file: file);
+    final recovered = await store.load();
+
+    expect(recovered.theme, 'oled_black');
+    expect(recovered.adbPath, '/backup/adb');
+    expect(store.recoveryNotice, contains('restored from the backup'));
+    expect(store.recoveryNotice, contains('original file was preserved'));
+    expect(await file.exists(), isTrue);
+    expect(await backup.exists(), isFalse);
+
+    final preserved = temporary
+        .listSync()
+        .whereType<File>()
+        .singleWhere((candidate) => candidate.path.contains('.corrupt.'));
+    expect(await preserved.readAsString(), '{ invalid primary json');
+    await store.save(recovered.copyWith(theme: 'standard_dark'));
+    expect((await store.load()).theme, 'standard_dark');
   });
 
   test('preserves unsupported future schema without overwriting it', () async {

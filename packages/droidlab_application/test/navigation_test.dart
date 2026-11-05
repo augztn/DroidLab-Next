@@ -34,6 +34,46 @@ void main() {
     }
   });
 
+  test('device manager requires a target when multiple devices are connected', () {
+    final first = {'serial': 'DEVICE-1', 'transport': 'adb', 'state': 'device'};
+    final second = {'serial': 'DEVICE-2', 'transport': 'fastboot', 'state': 'fastboot'};
+
+    expect(resolveDeviceManagerTarget([first, second], null), isNull);
+    expect(resolveDeviceManagerTarget([first], null), same(first));
+    expect(resolveDeviceManagerTarget([first, second], 'DEVICE-2'), same(second));
+    expect(resolveDeviceManagerTarget([first, second], 'MISSING'), isNull);
+  });
+
+  test('dashboard never falls back to the first device when selection is ambiguous', () {
+    final first = {'serial': 'ADB-1', 'transport': 'adb', 'state': 'device'};
+    final second = {'serial': 'ADB-2', 'transport': 'adb', 'state': 'device'};
+    final fastboot = {'serial': 'FB-1', 'transport': 'fastboot', 'state': 'fastboot'};
+
+    expect(resolveDashboardAdbTarget([first, second], null), isNull);
+    expect(resolveDashboardAdbTarget([first], null), same(first));
+    expect(resolveDashboardAdbTarget([first, second], 'ADB-2'), same(second));
+    expect(resolveDashboardAdbTarget([first, second], 'MISSING'), isNull);
+    expect(resolveDashboardAdbTarget([first, fastboot], 'FB-1'), isNull);
+  });
+
+  test('Fastboot readiness accepts bootloader and userspace Fastbootd only', () {
+    for (final state in ['fastboot', 'fastbootd']) {
+      expect(
+        isFastbootDeviceReady({'transport': 'fastboot', 'state': state}),
+        isTrue,
+      );
+    }
+    expect(
+      isFastbootDeviceReady({'transport': 'adb', 'state': 'device'}),
+      isFalse,
+    );
+    expect(
+      isFastbootDeviceReady({'transport': 'fastboot', 'state': 'unauthorized'}),
+      isFalse,
+    );
+    expect(isFastbootDeviceReady(null), isFalse);
+  });
+
   test('mixed or empty device discovery never forces a tool route', () {
     expect(preferredDeviceToolLocation({'devices': []}), isNull);
     expect(

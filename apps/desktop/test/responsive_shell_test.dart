@@ -23,7 +23,31 @@ void main() {
     expect(find.text('ANDROID ENGINEERING WORKSTATION'), findsNothing);
   });
 
-  testWidgets('console can be hidden and restored', (tester) async {
+
+  testWidgets('dashboard metric cards reflow to available workspace width', (tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: testBackendOverrides(),
+        child: const DroidLabApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final backend = tester.getTopLeft(find.text('Backend'));
+    final devices = tester.getTopLeft(find.text('Connected devices'));
+    final desktop = tester.getTopLeft(find.text('Desktop'));
+    expect(backend.dy, devices.dy);
+    expect(backend.dy, desktop.dy);
+    expect(backend.dx, lessThan(devices.dx));
+    expect(devices.dx, lessThan(desktop.dx));
+  });
+
+  testWidgets('operation console can be collapsed and restored', (tester) async {
     tester.view.physicalSize = const Size(1440, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -37,12 +61,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.textContaining('Operation Console (Bounded'), findsOneWidget);
+    expect(find.byTooltip('Hide console'), findsOneWidget);
     await tester.tap(find.byTooltip('Hide console'));
     await tester.pumpAndSettle();
-    expect(find.text('OPERATION CONSOLE'), findsNothing);
-
-    await tester.tap(find.text('Show console'));
+    expect(find.byTooltip('Show console'), findsOneWidget);
+    await tester.tap(find.byTooltip('Show console'));
     await tester.pumpAndSettle();
-    expect(find.text('OPERATION CONSOLE'), findsOneWidget);
+    expect(find.byTooltip('Hide console'), findsOneWidget);
   });
 }

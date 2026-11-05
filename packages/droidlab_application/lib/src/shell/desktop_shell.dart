@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:droidlab_backend_bridge/droidlab_backend_bridge.dart';
 import 'package:flutter/material.dart';
-import 'package:droidlab_design_system/droidlab_design_system.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../state/backend_providers.dart';
@@ -17,11 +16,15 @@ class DesktopShell extends ConsumerStatefulWidget {
 
 class _DesktopShellState extends ConsumerState<DesktopShell> {
   bool _expanded = true;
-  bool _consoleVisible = true;
+  bool _consoleExpanded = true;
   final List<String> _consoleLines = [];
   StreamSubscription<BackendEvent>? _events;
   BackendClient? _eventClient;
   Timer? _deviceRefreshTimer;
+  Timer? _consoleFlushTimer;
+  final List<String> _pendingConsoleLines = [];
+  Timer? _operationLogFlushTimer;
+  final List<String> _pendingOperationLogLines = [];
   String? _pendingDeviceToolRoute;
   Future<void> _logWriteQueue = Future<void>.value();
   IOSink? _operationLogSink;
@@ -30,14 +33,14 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   static const _groups = <(String, List<(String, String, IconData)>)>[
     ('WORKSPACE', [('Dashboard','/dashboard',Icons.grid_view_rounded),('Device Manager','/devices',Icons.devices_rounded)]),
     ('FIRMWARE', [('Firmware & Payload','/firmware',Icons.folder_open_rounded)]),
-    ('DEVICE TOOLS', [('ADB Toolkit','/adb',Icons.terminal_rounded),('Fastboot Toolkit','/fastboot',Icons.memory_rounded)]),
+    ('DEVICE TOOLS', [('ADB Toolkit','/adb',Icons.terminal_rounded),('Fastboot Toolkit','/fastboot',Icons.memory_rounded),('Android Debloater','/debloater',Icons.cleaning_services_rounded)]),
     ('OBSERVABILITY', [('Logs & Diagnostics','/logs',Icons.receipt_long_rounded),('Operation History','/history',Icons.history_rounded)]),
   ];
 
   @override
   void initState() {
     super.initState();
-    _deviceRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _deviceRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted && ref.read(backendReadyProvider).hasValue) {
         ref.invalidate(deviceListProvider);
       }
@@ -74,17 +77,25 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
               ? '[preflight details omitted]'
               : '[operation accepted]';
       unawaited(_appendOperationLog('$timestamp $persistedEvent'));
-      final timestamped = '$timestamp $line';
-      setState(() {
-        _consoleLines.add(timestamped);
-        if (_consoleLines.length > 300) {
-          _consoleLines.removeRange(0, _consoleLines.length - 300);
-        }
+      _pendingConsoleLines.add('$timestamp $line');
+      // Coalesce bursts of ADB/logcat output into one UI update. ADB can emit
+      // hundreds of lines per second; rebuilding the entire desktop shell for
+      // every line creates avoidable frame work.
+      _consoleFlushTimer ??= Timer(const Duration(milliseconds: 100), () {
+        _consoleFlushTimer = null;
+        if (!mounted || _pendingConsoleLines.isEmpty) return;
+        setState(() {
+          _consoleLines.addAll(_pendingConsoleLines);
+          _pendingConsoleLines.clear();
+          if (_consoleLines.length > 300) {
+            _consoleLines.removeRange(0, _consoleLines.length - 300);
+          }
+          ref.read(operationConsoleLinesProvider.notifier).state = List.unmodifiable(_consoleLines);
+        });
       });
     });
   }
 
-  @override
   String get _operationLogPath {
     final home = Platform.environment['USERPROFILE'] ??
         Platform.environment['HOME'] ?? Directory.current.path;
@@ -92,11 +103,23 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   }
 
   Future<void> _appendOperationLog(String line) {
+    _pendingOperationLogLines.add(line);
+    _operationLogFlushTimer ??= Timer(const Duration(seconds: 1), () {
+      _operationLogFlushTimer = null;
+      unawaited(_drainOperationLog());
+    });
+    return _logWriteQueue;
+  }
+
+  Future<void> _drainOperationLog() {
+    if (_pendingOperationLogLines.isEmpty) return _logWriteQueue;
+    final batch = List<String>.of(_pendingOperationLogLines);
+    _pendingOperationLogLines.clear();
     _logWriteQueue = _logWriteQueue.then((_) async {
       try {
         final file = File(_operationLogPath);
         await file.parent.create(recursive: true);
-        final encoded = utf8.encode('$line\n');
+        final encoded = utf8.encode('${batch.join('\n')}\n');
         if (_operationLogSink == null) {
           _operationLogBytes = await file.exists() ? await file.length() : 0;
           if (_operationLogBytes >= _maxOperationLogBytes) {
@@ -134,6 +157,9 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   @override
   void dispose() {
     _deviceRefreshTimer?.cancel();
+    _consoleFlushTimer?.cancel();
+    _pendingConsoleLines.clear();
+    _operationLogFlushTimer?.cancel();
     unawaited(_events?.cancel() ?? Future<void>.value());
     unawaited(_closeOperationLog());
     super.dispose();
@@ -141,6 +167,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
 
   Future<void> _closeOperationLog() async {
     try {
+      await _drainOperationLog();
       await _logWriteQueue;
       await _operationLogSink?.flush();
       await _operationLogSink?.close();
@@ -149,6 +176,74 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     } finally {
       _operationLogSink = null;
     }
+  }
+
+
+  Widget _buildOperationConsole(BuildContext context, ColorScheme colors) {
+    final border = BorderSide(color: colors.outlineVariant);
+    return Container(
+      decoration: BoxDecoration(color: colors.surface, border: Border(top: border)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 42,
+            child: Row(children: [
+              const SizedBox(width: 14),
+              Icon(Icons.terminal, size: 17, color: colors.primary),
+              const SizedBox(width: 10),
+              Expanded(child: Text(
+                'Operation Console (Bounded 300-line JSONL Event Stream)',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+              )),
+              IconButton(
+                tooltip: 'Clear console',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => setState(() {
+                  _consoleLines.clear();
+                  _pendingConsoleLines.clear();
+                  ref.read(operationConsoleLinesProvider.notifier).state = const [];
+                }),
+                icon: const Icon(Icons.delete_outline, size: 17),
+              ),
+              Tooltip(
+                message: _consoleExpanded ? 'Hide console' : 'Show console',
+                child: TextButton.icon(
+                onPressed: () => setState(() => _consoleExpanded = !_consoleExpanded),
+                icon: Icon(_consoleExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up, size: 18),
+                label: Text(_consoleExpanded ? 'Hide' : 'Show'),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ]),
+          ),
+          if (_consoleExpanded)
+            SizedBox(
+              height: (MediaQuery.sizeOf(context).height * 0.17).clamp(112.0, 160.0),
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: colors.surfaceContainerLowest, border: Border(top: border)),
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  itemCount: _consoleLines.length,
+                  itemBuilder: (context, index) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: SelectableText(
+                      _consoleLines[index],
+                      maxLines: 2,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontFamily: 'monospace',
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -178,131 +273,203 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
         }
       });
     }
+    final targetSerial = ref.watch(selectedTargetSerialProvider);
     return LayoutBuilder(builder: (context, constraints) {
       final compact = constraints.maxWidth < 1000;
       final expanded = _expanded && !compact;
       final colors = Theme.of(context).colorScheme;
-      final surfaces = Theme.of(context).extension<DroidLabThemeSurfaces>();
-      final deviceLabel = devices.when(
-        data: (data) {
-          final count = (data['devices'] as List<dynamic>? ?? const []).length;
-          return count == 0 ? 'No device' : '$count device${count == 1 ? '' : 's'}';
-        },
-        error: (_, __) => 'Device scan error',
-        loading: () => 'Scanning',
-      );
-      final backendLabel = backend.when(
-        data: (_) => 'Backend online',
-        error: (_, __) => 'Backend unavailable',
-        loading: () => 'Backend starting',
-      );
+      final discovered = devices.valueOrNull?['devices'] as List<dynamic>? ?? const [];
+      if (targetSerial != null && devices.hasValue &&
+          !discovered.whereType<Map<String, dynamic>>().any((device) => device['serial'] == targetSerial)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && ref.read(selectedTargetSerialProvider) == targetSerial) {
+            ref.read(selectedTargetSerialProvider.notifier).state = null;
+          }
+        });
+      }
       return Scaffold(body: SafeArea(child: Column(children: [
-        Container(height: 62, padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(color: colors.surface, border: Border(bottom: BorderSide(color: colors.outlineVariant))),
-          child: Row(children: [
-            IconButton(tooltip: 'Toggle navigation', onPressed: () => setState(() => _expanded = !_expanded), icon: const Icon(Icons.menu)),
-            Container(width: 34,height: 34,alignment: Alignment.center,decoration: BoxDecoration(color: colors.primary,borderRadius: BorderRadius.circular(9)),child: const Text('DL',style: TextStyle(fontWeight: FontWeight.bold,color: Colors.white))),
-            const SizedBox(width: 12),
-            Text('DroidLab',style: Theme.of(context).textTheme.titleLarge),
-            if (!compact) ...[const SizedBox(width: 12),Text('ANDROID ENGINEERING WORKSTATION',style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 1))],
-            const Spacer(),
-            Chip(avatar: const Icon(Icons.usb,size: 14),label: Text(deviceLabel)),
-            const SizedBox(width: 8),
-            Chip(avatar: Icon(Icons.circle,size: 9,color: backend.hasValue ? Colors.green : colors.onSurfaceVariant),label: Text(backendLabel)),
-            const SizedBox(width: 8),
-            IconButton(tooltip: 'Settings',onPressed: () => context.go('/settings'),icon: const Icon(Icons.settings_outlined)),
-            PopupMenuButton<String>(
-              tooltip: 'Help',
-              onSelected: (value) {
-                if (value == 'about') context.go('/about');
-                if (value == 'logs') context.go('/logs');
-              },
-              itemBuilder: (context) => const [
-                PopupMenuItem(value: 'logs', child: Text('Debug tools / Open logs')),
-                PopupMenuItem(value: 'about', child: Text('About DroidLab')),
-              ],
-              icon: const Icon(Icons.help_outline),
-            ),
-          ]),
-        ),
-        Expanded(child: Row(children: [
-          AnimatedContainer(duration: const Duration(milliseconds: 160),width: expanded ? 232 : 68,color: colors.surface,
-            child: ListView(padding: const EdgeInsets.symmetric(vertical: 14),children: [
-              for (final group in _groups) ...[
-                if (expanded) Padding(padding: const EdgeInsets.fromLTRB(16,14,8,8),child: Text(group.$1,style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant,letterSpacing: 1))),
-                for (final item in group.$2)
-                  Padding(padding: const EdgeInsets.symmetric(horizontal: 8,vertical: 2),
-                    child: Material(
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(9),
-                    child: Tooltip(message: item.$1,child: ListTile(
-                      selected: widget.currentLocation == item.$2,
-                      leading: Icon(item.$3),
-                      title: expanded ? Text(item.$1,maxLines: 1,overflow: TextOverflow.ellipsis) : null,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: expanded ? 16 : 0,
+        Container(
+          height: 58,
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            border: Border(bottom: BorderSide(color: colors.outlineVariant)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => context.go('/dashboard'),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Image.asset('assets/branding/droidlab_app_icon.png', width: 36, height: 36, fit: BoxFit.contain),
+                    const SizedBox(width: 10),
+                    Flexible(child: Text('DroidLab', maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700, letterSpacing: -0.5,
                       ),
-                      dense: true, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-                      onTap: () => context.go(item.$2),
                     )),
-                  ),
-                  ),
-              ],
-              const Divider(),
-              Material(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(9),
-                child: ListTile(
-                  leading: const Icon(Icons.info_outline),
-                  title: expanded ? const Text('About DroidLab') : null,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: expanded ? 16 : 0,
-                  ),
-                  dense: true,
-                  selected: widget.currentLocation == '/about',
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  onTap: () => context.go('/about'),
+                  ]),
                 ),
               ),
-              Material(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(9),
-                child: ListTile(
-                  leading: const Icon(Icons.settings_outlined),
-                  title: expanded ? const Text('Settings') : null,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: expanded ? 16 : 0,
-                  ),
-                  dense: true,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  onTap: () => context.go('/settings'),
+            ],
+          ),
+        ),
+        Expanded(child: Row(children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            width: expanded ? 276 : (constraints.maxWidth < 620 ? 56 : 64),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              border: Border(right: BorderSide(color: colors.outlineVariant)),
+            ),
+            child: Column(children: [
+              SizedBox(
+                height: 48,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: expanded ? 12 : 4),
+                  child: Row(children: [
+                    if (expanded) Expanded(child: Text(
+                      'Target: ${targetSerial ?? 'Unselected'}',
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(color: colors.onSurfaceVariant),
+                    )),
+                    IconButton(
+                      tooltip: 'Toggle sidebar width',
+                      onPressed: () => setState(() => _expanded = !_expanded),
+                      icon: const Icon(Icons.menu, size: 19),
+                    ),
+                  ]),
                 ),
+              ),
+              Expanded(child: ListView(
+                padding: EdgeInsets.fromLTRB(expanded ? 10 : 5, 8, expanded ? 10 : 5, 14),
+                children: [
+                  for (final group in _groups) ...[
+                    if (expanded) Padding(
+                      padding: const EdgeInsets.fromLTRB(13, 20, 8, 9),
+                      child: Text(
+                        group.$1 == 'FIRMWARE' ? 'Firmware & OTA' :
+                        group.$1 == 'OBSERVABILITY' ? 'Observability' :
+                        group.$1 == 'WORKSPACE' ? 'Workspace' : 'Device Tools',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: colors.onSurfaceVariant, fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    for (final item in group.$2)
+                      Padding(
+                        padding: EdgeInsets.symmetric(vertical: expanded ? 3 : 2),
+                        child: Tooltip(
+                          message: item.$1,
+                          child: Material(
+                            color: expanded
+                                ? colors.surface
+                                : widget.currentLocation == item.$2
+                                    ? colors.primaryContainer.withValues(alpha: 0.72)
+                                    : Colors.transparent,
+                            borderRadius: BorderRadius.circular(11),
+                            clipBehavior: Clip.antiAlias,
+                            child: expanded
+                                ? ListTile(
+                                    selected: widget.currentLocation == item.$2,
+                                    leading: Icon(item.$3, size: 19),
+                                    title: Text(item.$1, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                                    minLeadingWidth: 24,
+                                    minTileHeight: 48,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+                                    onTap: () => context.go(item.$2),
+                                  )
+                                : SizedBox(
+                                    height: 46,
+                                    child: InkWell(
+                                      onTap: () => context.go(item.$2),
+                                      child: Center(child: Icon(
+                                        item.$3,
+                                        size: 20,
+                                        color: widget.currentLocation == item.$2
+                                            ? colors.primary
+                                            : colors.onSurfaceVariant,
+                                      )),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ],
+              )),
+              const Divider(height: 1),
+              Padding(
+                padding: EdgeInsets.fromLTRB(expanded ? 8 : 5, 8, expanded ? 8 : 5, 10),
+                child: Column(children: [
+                  for (final entry in <(String, String, IconData)>[
+                    ('Settings', '/settings', Icons.settings_outlined),
+                    ('About DroidLab', '/about', Icons.info_outline),
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Tooltip(
+                        message: entry.$1,
+                        child: Material(
+                          color: expanded
+                              ? colors.surface
+                              : widget.currentLocation == entry.$2
+                                  ? colors.primaryContainer.withValues(alpha: 0.72)
+                                  : Colors.transparent,
+                          borderRadius: BorderRadius.circular(11),
+                          clipBehavior: Clip.antiAlias,
+                          child: expanded
+                              ? ListTile(
+                                  leading: Icon(entry.$3, size: 19),
+                                  title: Text(entry.$1),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                                  minTileHeight: 44,
+                                  selected: widget.currentLocation == entry.$2,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+                                  onTap: () => context.go(entry.$2),
+                                )
+                              : SizedBox(
+                                  height: 44,
+                                  child: InkWell(
+                                    onTap: () => context.go(entry.$2),
+                                    child: Center(child: Icon(
+                                      entry.$3,
+                                      size: 20,
+                                      color: widget.currentLocation == entry.$2
+                                          ? colors.primary
+                                          : colors.onSurfaceVariant,
+                                    )),
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                ]),
               ),
             ]),
           ),
-          const VerticalDivider(width: 1),
-          Expanded(child: Padding(padding: EdgeInsets.all(compact ? 12 : 20),child: widget.child)),
+          Expanded(
+            child: Column(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      constraints.maxWidth < 620 ? 12 : compact ? 16 : 28,
+                      constraints.maxWidth < 620 ? 14 : compact ? 18 : 28,
+                      constraints.maxWidth < 620 ? 12 : compact ? 16 : 28,
+                      18,
+                    ),
+                    child: widget.child,
+                  ),
+                ),
+                _buildOperationConsole(context, colors),
+              ],
+            ),
+          ),
         ])),
-        if (_consoleVisible)
-          Container(height: 132,decoration: BoxDecoration(color: surfaces?.console ?? colors.surface,border: Border(top: BorderSide(color: colors.outlineVariant))),
-            child: Column(children: [
-              ListTile(dense: true,leading: Icon(Icons.terminal,color: colors.primary),title: const Text('OPERATION CONSOLE'),trailing: Row(mainAxisSize: MainAxisSize.min,children: [
-                IconButton(tooltip: 'Clear console',onPressed: () => setState(_consoleLines.clear),icon: const Icon(Icons.clear_all)),
-                IconButton(tooltip: 'Hide console',onPressed: () => setState(() => _consoleVisible = false),icon: const Icon(Icons.keyboard_arrow_down)),
-              ])),
-              const Divider(height: 1),
-              Expanded(child: _consoleLines.isEmpty
-                ? const Padding(padding: EdgeInsets.all(12),child: Align(alignment: Alignment.topLeft,child: Text('Backend output and preflight events will stream here.',style: TextStyle(fontFamily: 'monospace'))))
-                : ListView.builder(reverse: true,padding: const EdgeInsets.symmetric(horizontal: 12,vertical: 6),itemCount: _consoleLines.length,itemBuilder: (context,index) => Text(_consoleLines[_consoleLines.length-index-1],style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),maxLines: 2,overflow: TextOverflow.ellipsis)),
-              ),
-            ]),
-          )
-        else
-          Align(alignment: Alignment.centerRight,child: TextButton.icon(onPressed: () => setState(() => _consoleVisible = true),icon: const Icon(Icons.terminal),label: const Text('Show console'))),
       ])));
     });
   }

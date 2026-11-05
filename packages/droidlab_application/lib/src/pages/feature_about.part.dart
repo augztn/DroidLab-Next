@@ -6,82 +6,79 @@ class AboutPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final platform = '${Platform.operatingSystem} · ${Platform.operatingSystemVersion}';
-    return _PageFrame(
-      title: 'About DroidLab',
-      subtitle: 'Android engineering workstation',
-      child: ListView(
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Text(
-                        'DL',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('DroidLab', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-                          Text('Flutter desktop · Version 0.1.0'),
-                        ],
-                      ),
-                    ),
-                  ]),
-                  const SizedBox(height: 24),
-                  Text(
-                    'A toolkit for Android device engineering and firmware workflows.',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Discover and manage ADB and Fastboot devices, run guarded device operations, inspect and extract OTA payloads, capture logcat output, and review diagnostics.',
-                  ),
-                  const SizedBox(height: 24),
-                  const Divider(),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.computer),
-                    title: const Text('Platform'),
-                    subtitle: Text(platform),
-                  ),
-                  const ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.code),
-                    title: Text('Application'),
-                    subtitle: Text('DroidLab Flutter Desktop'),
-                  ),
-                  const ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.shield_outlined),
-                    title: Text('Local-first'),
-                    subtitle: Text('Device operations and diagnostic files are handled on this computer.'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+    Widget panel({required String title, required Widget child}) => Card(
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 14),
+          child,
+        ]),
       ),
+    );
+    final principles = panel(
+      title: 'Architectural Principles',
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('DroidLab separates presentation and confirmation state from external process execution. The UI layer never invokes host shell commands directly; it dispatches correlated JSONL v1 requests over stdio to a headless Python backend.'),
+        const SizedBox(height: 14),
+        const Text('Every device mutation requires an explicit serial, a fresh transport scan, discrete argument arrays, and an immutable confirmation envelope verified on both sides of the boundary.'),
+        const SizedBox(height: 18),
+        const Divider(),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.computer),
+          title: const Text('Platform'),
+          subtitle: Text(platform),
+        ),
+        const ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.shield_outlined),
+          title: Text('Local-first'),
+          subtitle: Text('Device operations and diagnostic files are handled on this computer.'),
+        ),
+      ]),
+    );
+    final topology = panel(
+      title: 'Workspace Package Topology',
+      child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _TopologyLine('apps/desktop', 'Native runner & composition root'),
+        _TopologyLine('packages/droidlab_domain', 'Immutable Device & Partition entities'),
+        _TopologyLine('packages/droidlab_backend_bridge', 'JSONL v1 process lifecycle'),
+        _TopologyLine('packages/droidlab_design_system', 'Theme tokens & Material 3'),
+        _TopologyLine('packages/droidlab_application', 'Riverpod state, GoRouter & pages'),
+        _TopologyLine('backend/python', 'Tool resolver, staging & guarded operations'),
+      ]),
+    );
+    return _PageFrame(
+      title: 'About DroidLab Engineering Workstation',
+      subtitle: 'Apache-2.0 License · Cross-Platform Flutter & Python Architecture · Reference & Feature Evolution Build',
+      child: LayoutBuilder(builder: (context, constraints) {
+        if (constraints.maxWidth < 900) {
+          return ListView(children: [principles, const SizedBox(height: 14), topology]);
+        }
+        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: principles),
+          const SizedBox(width: 24),
+          Expanded(child: topology),
+        ]);
+      }),
     );
   }
 }
 
+class _TopologyLine extends StatelessWidget {
+  const _TopologyLine(this.path, this.description);
+  final String path;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 7),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SizedBox(width: 245, child: SelectableText(path,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'))),
+      Expanded(child: Text('— $description',
+        style: Theme.of(context).textTheme.bodySmall)),
+    ]),
+  );
+}

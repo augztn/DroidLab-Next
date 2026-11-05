@@ -18,6 +18,17 @@ void main() {
       expect(() => device.details['model'] = 'changed', throwsA(isA<UnsupportedError>()));
     });
 
+    test('recognizes userspace Fastbootd as a ready Fastboot transport', () {
+      final device = DeviceDescriptor.fromJson({
+        'serial': 'device-fastbootd',
+        'transport': 'fastboot',
+        'state': 'fastbootd',
+      });
+
+      expect(device.state, DeviceConnectionState.fastbootd);
+      expect(device.isReady, isTrue);
+    });
+
     test('readiness requires a matching transport and state', () {
       final inconsistent = DeviceDescriptor.fromJson({
         'serial': 'device-03',

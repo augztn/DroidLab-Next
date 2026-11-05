@@ -3,6 +3,7 @@ import os
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -21,6 +22,43 @@ def result(stdout="", returncode=0, stderr=""):
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_adb_scan_reports_merged_stderr_output_on_failure(self):
+        with patch.object(server, "run_capture", return_value=result("adb daemon unavailable", 1)):
+            with patch.object(server, "tool_path", return_value="adb"):
+                with self.assertRaisesRegex(RuntimeError, "adb daemon unavailable"):
+                    server.adb_scan()
+
+    def test_fastboot_scan_reports_merged_stderr_output_on_failure(self):
+        with patch.object(server, "run_capture", return_value=result("fastboot server unavailable", 1)):
+            with patch.object(server, "tool_path", return_value="fastboot"):
+                with self.assertRaisesRegex(RuntimeError, "fastboot server unavailable"):
+                    server.fastboot_scan()
+
+    def test_require_adb_reports_merged_stderr_output_on_scan_failure(self):
+        with patch.object(server, "run_capture", return_value=result("adb server refused connection", 1)):
+            with patch.object(server, "tool_path", return_value="adb"):
+                with self.assertRaisesRegex(RuntimeError, "adb server refused connection"):
+                    server.require_adb("SERIAL-1")
+
+    def test_completed_command_output_is_bounded_at_protocol_boundary(self):
+        import io
+        import json
+
+        stdout = io.StringIO()
+        large_output = "\x01" * (256 * 1024)
+        with patch.object(server.sys, "stdout", stdout):
+            server.response("test", "completed", result={"output": large_output})
+
+        frame = stdout.getvalue().encode("utf-8")
+        self.assertLess(len(frame), server.MAX_LINE_BYTES)
+        payload = json.loads(frame)
+        self.assertEqual(payload["type"], "completed")
+        self.assertIn("output truncated", payload["result"]["output"])
+        self.assertLessEqual(
+            len(payload["result"]["output"]),
+            server.MAX_PROTOCOL_OUTPUT_CHARS + 128,
+        )
+
     def test_ping(self):
         value = server.execute("id", "system.ping", {}, threading.Event())
         self.assertEqual(value["status"], "ok")
@@ -130,6 +168,23 @@ class ProtocolTests(unittest.TestCase):
         }
         with self.assertRaises(ValueError):
             server.execute("id", "adb.command", args, threading.Event())
+
+    def test_advanced_adb_rejects_alternate_target_and_remote_server_selectors(self):
+        for selector in ("-t 7", "-d", "-e", "-H 192.0.2.10", "-P 5038", "-L tcp:localhost:5037"):
+            with self.subTest(selector=selector):
+                command_text = f"{selector} install app.apk"
+                args = {
+                    "serial": "SERIAL",
+                    "command_text": command_text,
+                    "confirmed": True,
+                    "confirmation": {
+                        "operation": "adb.command",
+                        "serial": "SERIAL",
+                        "command_text": command_text,
+                    },
+                }
+                with self.assertRaisesRegex(ValueError, "selected device serial"):
+                    server.execute("id", "adb.command", args, threading.Event())
 
     def test_advanced_adb_targeted_command_requires_selected_device(self):
         command_text = "install app.apk"
@@ -470,6 +525,145 @@ class ProtocolTests(unittest.TestCase):
                 threading.Event(),
             )
 
+    def test_adb_server_control_commands_require_exclusive_lock(self):
+        for command in (
+            "kill-server",
+            "start-server",
+            "connect 192.0.2.1:5555",
+            "disconnect 192.0.2.1:5555",
+            "adb -H 127.0.0.1 -P 5037 kill-server",
+            "adb nodaemon server",
+        ):
+            with self.subTest(command=command):
+                self.assertTrue(server._adb_server_control_requires_exclusive({
+                    "command_text": command,
+                }))
+
+        for command in ("devices -l", "version", "pull /sdcard/log.txt ./log.txt"):
+            with self.subTest(command=command):
+                self.assertFalse(server._adb_server_control_requires_exclusive({
+                    "command_text": command,
+                }))
+
+    def test_adb_server_lock_waits_honor_cancellation(self):
+        lock = server._AdbServerLock()
+        cancelled = threading.Event()
+
+        self.assertTrue(lock.acquire_exclusive(0.1))
+        cancelled.set()
+        with self.assertRaises(server.ProcessCancelledError):
+            lock.acquire_shared(1, cancelled)
+        lock.release_exclusive()
+
+        cancelled.clear()
+        self.assertTrue(lock.acquire_shared(0.1))
+        cancelled.set()
+        with self.assertRaises(server.ProcessCancelledError):
+            lock.acquire_exclusive(1, cancelled)
+        lock.release_shared()
+        self.assertTrue(lock.acquire_shared(0.1))
+        lock.release_shared()
+
+    def test_server_control_waits_for_active_adb_device_operation(self):
+        lock = server._AdbServerLock()
+        first_entered = threading.Event()
+        release_first = threading.Event()
+        server_control_executed = threading.Event()
+
+        def execute(request_id, operation, args, cancel):
+            if request_id == "active-device":
+                first_entered.set()
+                self.assertTrue(release_first.wait(2))
+            else:
+                server_control_executed.set()
+            return {}
+
+        device_message = {
+            "id": "active-device",
+            "operation": "adb.shell",
+            "args": {"serial": "SERIAL"},
+        }
+        server_message = {
+            "id": "server-control",
+            "operation": "adb.command",
+            "args": {
+                "serial": None,
+                "command_text": "kill-server",
+                "confirmed": True,
+                "confirmation": {
+                    "operation": "adb.command",
+                    "serial": None,
+                    "command_text": "kill-server",
+                },
+            },
+        }
+
+        with patch.object(server, "_ADB_SERVER_LOCK", lock):
+            with patch.object(server, "execute", side_effect=execute):
+                with patch.object(server, "response"):
+                    device_thread = threading.Thread(
+                        target=server.handle,
+                        args=(device_message, threading.Event()),
+                    )
+                    server_thread = threading.Thread(
+                        target=server.handle,
+                        args=(server_message, threading.Event()),
+                    )
+                    device_thread.start()
+                    self.assertTrue(first_entered.wait(1))
+                    server_thread.start()
+
+                    deadline = time.monotonic() + 1
+                    with lock._condition:
+                        while lock._waiting_writers == 0:
+                            remaining = deadline - time.monotonic()
+                            self.assertGreater(remaining, 0)
+                            lock._condition.wait(remaining)
+
+                    self.assertFalse(server_control_executed.is_set())
+                    release_first.set()
+                    self.assertTrue(server_control_executed.wait(1))
+                    device_thread.join(1)
+                    server_thread.join(1)
+
+        self.assertFalse(device_thread.is_alive())
+        self.assertFalse(server_thread.is_alive())
+
+    def test_adb_server_lock_allows_parallel_readers_and_excludes_writer(self):
+        lock = server._AdbServerLock()
+        self.assertTrue(lock.acquire_shared(0.1))
+        self.assertTrue(lock.acquire_shared(0.1))
+        self.assertFalse(lock.acquire_exclusive(0.02))
+        lock.release_shared()
+        lock.release_shared()
+
+        self.assertTrue(lock.acquire_exclusive(0.1))
+        self.assertFalse(lock.acquire_shared(0.02))
+        lock.release_exclusive()
+        self.assertTrue(lock.acquire_shared(0.1))
+        lock.release_shared()
+
+    def test_adb_operations_are_coordinated_with_server_lock(self):
+        for operation in (
+            "adb.shell", "adb.command", "adb.transfer", "debloat.package.apply",
+            "debloat.packages.list", "devices.list", "device.info",
+        ):
+            with self.subTest(operation=operation):
+                self.assertTrue(server._operation_uses_adb(operation))
+        self.assertFalse(server._operation_uses_adb("fastboot.flash"))
+        self.assertFalse(server._operation_uses_adb("payload.inspect"))
+
+    def test_advanced_adb_locking_strips_executable_prefix(self):
+        self.assertFalse(server._device_command_requires_lock(
+            "adb.command", {"command_text": "adb devices -l"}
+        ))
+        self.assertFalse(server._device_command_requires_lock(
+            "adb.command", {"command_text": "adb version"}
+        ))
+        self.assertTrue(server._device_command_requires_lock(
+            "adb.command", {"command_text": "adb install app.apk"}
+        ))
+
     def test_advanced_fastboot_command_locking_is_classified_per_command(self):
         self.assertTrue(server._device_command_requires_lock(
             "fastboot.command",
@@ -654,6 +848,158 @@ class ProtocolTests(unittest.TestCase):
             run.call_args.args[0],
             ["adb.exe", "-s", "SERIAL", "install", "-r", r"C:\Users\me\My Phone\app.apk"],
         )
+
+    def test_debloat_inventory_parses_valid_package_ids_and_system_paths(self):
+        # Updated system apps live under /data/app but remain system packages.
+        output = "package:/data/app/~~updated/Example/base.apk=com.example.app\npackage:com.example.user\npackage:invalid package\n"
+        installed = (
+            "package:/system/app/Example/Example.apk=com.example.app\n"
+            "package:/data/app/ExampleUser/base.apk=com.example.user\n"
+        )
+        disabled = "package:com.example.user\n"
+        system = "package:com.example.app\n"
+        with patch.object(server, "tool_path", return_value="adb"):
+            with patch.object(server, "require_adb"):
+                with patch.object(server, "run_streaming", side_effect=[
+                    result(output), result(installed), result(disabled), result(system),
+                ]) as run:
+                    value = server.execute("id", "debloat.packages.list", {"serial": "SERIAL", "user_id": 0}, threading.Event())
+        self.assertEqual([item["package"] for item in value["packages"]], ["com.example.app", "com.example.user"])
+        self.assertTrue(value["packages"][0]["system"])
+        self.assertTrue(value["packages"][0]["installed"])
+        self.assertFalse(value["packages"][1]["system"])
+        self.assertTrue(value["packages"][1]["disabled"])
+        self.assertEqual(len(run.call_args_list), 4)
+
+    def test_debloat_inventory_rejects_truncated_machine_output(self):
+        truncated = result(
+            "package:com.example.app\n"
+            "[DroidLab: 3 additional output chunk(s) omitted]\n"
+        )
+        with patch.object(server, "tool_path", return_value="adb"):
+            with patch.object(server, "require_adb"):
+                with patch.object(server, "run_streaming", return_value=truncated) as run:
+                    with self.assertRaisesRegex(RuntimeError, "output was truncated"):
+                        server.execute(
+                            "id",
+                            "debloat.packages.list",
+                            {"serial": "SERIAL", "user_id": 0},
+                            threading.Event(),
+                        )
+        run.assert_called_once()
+
+    def test_debloat_apply_requires_exact_confirmation(self):
+        with self.assertRaises(PermissionError):
+            server.execute("id", "debloat.package.apply", {
+                "serial": "SERIAL", "package": "com.example.app", "action": "disable", "user_id": 0, "confirmed": True,
+            }, threading.Event())
+
+    def test_debloat_restore_uses_uninstalled_inventory_and_install_existing(self):
+        intent = {
+            "operation": "debloat.package.apply", "serial": "SERIAL",
+            "package": "com.example.app", "action": "restore", "user_id": 0,
+        }
+        with patch.object(server, "tool_path", return_value="adb"):
+            with patch.object(server, "require_adb"):
+                with patch.object(server, "run_capture", side_effect=[
+                    result("package:com.example.app\n"),
+                    result(""),
+                ]) as capture:
+                    with patch.object(server, "run_streaming", return_value=result("Package com.example.app installed for user: 0\n")) as run:
+                        with patch.object(server, "response"):
+                            value = server.execute("id", "debloat.package.apply", {
+                                **intent, "confirmed": True, "confirmation": intent,
+                            }, threading.Event())
+        self.assertEqual(value["action"], "restore")
+        self.assertIn("-u", capture.call_args_list[0].args[0])
+        self.assertEqual(run.call_args.args[0], [
+            "adb", "-s", "SERIAL", "shell", "cmd", "package",
+            "install-existing", "--user", "0", "com.example.app",
+        ])
+
+    def test_debloat_restore_rejects_package_missing_from_system_image(self):
+        intent = {
+            "operation": "debloat.package.apply", "serial": "SERIAL",
+            "package": "com.example.removed", "action": "restore", "user_id": 0,
+        }
+        with patch.object(server, "tool_path", return_value="adb"):
+            with patch.object(server, "require_adb"):
+                with patch.object(server, "run_capture", return_value=result("")):
+                    with self.assertRaisesRegex(RuntimeError, "not known to this Android system image"):
+                        server.execute("id", "debloat.package.apply", {
+                            **intent, "confirmed": True, "confirmation": intent,
+                        }, threading.Event())
+
+    def test_debloat_apply_rejects_invalid_package(self):
+        with self.assertRaises(ValueError):
+            server.execute("id", "debloat.package.apply", {
+                "serial": "SERIAL", "package": "com.example;reboot", "action": "disable", "user_id": 0,
+            }, threading.Event())
+
+    def test_debloat_operation_is_serialized_per_device(self):
+        self.assertIn("debloat.package.apply", server._MUTATING)
+
+
+
+class DebloatCatalogTests(unittest.TestCase):
+    def test_catalog_has_explanations_and_unique_package_ids(self):
+        from droidlab.core.debloat_catalog import load_catalog
+        entries, recommendations = load_catalog()
+        self.assertGreaterEqual(len(entries), 150)
+        self.assertIn("com.android.systemui", entries)
+        self.assertIn("com.google.android.gms", entries)
+        self.assertIn("org.lineageos.aperture", recommendations)
+        for package, entry in entries.items():
+            with self.subTest(package=package):
+                self.assertTrue(entry.app.strip())
+                self.assertTrue(entry.function.strip())
+                self.assertTrue(entry.risk.strip())
+                self.assertTrue(entry.impact.strip())
+        from droidlab.core.debloat_catalog import lookup_guidance
+        self.assertEqual(
+            lookup_guidance("com.oneplus.membership")["recommendation"],
+            "Not recommended — review first",
+        )
+        self.assertEqual(
+            lookup_guidance("org.lineageos.jelly")["recommendation"],
+            "Optional — review first",
+        )
+
+    def test_core_packages_are_not_recommended_for_removal(self):
+        from droidlab.core.debloat_catalog import lookup_guidance
+        for package in (
+            "com.android.systemui",
+            "com.android.settings",
+            "com.android.providers.telephony",
+            "com.google.android.gms",
+            "com.android.phone",
+        ):
+            value = lookup_guidance(package)
+            risk = value["risk"].casefold()
+            self.assertTrue("critical" in risk or "high" in risk or "keep" in risk)
+            self.assertNotIn("low — optional", value["recommendation"].casefold())
+
+    def test_unlisted_package_is_not_silently_marked_safe(self):
+        from droidlab.core.debloat_catalog import lookup_guidance
+        value = lookup_guidance("com.example.unknown")
+        self.assertFalse(value["listed"])
+        self.assertIn("not listed", value["risk"].casefold())
+        self.assertIn("not mean safe", value["impact"].casefold())
+
+    def test_catalog_protocol_returns_explainable_entries(self):
+        value = server.execute("id", "debloat.catalog.list", {}, threading.Event())
+        self.assertEqual(value["schema_version"], 1)
+        self.assertGreaterEqual(len(value["entries"]), 150)
+        self.assertTrue({"package", "app", "function", "risk", "impact"}.issubset(value["entries"][0]))
+
+    def test_guidance_protocol_returns_exact_package(self):
+        value = server.execute("id", "debloat.package.guidance", {"package": "com.android.systemui"}, threading.Event())
+        self.assertEqual(value["package"], "com.android.systemui")
+        self.assertIn("Critical", value["risk"])
+
+    def test_guidance_protocol_rejects_invalid_package(self):
+        with self.assertRaises(ValueError):
+            server.execute("id", "debloat.package.guidance", {"package": "com.example;reboot"}, threading.Event())
 
 if __name__ == "__main__":
     unittest.main()

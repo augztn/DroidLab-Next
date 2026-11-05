@@ -91,12 +91,15 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     }
   }
 
-  Map<String, dynamic>? _selectedDevice() {
+  Map<String, dynamic>? _selectedDevice({String? transport}) {
     final data = ref.read(deviceListProvider).valueOrNull;
     final devices = (data?['devices'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>();
     for (final device in devices) {
-      if (device['serial'] == _serial.text.trim()) return device;
+      if (device['serial'] == _serial.text.trim() &&
+          (transport == null || device['transport'] == transport)) {
+        return device;
+      }
     }
     return null;
   }
@@ -166,17 +169,18 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     final command = _command.text.trim();
     if (command.isEmpty || _busy) return;
 
-    final target = _selectedDevice();
+    final fastbootArguments = _stripHostExecutable(command, 'fastboot');
+    final target = _selectedDevice(
+      transport: fastbootArguments != null ? 'fastboot' : 'adb',
+    );
     final serial = target?['serial'] as String?;
     final transport = target?['transport'] as String?;
     final state = target?['state'] as String?;
-
-    final fastbootArguments = _stripHostExecutable(command, 'fastboot');
     if (fastbootArguments != null) {
       final verb = fastbootArguments.split(RegExp(r'\s+')).first.toLowerCase();
       const discovery = {'devices', 'help', '--help', '--version', 'version'};
       final isDiscovery = discovery.contains(verb);
-      if (!isDiscovery && (transport != 'fastboot' || serial == null || state != 'fastboot')) {
+      if (!isDiscovery && (serial == null || !isFastbootDeviceReady(target))) {
         setState(() => _output =
             'Select a detected Fastboot device before running a device-targeted Fastboot command. Discovery commands such as fastboot devices do not need a selected device.');
         return;
@@ -281,19 +285,11 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
           'Select an authorized ADB device for Android shell commands. Host commands must start with adb; Fastboot commands must start with fastboot.');
       return;
     }
-    final potentiallyDestructive = RegExp(
-      r'(^|[;&|]\s*)(rm\s+-.*r|mkfs(\.[\w-]+)?|dd\s|reboot\\b|poweroff\\b|shutdown\\b|setprop\\b|pm\s+(uninstall|disable-user)\\b|svc\b.*\bdisable\\b|wipe\\b|format\\b)',
-      caseSensitive: false,
-    ).hasMatch(command);
     final confirmed = await _confirmCommand(
-      title: potentiallyDestructive
-          ? 'Potentially destructive device-shell command'
-          : 'Confirm Android shell command',
+      title: 'Confirm Android shell command',
       target: serial,
       command: 'adb -s $serial shell $command',
-      warning: potentiallyDestructive
-          ? 'This command may modify system state or remove data. Review it carefully before execution.'
-          : 'Review the exact device target and command before dispatch.',
+      warning: 'Android shell commands are unrestricted and may modify system state, change device behavior, or remove data. Review the exact target and command before execution.',
     );
     if (!confirmed) return;
 
@@ -361,6 +357,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       if (mounted && rebootAccepted && (mode == 'bootloader' || mode == 'fastboot')) {
         final expectedFastbootMode = mode == 'fastboot' ? 'fastbootd' : 'bootloader';
         final transitioned = await _waitForDeviceTransport(
+          context: context,
           ref: ref,
           serial: serial,
           transport: 'fastboot',
@@ -375,6 +372,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
       } else if (mounted && rebootAccepted) {
         // Recovery and normal Android boot remain on the ADB workspace.
         await _waitForDeviceTransport(
+          context: context,
           ref: ref,
           serial: serial,
           transport: 'adb',
@@ -417,13 +415,24 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     try {
       final file = File(location.path);
       await file.parent.create(recursive: true);
+      if (!mounted) return;
       await file.create(exclusive: true);
+      if (!mounted) {
+        await file.delete();
+        return;
+      }
       final sink = file.openWrite(mode: FileMode.writeOnlyAppend);
       sink.writeln('DroidLab logcat capture');
       sink.writeln('Device: ${_serial.text.trim()}');
       sink.writeln('Started: ${DateTime.now().toIso8601String()}');
       sink.writeln('Capture window: 1 hour maximum');
       sink.writeln();
+      if (!mounted) {
+        await sink.flush();
+        await sink.close();
+        await file.delete();
+        return;
+      }
       _logcatCaptureSink = sink;
       _logcatCapturePath = file.path;
       await _startLogcat(captureToFile: true);
@@ -441,8 +450,10 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     final filters = _logcatFilters.text.trim().isEmpty
         ? <String>[]
         : _logcatFilters.text.trim().split(RegExp(r'\s+'));
+    final client = ref.read(backendClientProvider);
+    final history = ref.read(operationHistoryProvider.notifier);
     try {
-      final handle = await ref.read(backendClientProvider).startOperation(
+      final handle = await client.startOperation(
         'adb.logcat.start',
         {
           'serial': serial,
@@ -451,7 +462,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         },
       );
       if (!mounted) {
-        await ref.read(backendClientProvider).cancel(handle.requestId);
+        await client.cancel(handle.requestId);
         await _closeLogcatCapture();
         return;
       }
@@ -462,8 +473,8 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         _pausedLogSnapshot = [];
         _logPaused = false;
       });
-      unawaited(trackOperation(
-        ref,
+      unawaited(trackOperationWithHistory(
+        history,
         operation: captureToFile ? 'ADB logcat file capture (1 hour)' : 'ADB logcat',
         target: serial,
         action: () => handle.result,
@@ -773,6 +784,8 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   @override
   Widget build(BuildContext context) {
     final devicesAsync = ref.watch(deviceListProvider);
+    final globalTarget = ref.watch(selectedTargetSerialProvider);
+    if (globalTarget != null && _serial.text != globalTarget) _serial.text = globalTarget;
     final discoveredDevices = (devicesAsync.valueOrNull?['devices'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .toList();
@@ -786,264 +799,287 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     final String? selectedAdbState = selectedTransport == 'adb'
         ? selectedState as String?
         : null;
-    final selectedFastboot = selectedTransport == 'fastboot' &&
-        selectedDevice?['state'] == 'fastboot';
+    final selectedFastboot = selectedDevices.any(isFastbootDeviceReady);
     final canRunAdbCommands = selectedAdbState == 'device';
     final canReboot = canRunAdbCommands ||
         selectedAdbState == 'recovery' || selectedFastboot;
-    return _PageFrame(
-    title: 'ADB Toolkit',
-    subtitle: 'Select an authorized ADB device for shell and diagnostics. Reboot also supports devices already in Fastboot.',
-    child: ListView(children: [
-      Row(children: [
-        Expanded(child: _TextField(controller: _serial, label: 'Device serial')),
-        const SizedBox(width: 8),
-        IconButton.filledTonal(
-          tooltip: 'Refresh connected devices',
+    final selectedSerial = selectedDevices.isEmpty ? null : _serial.text.trim();
+    final targetSelector = SizedBox(
+      width: 390,
+      child: Row(children: [
+        Expanded(child: DropdownButtonFormField<String>(
+          initialValue: selectedSerial,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Target Serial'),
+          hint: const Text('Select an authorized ADB target'),
+          items: discoveredDevices.map((device) {
+            final serial = device['serial'] as String;
+            final transport = device['transport'] as String? ?? 'unknown';
+            final model = device['model'] as String? ?? '';
+            return DropdownMenuItem(value: serial,
+              child: Text('$serial (${model} · $transport)',
+                overflow: TextOverflow.ellipsis));
+          }).toList(),
+          onChanged: _busy ? null : (value) {
+            setState(() => _serial.text = value ?? '');
+            ref.read(selectedTargetSerialProvider.notifier).state = value;
+          },
+        )),
+        const SizedBox(width: 6),
+        IconButton(
+          tooltip: 'Refresh devices',
           onPressed: _busy ? null : _refreshDevices,
           icon: const Icon(Icons.refresh),
         ),
       ]),
-      const SizedBox(height: 8),
-      devicesAsync.when(
-        loading: () => const LinearProgressIndicator(),
-        error: (error, _) => Row(children: [
-          Expanded(child: Text('Device scan failed: $error')),
-          TextButton(onPressed: _refreshDevices, child: const Text('Retry')),
+    );
+    Widget panel(String title, String subtitle, List<Widget> children) => Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 5),
+          Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 16),
+          ...children,
         ]),
-        data: (data) {
-          final devices = (data['devices'] as List<dynamic>? ?? const [])
-              .whereType<Map<String, dynamic>>()
-              .toList();
-          final warnings = (data['warnings'] as List<dynamic>? ?? const [])
-              .where((warning) => warning is Map)
-              .toList();
-          final serials = devices.map((device) => device['serial'] as String).toSet();
-          final selected = serials.contains(_serial.text.trim()) ? _serial.text.trim() : null;
-          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            DropdownButtonFormField<String>(
-              initialValue: selected,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Detected ADB / Fastboot devices',
-                border: OutlineInputBorder(),
-              ),
-              hint: const Text('Select a device explicitly'),
-              items: devices.map((device) {
-                final serial = device['serial'] as String;
-                final state = device['state'] as String? ?? 'unknown';
-                final transport = device['transport'] as String? ?? 'unknown';
-                final fastbootMode = device['mode'] == 'fastbootd'
-                    ? 'Fastbootd'
-                    : device['mode'] == 'bootloader'
-                        ? 'Bootloader Fastboot'
-                        : 'Fastboot mode unknown';
-                final label = transport == 'fastboot'
-                    ? '$serial  ·  $fastbootMode'
-                    : '$serial  ·  $transport: $state';
-                return DropdownMenuItem<String>(
-                  value: serial,
-                  child: Text(label, overflow: TextOverflow.ellipsis),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) setState(() => _serial.text = value);
+      ),
+    );
+    final shellPanel = panel(
+      'Guarded ADB Shell (adb.shell)',
+      'Dispatches discrete argument arrays without host shell interpolation.',
+      [
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          for (final preset in const [
+            ('Build Fingerprint', 'getprop ro.build.fingerprint'),
+            ('Active Boot Slot', 'getprop ro.boot.slot_suffix'),
+            ('Battery Dump', 'dumpsys battery'),
+            ('SELinux Status', 'getenforce'),
+            ('Mounted Partitions', 'cat /proc/mounts'),
+          ])
+            OutlinedButton(
+              onPressed: _busy ? null : () {
+                _command.text = preset.$2;
+                _command.selection = TextSelection.collapsed(offset: _command.text.length);
               },
+              child: Text(preset.$1),
             ),
-            for (final device in devices.where((item) => item['serial'] == selected))
-              if (device['transport'] == 'adb' && device['state'] == 'unauthorized')
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text(
-                    'ADB authorization required: unlock the Android device and accept its USB debugging RSA prompt, then refresh devices.',
-                    style: TextStyle(color: Colors.orange),
-                  ),
-                )
-              else if (device['transport'] == 'adb' && device['state'] == 'offline')
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Device is offline. Reconnect the USB cable or restart ADB, then refresh devices.',
-                    style: TextStyle(color: Colors.orange),
-                  ),
-                ),
-            for (final warning in warnings)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  warning['message'].toString(),
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ),
-            if (devices.isEmpty && warnings.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 6),
-                child: Text('No ADB or Fastboot devices found. Connect a device and refresh.'),
-              ),
-          ]);
-        },
-      ),
-      if (selectedAdbState != null)
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Text(
-            selectedAdbState == 'device'
-                ? 'ADB authorized · commands are enabled for this selected device.'
-                : selectedAdbState == 'recovery' || selectedAdbState == 'sideload'
-                    ? 'Recovery transport · only recovery-supported ADB operations are available.'
-                    : 'ADB $selectedAdbState · authorize or reconnect the device before running commands.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: canRunAdbCommands
-                  ? Theme.of(context).colorScheme.tertiary
-                  : Theme.of(context).colorScheme.error,
-            ),
+        ]),
+        const SizedBox(height: 12),
+        DropTarget(
+          onDragDone: _dropCommandPath,
+          child: _TextField(controller: _command, label: 'Shell command arguments',
+            hint: 'getprop ro.build.version.release'),
+        ),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          FilledButton.icon(
+            onPressed: _busy || !canRunAdbCommands ? null : _runShell,
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('Run Guarded Shell'),
           ),
-        ),
-      const SizedBox(height: 12),
-      DropTarget(
-        onDragDone: _dropCommandPath,
-        child: _TextField(
-          controller: _command,
-          label: 'Command (drop a file to insert its path)',
-          hint: 'dumpsys battery · adb devices -l · fastboot getvar all',
-        ),
-      ),
-      const SizedBox(height: 8),
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        FilledButton(onPressed: _busy || !canRunAdbCommands ? null : _runShell, child: const Text('Run shell command')),
-        OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('system'), child: const Text('Reboot')),
-        OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('bootloader'), child: const Text('Bootloader')),
-        OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('recovery'), child: const Text('Recovery')),
-        FilledButton.tonal(onPressed: _busy || !canReboot ? null : () => _reboot('fastboot'), child: const Text('Fastbootd')),
-        OutlinedButton(onPressed: _busy || !(canRunAdbCommands || selectedFastboot) ? null : _loadDeviceInfo, child: const Text('Device info')),
-        OutlinedButton(          onPressed: _logcatRequestId != null ? _stopLogcat : (canRunAdbCommands ? _startLogcat : null),
-          child: Text(_logcatRequestId == null ? 'Start logcat' : 'Stop logcat'),
-        ),
-      ]),
-      const SizedBox(height: 14),
-      _TextField(controller: _logcatFilters, label: 'Logcat filters (optional)', hint: '*:W or ActivityManager:I'),
-      const SizedBox(height: 8),
-      Row(children: [
-        Expanded(child: _TextField(controller: _logSavePath, label: 'Logcat save path')),
-        const SizedBox(width: 8),
-        OutlinedButton(onPressed: _browseLogSavePath, child: const Text('Browse…')),
-      ]),
-      const SizedBox(height: 8),
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        OutlinedButton(onPressed: _saveLogcat, child: const Text('Save captured buffer')),
-        OutlinedButton(
-          onPressed: _logcatRequestId == null && !_busy && canRunAdbCommands ? _captureLogcatToFile : null,
-          child: const Text('Capture full logcat to file (1 hour)'),
-        ),
-      ]),
-      const SizedBox(height: 14),
-      Text('FILE TRANSFER', style: Theme.of(context).textTheme.titleSmall),
-      const SizedBox(height: 8),
-      DropdownButtonFormField<String>(
-        initialValue: _transferDirection,
-        decoration: const InputDecoration(labelText: 'Transfer direction'),
-        items: const [
-          DropdownMenuItem(value: 'push', child: Text('Computer → device (push)')),
-          DropdownMenuItem(value: 'pull', child: Text('Device → computer (pull)')),
-        ],
-        onChanged: _busy ? null : (value) {
-          if (value == null) return;
-          setState(() {
-            _transferDirection = value;
-            _transferLocal.clear();
-            _transferRemote.text = value == 'push' ? '/sdcard/Download/' : '/sdcard/Download/file';
-          });
-        },
-      ),
-      const SizedBox(height: 8),
-      Row(children: [
-        Expanded(child: DropTarget(
-          onDragDone: _dropTransferSource,
-          child: _TextField(
-            controller: _transferLocal,
-            label: _transferDirection == 'push' ? 'Local file to push (drop a file here)' : 'Local destination directory',
-          ),
-        )),
-        const SizedBox(width: 8),
-        OutlinedButton(onPressed: _busy ? null : _browseTransferLocal, child: const Text('Browse…')),
-      ]),
-      const SizedBox(height: 8),
-      _TextField(
-        controller: _transferRemote,
-        label: _transferDirection == 'push' ? 'Android destination path' : 'Android source file path',
-        hint: _transferDirection == 'push' ? '/sdcard/Download/' : '/sdcard/Download/file.zip',
-      ),
-      const SizedBox(height: 8),
-      FilledButton.tonal(
-        onPressed: _busy || !canRunAdbCommands ? null : _transferFile,
-        child: const Text('Transfer file'),
-      ),
-      const SizedBox(height: 14),
-      const SizedBox(height: 8),
-      Row(children: [
-        Expanded(child: DropTarget(
-          onDragDone: (detail) {
-            if (detail.files.isNotEmpty) setState(() => _package.text = detail.files.first.path);
-          },
-          child: _TextField(controller: _package, label: 'Recovery OTA ZIP path'),
-        )),
-        const SizedBox(width: 8),
-        OutlinedButton(onPressed: _browseSideloadPackage, child: const Text('Browse ZIP…')),
-      ]),
-      const SizedBox(height: 8),
-      OutlinedButton(
-        onPressed: _busy || !(selectedAdbState == 'device' || selectedAdbState == 'recovery' || selectedAdbState == 'sideload') ? null : _sideload,
-        child: const Text('Sideload OTA'),
-      ),
-      const SizedBox(height: 12),
-      Row(children: [
-        Expanded(child: _TextField(controller: _bugreport, label: 'Bugreport output ZIP path')),
-        const SizedBox(width: 8),
-        OutlinedButton(onPressed: _browseBugreportOutput, child: const Text('Browse…')),
-      ]),
-      const SizedBox(height: 8),
-      OutlinedButton(onPressed: _busy || !canRunAdbCommands ? null : _createBugreport, child: const Text('Generate bugreport')),
-      const SizedBox(height: 18),
-      if (_busy) const LinearProgressIndicator(),
-      _OutputPanel(output: _output.isEmpty ? 'Command output appears here.' : _output),
-      if (_logcatRequestId != null || _logLines.isNotEmpty) ...[
-        const SizedBox(height: 16),
-        Row(children: [
-          Expanded(child: Text('LIVE LOGCAT', style: Theme.of(context).textTheme.labelLarge)),
           OutlinedButton(
-            onPressed: () => setState(() {
-              if (!_logPaused) {
-                _pausedLogSnapshot = List<String>.of(_logLines);
-                _logPaused = true;
-              } else {
-                _logPaused = false;
-                _pausedLogSnapshot = [];
-              }
-            }),
-            child: Text(_logPaused ? 'Resume display' : 'Pause display'),
+            onPressed: _busy || !(canRunAdbCommands || selectedFastboot) ? null : _loadDeviceInfo,
+            child: const Text('Device info'),
           ),
         ]),
-        const SizedBox(height: 8),
-        _TextField(
-          controller: _logDisplayFilter,
-          label: 'Filter visible log lines',
-          hint: 'Case-insensitive text filter',
-          onChanged: (_) => setState(() {}),
-        ),
-        const SizedBox(height: 8),
-        _OutputPanel(output: (() {
-          final source = _logPaused ? _pausedLogSnapshot : _logLines;
-          final needle = _logDisplayFilter.text.trim().toLowerCase();
-          final visible = source.where((line) => needle.isEmpty || line.toLowerCase().contains(needle));
-          return visible.join('\n');
-        })()),
-        if (_logPaused)
+        if (!canRunAdbCommands && !selectedFastboot)
           Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text('Display paused. Incoming lines continue to be buffered.', style: Theme.of(context).textTheme.bodySmall),
+            padding: const EdgeInsets.only(top: 10),
+            child: Text(
+              selectedDevice == null
+                ? 'Select an authorized ADB device before running shell commands.'
+                : 'Selected target is ${selectedTransport ?? 'unknown'} / ${selectedState ?? 'unknown'}. ADB shell requires an authorized device transport.',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
       ],
-    ]),
-  );
+    );
+    final rebootPanel = panel(
+      'Mode-Aware Reboot Routing (adb.reboot)',
+      'Routes through the active transport and waits for the device to reappear.',
+      [
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('system'), child: const Text('Reboot to system')),
+          OutlinedButton(onPressed: _busy || !canReboot ? null : () => _reboot('recovery'), child: const Text('Reboot to recovery')),
+          OutlinedButton(onPressed: _busy || !canRunAdbCommands ? null : () => _reboot('bootloader'), child: const Text('Reboot to bootloader')),
+          OutlinedButton(onPressed: _busy || !canRunAdbCommands ? null : () => _reboot('fastboot'), child: const Text('Reboot to Fastbootd')),
+        ]),
+      ],
+    );
+    final transferPanel = panel(
+      'Atomic Single-File Push & Pull',
+      'Rejects symlinked local sources and refuses to overwrite existing pull destinations.',
+      [
+        DropdownButtonFormField<String>(
+          initialValue: _transferDirection,
+          decoration: const InputDecoration(labelText: 'Transfer direction'),
+          items: const [
+            DropdownMenuItem(value: 'push', child: Text('Computer → device (push)')),
+            DropdownMenuItem(value: 'pull', child: Text('Device → computer (pull)')),
+          ],
+          onChanged: _busy ? null : (value) {
+            if (value == null) return;
+            setState(() {
+              _transferDirection = value;
+              _transferLocal.clear();
+              _transferRemote.text = value == 'push' ? '/sdcard/Download/' : '/sdcard/Download/file';
+            });
+          },
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: DropTarget(
+            onDragDone: _dropTransferSource,
+            child: _TextField(controller: _transferLocal,
+              label: _transferDirection == 'push' ? 'Local source path' : 'Local destination path'),
+          )),
+          const SizedBox(width: 8),
+          OutlinedButton(onPressed: _busy ? null : _browseTransferLocal, child: const Text('Browse…')),
+        ]),
+        const SizedBox(height: 10),
+        _TextField(controller: _transferRemote,
+          label: _transferDirection == 'push' ? 'Android destination path' : 'Android source path'),
+        const SizedBox(height: 10),
+        Align(alignment: Alignment.centerRight, child: FilledButton(
+          onPressed: _busy || !canRunAdbCommands ? null : _transferFile,
+          child: Text(_transferDirection == 'push' ? 'Push' : 'Pull'),
+        )),
+      ],
+    );
+    final sideloadPanel = panel(
+      'Recovery OTA Sideload (adb.sideload)',
+      'Requires a target in sideload or recovery state.',
+      [
+        Row(children: [
+          Expanded(child: DropTarget(
+            onDragDone: (detail) {
+              if (detail.files.isNotEmpty) setState(() => _package.text = detail.files.first.path);
+            },
+            child: _TextField(controller: _package, label: 'OTA ZIP package path'),
+          )),
+          const SizedBox(width: 8),
+          OutlinedButton(onPressed: _browseSideloadPackage, child: const Text('Browse ZIP…')),
+        ]),
+        const SizedBox(height: 10),
+        Align(alignment: Alignment.centerRight, child: FilledButton(
+          onPressed: _busy || !(selectedAdbState == 'device' || selectedAdbState == 'recovery' || selectedAdbState == 'sideload') ? null : _sideload,
+          child: const Text('Sideload ZIP'),
+        )),
+      ],
+    );
+    final diagnosticsPanel = panel(
+      'Logcat & Bugreport',
+      'Capture diagnostics locally. Review sensitive output before sharing.',
+      [
+        _TextField(controller: _logcatFilters, label: 'Logcat filters (optional)', hint: '*:W or ActivityManager:I'),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: _TextField(controller: _logSavePath, label: 'Logcat save path')),
+          const SizedBox(width: 8),
+          OutlinedButton(onPressed: _browseLogSavePath, child: const Text('Browse…')),
+        ]),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          OutlinedButton(
+            onPressed: _logcatRequestId != null ? _stopLogcat : (canRunAdbCommands ? _startLogcat : null),
+            child: Text(_logcatRequestId == null ? 'Start logcat' : 'Stop logcat'),
+          ),
+          OutlinedButton(onPressed: _saveLogcat, child: const Text('Save captured buffer')),
+          OutlinedButton(
+            onPressed: _logcatRequestId == null && !_busy && canRunAdbCommands ? _captureLogcatToFile : null,
+            child: const Text('Capture logcat to file (1 hour)'),
+          ),
+        ]),
+        const Divider(height: 24),
+        Row(children: [
+          Expanded(child: _TextField(controller: _bugreport, label: 'Bugreport output ZIP path')),
+          const SizedBox(width: 8),
+          OutlinedButton(onPressed: _browseBugreportOutput, child: const Text('Browse…')),
+        ]),
+        const SizedBox(height: 8),
+        Align(alignment: Alignment.centerRight, child: OutlinedButton(
+          onPressed: _busy || !canRunAdbCommands ? null : _createBugreport,
+          child: const Text('Generate bugreport'),
+        )),
+      ],
+    );
+    return _PageFrame(
+      title: 'ADB Toolkit & Guarded Transfers',
+      subtitle: 'Every shell command, reboot, push/pull, and sideload requires target-and-argument confirmation',
+      actions: [targetSelector],
+      child: LayoutBuilder(builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 1100;
+        final left = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          shellPanel,
+          const SizedBox(height: 14),
+          rebootPanel,
+        ]);
+        final right = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          transferPanel,
+          const SizedBox(height: 14),
+          sideloadPanel,
+          const SizedBox(height: 14),
+          diagnosticsPanel,
+        ]);
+        return Column(children: [
+          if (devicesAsync.hasError)
+            Padding(padding: const EdgeInsets.only(bottom: 10),
+              child: Text('Device scan failed: ${devicesAsync.error}', style: TextStyle(color: Theme.of(context).colorScheme.error))),
+          if (_busy) const LinearProgressIndicator(),
+          Expanded(child: wide
+            ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: SingleChildScrollView(child: left)),
+                const SizedBox(width: 24),
+                Expanded(child: SingleChildScrollView(child: right)),
+              ])
+            : ListView(children: [shellPanel, const SizedBox(height: 14), rebootPanel,
+                const SizedBox(height: 14), transferPanel, const SizedBox(height: 14),
+                sideloadPanel, const SizedBox(height: 14), diagnosticsPanel])),
+          if (_output.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _OutputPanel(output: _output),
+          ],
+          if (_logcatRequestId != null || _logLines.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(children: [
+                  Expanded(child: Text('LIVE LOGCAT', style: Theme.of(context).textTheme.titleSmall)),
+                  OutlinedButton(
+                    onPressed: () => setState(() {
+                      if (!_logPaused) {
+                        _pausedLogSnapshot = List<String>.of(_logLines);
+                        _logPaused = true;
+                      } else {
+                        _logPaused = false;
+                        _pausedLogSnapshot = [];
+                      }
+                    }),
+                    child: Text(_logPaused ? 'Resume display' : 'Pause display'),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                _TextField(controller: _logDisplayFilter, label: 'Filter visible log lines',
+                  hint: 'Case-insensitive text filter', onChanged: (_) => setState(() {})),
+                const SizedBox(height: 8),
+                _OutputPanel(output: (() {
+                  final source = _logPaused ? _pausedLogSnapshot : _logLines;
+                  final needle = _logDisplayFilter.text.trim().toLowerCase();
+                  return source.where((line) => needle.isEmpty || line.toLowerCase().contains(needle)).join('\n');
+                })()),
+                if (_logPaused) Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('Display paused. Incoming lines continue to be buffered.',
+                    style: Theme.of(context).textTheme.bodySmall),
+                ),
+              ],
+            ))),
+          ],
+        ]);
+      }),
+    );
   }
 }

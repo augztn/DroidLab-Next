@@ -80,15 +80,9 @@ Categories=Utility;Development;System;
 Terminal=false
 DESKTOP
 cp "$APPDIR/droidlab.desktop" "$APPDIR/usr/share/applications/droidlab.desktop"
-cat > "$APPDIR/droidlab.svg" <<'SVG'
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <rect x="8" y="8" width="112" height="112" rx="24" fill="#111827"/>
-  <path d="M30 34h68v12H30zm0 24h68v12H30zm0 24h42v12H30z" fill="#60a5fa"/>
-  <path d="M82 78l18 10-18 10z" fill="#22c55e"/>
-</svg>
-SVG
-cp "$APPDIR/droidlab.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/droidlab.svg"
-cp "$APPDIR/droidlab.svg" "$APPDIR/.DirIcon"
+install -D -m 0644 assets/branding/droidlab_app_icon.png "$APPDIR/droidlab.png"
+install -D -m 0644 assets/branding/droidlab_app_icon.png "$APPDIR/usr/share/icons/hicolor/256x256/apps/droidlab.png"
+cp "$APPDIR/droidlab.png" "$APPDIR/.DirIcon"
 mkdir -p "$DIST"
 APPIMAGE_ARGS=()
 if [[ -n "${APPIMAGE_RUNTIME_FILE:-}" ]]; then
