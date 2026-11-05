@@ -484,12 +484,44 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
       subtitle: 'Isolated staging directory · Rejects empty/symlink artifacts · Atomic non-overwriting publication',
       child: DropTarget(
         onDragDone: _drop,
-        child: ListView(children: [
-          sourcePanel,
-          if (_parts.isNotEmpty) ...[const SizedBox(height: 14), partitionPanel],
-          const SizedBox(height: 14),
-          activityPanel,
-        ]),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final showSideLog = constraints.maxWidth >= 1180;
+            final workspace = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                sourcePanel,
+                if (_parts.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  partitionPanel,
+                ],
+              ],
+            );
+            if (!showSideLog) {
+              return ListView(
+                children: [
+                  workspace,
+                  const SizedBox(height: 14),
+                  activityPanel,
+                ],
+              );
+            }
+            return SingleChildScrollView(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: workspace),
+                  const SizedBox(width: 14),
+                  SizedBox(
+                    width: 360,
+                    height: 560,
+                    child: activityPanel,
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
