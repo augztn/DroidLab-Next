@@ -90,7 +90,20 @@ def extract(source,output_dir,selected=None,progress=None,cancel_event=None,fing
   args=["-o",str(stage)]
   if selected:args.extend(["-p",",".join(selected)])
   args.append(str(src)); result=_run(cli,args,progress,cancel_event,EXTRACTION_TIMEOUT)
-  if result.returncode:raise BackendError(f"payload-dumper-go exited with status {result.returncode}; delta OTA operations may be unsupported.")
+  if result.returncode:
+   detail = result.stdout.strip() or f"payload-dumper-go exited with status {result.returncode}."
+   lowered = detail.lower()
+   if "source" in lowered and ("missing" in lowered or "required" in lowered):
+    raise BackendError(
+     "This incremental OTA requires base partition images. Extract the previous full OTA first. "
+     "The current DroidLab UI does not yet provide a base-image directory field."
+    )
+   if any(token in lowered for token in ("puffdiff", "zucchini", "lz4diff")):
+    raise BackendError(
+     "This OTA uses a delta operation not supported by payload-dumper-go "
+     "(PUFFDIFF, ZUCCHINI or LZ4DIFF). Try extracting unaffected partitions separately."
+    )
+   raise BackendError(f"payload-dumper-go exited with status {result.returncode}: {detail}")
   if cancel_event is not None and cancel_event.is_set():raise BackendError("Extraction cancelled before artifact publication.")
   artifacts=sorted(p for p in stage.rglob("*.img") if p.is_file() and not p.is_symlink() and p.stat().st_size>0)
   if not artifacts:raise BackendError("Extraction produced no non-empty image artifacts.")
