@@ -12,6 +12,17 @@ class PayloadDumperTests(unittest.TestCase):
   self.binary.write_text("#!/usr/bin/env python3\nimport pathlib,sys\na=sys.argv[1:]\nif '-l' in a:\n print('boot: 4')\n print('system: 8')\nelse:\n out=pathlib.Path(a[a.index('-o')+1]);(out/'boot.img').write_bytes(b'hello')\n",encoding="utf-8")
   self.binary.chmod(0o755);self.env=patch.dict(os.environ,{"DROIDLAB_PAYLOAD_DUMPER_GO_PATH":str(self.binary)});self.env.start()
  def tearDown(self):self.env.stop();self.temp.cleanup()
+ def test_machine_readable_partition_listing_parses_kib_sizes(self):
+  output = "boot:4\\nsystem:8\\n"
+  self.assertEqual(
+   payload_dumper._parse_partition_list(output),
+   [{"name":"boot","size_bytes":4096},{"name":"system","size_bytes":8192}],
+  )
+ def test_partition_parser_ignores_headers_and_duplicate_names(self):
+  output = "payload.bin: ota.zip\\nPayload Version: 2\\nboot:4\\nboot:8\\n"
+  self.assertEqual(payload_dumper._parse_partition_list(output),[{"name":"boot","size_bytes":4096}])
+ def test_partition_parser_rejects_invalid_sizes_and_names(self):
+  self.assertEqual(payload_dumper._parse_partition_list("boot:nope\\n../system:4\\nmetadata:-1\\n"),[])
  def test_inspection_parses_partition_metadata(self):
   self.assertEqual(payload_dumper.inspect_source(str(self.source)),[{"name":"boot","size_bytes":4096},{"name":"system","size_bytes":8192}])
  def test_extract_publishes_image_and_sha256(self):
