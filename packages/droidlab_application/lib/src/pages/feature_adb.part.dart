@@ -11,6 +11,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   final _serial = TextEditingController();
   final _command = TextEditingController(text: 'getprop ro.build.version.release');
   final _package = TextEditingController();
+  final _apk = TextEditingController();
   final _transferLocal = TextEditingController();
   final _transferRemote = TextEditingController(text: '/sdcard/Download/');
   String _transferDirection = 'push';
@@ -60,6 +61,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     _serial.dispose();
     _command.dispose();
     _package.dispose();
+    _apk.dispose();
     _transferLocal.dispose();
     _transferRemote.dispose();
     _bugreport.dispose();
@@ -539,6 +541,74 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
     }
   }
 
+  Future<void> _browseApk() async {
+    const group = XTypeGroup(label: 'Android application packages', extensions: ['apk']);
+    final file = await openFile(acceptedTypeGroups: [group]);
+    if (file != null && mounted) setState(() => _apk.text = file.path);
+  }
+
+  Future<void> _installApk() async {
+    final serial = _serial.text.trim();
+    final apkPath = _apk.text.trim();
+    if (_busy || serial.isEmpty || apkPath.isEmpty) return;
+    final file = File(apkPath);
+    if (!await file.exists() || await file.length() == 0) {
+      if (mounted) setState(() => _output = 'Choose an existing, non-empty APK file.');
+      return;
+    }
+    if (!apkPath.toLowerCase().endsWith('.apk')) {
+      if (mounted) setState(() => _output = 'Choose an Android .apk package.');
+      return;
+    }
+    final intent = {
+      'operation': 'adb.install',
+      'serial': serial,
+      'apk_path': apkPath,
+    };
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm APK installation'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Device: $serial'),
+            Text('APK: $apkPath'),
+            const SizedBox(height: 10),
+            const Text('ADB will install this package and replace an existing installation of the same app when Android permits. The app may request permissions when first launched.'),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Install APK')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final result = await trackOperation(
+        ref,
+        operation: 'ADB APK install',
+        target: serial,
+        action: () => ref.read(backendClientProvider).request('adb.install', {
+          ...intent,
+          'confirmed': true,
+          'confirmation': intent,
+        }, timeout: const Duration(minutes: 15)),
+        successSummary: (_) => 'APK installation completed on $serial.',
+      );
+      if (mounted) {
+        setState(() => _output = result.data['output']?.toString() ?? 'APK installation completed.');
+      }
+    } catch (error) {
+      if (mounted) setState(() => _output = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _browseSideloadPackage() async {
     const group = XTypeGroup(label: 'Recovery OTA ZIP', extensions: ['zip']);
     final file = await openFile(acceptedTypeGroups: [group]);
@@ -908,6 +978,29 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
         ]),
       ],
     );
+    final installPanel = panel(
+      'Install Android App (APK)',
+      'Install a local APK over the selected authorized ADB connection. Existing apps are updated when signatures and Android policy allow.',
+      [
+        Row(children: [
+          Expanded(child: _TextField(controller: _apk, label: 'Local APK file path', hint: 'Select an .apk package')),
+          const SizedBox(width: 8),
+          OutlinedButton(
+            onPressed: _busy ? null : _browseApk,
+            child: const Text('Browse APK…'),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+            onPressed: _busy || !canRunAdbCommands ? null : _installApk,
+            icon: const Icon(Icons.install_mobile),
+            label: const Text('Install APK'),
+          ),
+        ),
+      ],
+    );
     final transferPanel = panel(
       'Atomic Single-File Push & Pull',
       'Rejects symlinked local sources and refuses to overwrite existing pull destinations.',
@@ -1017,6 +1110,8 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
           rebootPanel,
         ]);
         final right = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          installPanel,
+          const SizedBox(height: 14),
           transferPanel,
           const SizedBox(height: 14),
           sideloadPanel,
@@ -1035,7 +1130,7 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
                 Expanded(child: SingleChildScrollView(child: right)),
               ])
             : ListView(children: [shellPanel, const SizedBox(height: 14), rebootPanel,
-                const SizedBox(height: 14), transferPanel, const SizedBox(height: 14),
+                const SizedBox(height: 14), installPanel, const SizedBox(height: 14), transferPanel, const SizedBox(height: 14),
                 sideloadPanel, const SizedBox(height: 14), diagnosticsPanel])),
           if (_output.isNotEmpty) ...[
             const SizedBox(height: 12),
