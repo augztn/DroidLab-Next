@@ -82,3 +82,13 @@ def publish_file_no_replace(source: Path, destination: Path) -> None:
         except OSError:
             pass
         raise
+
+
+def validate_apk_source(value: object) -> Path:
+    """Validate a local APK before passing it to the ADB package installer."""
+    source = validate_push_source(value)
+    if source.suffix.lower() != ".apk":
+        raise ValueError("Choose an Android application package with the .apk extension.")
+    if source.stat().st_size <= 0:
+        raise ValueError("The APK file is empty.")
+    return source

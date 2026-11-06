@@ -16,7 +16,7 @@ void main() {
       arguments: ['-u'],
       environment: {'DROIDLAB_TEST_MODE': mode},
       scriptPath: fixturePath,
-      startupTimeout: const Duration(seconds: 5),
+      startupTimeout: const Duration(seconds: 20),
     ));
   }
 

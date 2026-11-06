@@ -84,12 +84,84 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   Map<String, Map<String, dynamic>> _guidance = const {};
   Set<String> _recommendations = {};
   bool _busy = false;
+  final _apkPath = TextEditingController();
   List<Map<String, dynamic>> _packages = const [];
   Set<String> _disabled = {};
   final Set<String> _selectedPackages = {};
   int _loadGeneration = 0;
   String? _error;
   String? _notice;
+
+  @override
+  void dispose() {
+    _apkPath.dispose();
+    super.dispose();
+  }
+
+  Future<void> _browseApk() async {
+    const group = XTypeGroup(label: 'Android application packages', extensions: ['apk']);
+    final file = await openFile(acceptedTypeGroups: [group]);
+    if (file != null && mounted) setState(() => _apkPath.text = file.path);
+  }
+
+  Future<void> _installApk() async {
+    final serial = _serial;
+    final path = _apkPath.text.trim();
+    if (_busy || serial == null || path.isEmpty) return;
+    final apk = File(path);
+    if (!await apk.exists() || await apk.length() == 0 || !path.toLowerCase().endsWith('.apk')) {
+      if (mounted) setState(() => _error = 'Choose an existing, non-empty .apk file.');
+      return;
+    }
+    final intent = {
+      'operation': 'adb.install',
+      'serial': serial,
+      'apk_path': path,
+    };
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirm APK installation'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Device: $serial'),
+            Text('APK: $path'),
+            const SizedBox(height: 10),
+            const Text('Android will install this app. An existing app is updated only when its signing certificate and Android install policy allow it.'),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Install app')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() { _busy = true; _error = null; _notice = null; });
+    try {
+      final result = await trackOperation(
+        ref,
+        operation: 'Install Android app (APK)',
+        target: serial,
+        action: () => ref.read(backendClientProvider).request('adb.install', {
+          ...intent,
+          'confirmed': true,
+          'confirmation': intent,
+        }, timeout: const Duration(minutes: 15)),
+        successSummary: (_) => 'APK installation completed on $serial.',
+      );
+      if (mounted) setState(() => _notice = result.data['output']?.toString().trim().isNotEmpty == true
+          ? result.data['output'].toString()
+          : 'APK installation completed on $serial.');
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (mounted && _serial == serial) await _load();
+  }
 
   Future<void> _load() async {
     final serial = _serial;
@@ -455,6 +527,53 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         ),
       ],
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(children: [
+                  const Icon(Icons.install_mobile),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Install Android app', style: Theme.of(context).textTheme.titleMedium)),
+                ]),
+                const SizedBox(height: 4),
+                Text('Install an APK from your computer to the selected device. Installed apps appear in the package inventory after refresh.',
+                  style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: TextField(
+                    controller: _apkPath,
+                    readOnly: true,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      labelText: 'APK file',
+                      hintText: 'Choose an .apk file',
+                      border: OutlineInputBorder(),
+                    ),
+                  )),
+                  const SizedBox(width: 8),
+                  OutlinedButton(onPressed: _busy || _serial == null ? null : _browseApk,
+                    child: const Text('Browse APK…')),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: _busy || _serial == null ? null : _installApk,
+                    icon: const Icon(Icons.install_mobile, size: 18),
+                    label: const Text('Install'),
+                  ),
+                ]),
+                if (_serial == null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text('Select an authorized ADB device above to install apps.',
+                      style: Theme.of(context).textTheme.bodySmall),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
         Card(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), child: Column(children: [
           Row(children: [
             const Icon(Icons.warning_amber_rounded), const SizedBox(width: 8),

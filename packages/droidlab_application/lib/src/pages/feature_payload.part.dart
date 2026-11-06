@@ -20,6 +20,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   String? _cachedPartitionQuery;
   List<Map<String, dynamic>> _cachedVisibleParts = const [];
   String _status = 'Drop an OTA ZIP or payload BIN file here, or enter its path.';
+  String _lastSourcePath = '';
   bool _busy = false;
   bool _sha = false;
   double? _progress;
@@ -31,6 +32,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
         Platform.environment['USERPROFILE'] ??
         Directory.current.path;
     _output.text = '$home${Platform.pathSeparator}DroidLab';
+    _source.addListener(_handleSourceChanged);
     _events = ref.read(backendClientProvider).events.listen((event) {
       if (event is BackendOutput && event.stream == 'payload' && mounted) {
         final match = RegExp(r'(\d{1,3})%').firstMatch(event.line);
@@ -52,16 +54,38 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   @override
   void dispose() {
     unawaited(_events?.cancel() ?? Future<void>.value());
+    _source.removeListener(_handleSourceChanged);
     _source.dispose();
     _output.dispose();
     _partitionFilter.dispose();
     super.dispose();
   }
 
+  void _handleSourceChanged() {
+    final source = _source.text.trim();
+    if (source == _lastSourcePath) return;
+    _lastSourcePath = source;
+    if (!mounted) return;
+    setState(() {
+      _parts = [];
+      _selected.clear();
+      _cachedPartitionQuery = null;
+      _cachedVisibleParts = const [];
+      _status = source.isEmpty
+          ? 'Choose an OTA ZIP or payload.bin file.'
+          : 'Input changed. Inspect the new payload to load its partitions.';
+    });
+  }
+
+  void _setSourcePath(String path) {
+    if (_source.text == path) return;
+    _source.text = path;
+  }
+
   Future<void> _browseSource() async {
     const group = XTypeGroup(label: 'OTA and payload files', extensions: ['zip', 'bin']);
     final file = await openFile(acceptedTypeGroups: [group]);
-    if (file != null && mounted) setState(() => _source.text = file.path);
+    if (file != null && mounted) _setSourcePath(file.path);
   }
 
   Future<void> _browseOutput() async {
@@ -174,7 +198,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
         XTypeGroup(label: 'OTA and payload files', extensions: ['zip', 'bin']),
       ],
     );
-    if (location != null && mounted) setState(() => _source.text = location.path);
+    if (location != null && mounted) _setSourcePath(location.path);
   }
 
   Future<void> _openOutput() async {
@@ -190,7 +214,21 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
   }
 
   void _drop(DropDoneDetails detail) {
-    if (detail.files.isNotEmpty) setState(() => _source.text = detail.files.first.path);
+    final candidates = detail.files
+        .where((file) {
+          final path = file.path.toLowerCase();
+          return path.endsWith('.bin') || path.endsWith('.zip');
+        })
+        .toList(growable: false);
+    if (candidates.isEmpty) {
+      setState(() => _status = 'Drop a payload.bin file or Android OTA ZIP package.');
+      return;
+    }
+    final chosen = candidates.firstWhere(
+      (file) => file.name.toLowerCase() == 'payload.bin',
+      orElse: () => candidates.first,
+    );
+    _setSourcePath(chosen.path);
   }
 
   Future<void> _inspect() async {
@@ -270,16 +308,43 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
         LayoutBuilder(builder: (context, constraints) {
           final wide = constraints.maxWidth >= 1000;
           final source = Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Expanded(child: _TextField(controller: _source, label: 'OTA ZIP or payload.bin source path')),
+            Expanded(child: _TextField(
+              controller: _source,
+              label: 'INPUT FILE · OTA ZIP or payload.bin',
+            )),
             const SizedBox(width: 8),
-            OutlinedButton(onPressed: _browseSource, child: const Text('Browse…')),
+            Tooltip(
+              message: 'Browse for the OTA ZIP or payload.bin input file',
+              child: OutlinedButton.icon(
+                onPressed: _browseSource,
+                icon: const Icon(Icons.file_open_outlined),
+                label: const Text('Browse input'),
+              ),
+            ),
           ]);
           final output = Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Expanded(child: _TextField(controller: _output, label: 'Non-overwriting publication directory')),
+            Expanded(child: _TextField(
+              controller: _output,
+              label: 'OUTPUT FOLDER · extracted image destination',
+            )),
             const SizedBox(width: 8),
-            OutlinedButton(onPressed: _browseOutput, child: const Text('Choose…')),
+            Tooltip(
+              message: 'Choose a destination folder for extracted images',
+              child: OutlinedButton.icon(
+                onPressed: _browseOutput,
+                icon: const Icon(Icons.folder_open_outlined),
+                label: const Text('Browse output'),
+              ),
+            ),
             const SizedBox(width: 6),
-            OutlinedButton(onPressed: _openOutput, child: const Text('Open folder')),
+            Tooltip(
+              message: 'Open the selected output folder in your file manager',
+              child: OutlinedButton.icon(
+                onPressed: _openOutput,
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Open folder'),
+              ),
+            ),
           ]);
           return wide
             ? Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -314,11 +379,11 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
               ),
               OutlinedButton(
                 onPressed: _selectedMount == null ? null : _useMountedOutput,
-                child: const Text('Use for output'),
+                child: const Text('Set as output folder'),
               ),
               OutlinedButton(
                 onPressed: _selectedMount == null ? null : _browseMountedInput,
-                child: const Text('Browse drive'),
+                child: const Text('Choose input from drive'),
               ),
             ],
           );
@@ -419,12 +484,44 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
       subtitle: 'Isolated staging directory · Rejects empty/symlink artifacts · Atomic non-overwriting publication',
       child: DropTarget(
         onDragDone: _drop,
-        child: ListView(children: [
-          sourcePanel,
-          if (_parts.isNotEmpty) ...[const SizedBox(height: 14), partitionPanel],
-          const SizedBox(height: 14),
-          activityPanel,
-        ]),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final showSideLog = constraints.maxWidth >= 1000;
+            final workspace = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                sourcePanel,
+                if (_parts.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  partitionPanel,
+                ],
+              ],
+            );
+            if (!showSideLog) {
+              return ListView(
+                children: [
+                  workspace,
+                  const SizedBox(height: 14),
+                  activityPanel,
+                ],
+              );
+            }
+            return SingleChildScrollView(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: workspace),
+                  const SizedBox(width: 14),
+                  SizedBox(
+                    width: 320,
+                    height: 560,
+                    child: activityPanel,
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

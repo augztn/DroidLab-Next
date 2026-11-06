@@ -23,7 +23,7 @@ from droidlab.core.platform_tools_installer import (
 )
 from droidlab.core.file_transfer import (
     ensure_pull_target_is_new, publish_file_no_replace, validate_android_path,
-    validate_pull_directory, validate_push_source,
+    validate_apk_source, validate_pull_directory, validate_push_source,
 )
 
 PROTOCOL_VERSION = 1
@@ -109,7 +109,7 @@ class _AdbServerLock:
 
 _ADB_SERVER_LOCK = _AdbServerLock()
 _ADB_SERVER_LOCK_TIMEOUT = 5.0
-_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active", "debloat.package.apply"}
+_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "adb.install", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active", "debloat.package.apply"}
 
 def emit(message: dict[str, Any]) -> None:
     envelope = {"version": PROTOCOL_VERSION, "timestamp": time.time(), **message}
@@ -473,6 +473,31 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             "transport": transport,
             "message": f"{transport.upper()} accepted reboot request to {mode}; USB mode transition is not verified.",
         }
+    if operation == "adb.install":
+        serial = args.get("serial")
+        apk_path = validate_apk_source(args.get("apk_path"))
+        intent = {
+            "operation": "adb.install",
+            "serial": serial,
+            "apk_path": args.get("apk_path"),
+        }
+        require_adb(serial, cancel_event=cancel)
+        require_confirmation(args, "ADB APK installation", intent)
+        command = [tool_path("adb"), "-s", serial, "install", "-r", str(apk_path)]
+        response(request_id, "preflight", target=serial, command=command, destructive=True)
+        result = run_streaming(
+            command,
+            timeout=bounded_timeout(args.get("timeout_seconds"), 600, 3600),
+            cancel_event=cancel,
+            on_line=lambda line: response(request_id, "output", stream="stdout", line=line),
+        )
+        if result.returncode:
+            raise RuntimeError(
+                f"ADB APK installation failed ({result.returncode}): "
+                f"{result.stdout[-MAX_RETAINED_OUTPUT:]}"
+            )
+        return {"exit_code": 0, "serial": serial, "apk_path": str(apk_path), "output": result.stdout}
+
     if operation == "adb.transfer":
         serial = args.get("serial")
         direction = args.get("direction")

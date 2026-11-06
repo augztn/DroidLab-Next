@@ -13,6 +13,7 @@ from droidlab.core.file_transfer import (
     ensure_pull_target_is_new,
     publish_file_no_replace,
     validate_android_path,
+    validate_apk_source,
     validate_pull_directory,
     validate_push_source,
 )
@@ -39,6 +40,23 @@ class FileTransferValidationTests(unittest.TestCase):
             self.assertEqual(validate_push_source(str(file_path)), file_path.resolve())
             with self.assertRaises(ValueError):
                 validate_push_source(directory)
+
+    def test_apk_source_requires_nonempty_regular_apk_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            apk = root / "sample.apk"
+            apk.write_bytes(b"apk")
+            self.assertEqual(validate_apk_source(str(apk)), apk.resolve())
+            empty = root / "empty.apk"
+            empty.touch()
+            with self.assertRaises(ValueError):
+                validate_apk_source(str(empty))
+            wrong_type = root / "payload.zip"
+            wrong_type.write_bytes(b"zip")
+            with self.assertRaises(ValueError):
+                validate_apk_source(str(wrong_type))
+            with self.assertRaises(ValueError):
+                validate_apk_source(directory)
 
     def test_pull_publication_falls_back_when_hard_links_are_unsupported(self):
         with tempfile.TemporaryDirectory() as directory:

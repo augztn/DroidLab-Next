@@ -21,23 +21,62 @@ def _run(cli,args,progress=None,cancel_event=None,timeout=INSPECTION_TIMEOUT):
  except ProcessCancelledError as exc: raise BackendError("Payload operation cancelled.") from exc
  except subprocess.TimeoutExpired as exc: raise BackendError(f"Payload operation timed out after {exc.timeout} seconds.") from exc
  except OSError as exc: raise BackendError(f"Could not start payload-dumper-go: {exc}") from exc
-def inspect_source(source,progress=None,cancel_event=None):
- path=Path(source).expanduser().resolve()
- if not path.is_file():raise BackendError(f"Input file does not exist: {path}")
- if path.suffix.lower() not in {".bin",".zip"}:raise BackendError("Choose a payload .bin file or OTA .zip file.")
- cli=_find_cli()
- if not cli:raise BackendError("payload-dumper-go was not found. Install it or use the bundled AppImage.")
- result=_run(cli,["-l","-m",str(path)],progress,cancel_event,INSPECTION_TIMEOUT)
- if result.returncode:raise BackendError(result.stdout.strip() or "Could not inspect OTA payload.")
- parts=[]
- for line in result.stdout.splitlines():
-  name,sep,size=line.partition(":")
-  if not sep:continue
-  try: size_bytes=int(size.strip())*1024
-  except ValueError:continue
-  if is_valid_partition_name(name.strip()):parts.append({"name":name.strip(),"size_bytes":size_bytes})
- if not parts:raise BackendError("Payload backend returned no valid partition metadata.")
- return parts
+def _parse_partition_list(output):
+    """Parse payload-dumper-go -l -m output (name:size_in_KiB)."""
+    parts = []
+    seen = set()
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line or ":" not in line:
+            continue
+        name, raw_size = line.rsplit(":", 1)
+        name = name.strip()
+        if not is_valid_partition_name(name) or name.casefold() in seen:
+            continue
+        try:
+            size_kib = int(raw_size.strip())
+        except ValueError:
+            continue
+        if size_kib < 0:
+            continue
+        seen.add(name.casefold())
+        parts.append({"name": name, "size_bytes": size_kib * 1024})
+    return parts
+
+
+def inspect_source(source, progress=None, cancel_event=None):
+    if not isinstance(source, str) or not source.strip():
+        raise BackendError("Choose an OTA ZIP or payload.bin file.")
+    path = Path(source).expanduser()
+    if not path.is_file():
+        raise BackendError(f"Input file does not exist: {path}")
+    if path.suffix.lower() not in {".bin", ".zip"}:
+        raise BackendError("Choose a payload .bin file or OTA .zip file.")
+    cli = _find_cli()
+    result = _run(
+        cli,
+        ["-l", "-m", str(path.resolve())],
+        progress,
+        cancel_event,
+        INSPECTION_TIMEOUT,
+    )
+    if result.returncode:
+        detail = result.stdout.strip() or "payload-dumper-go returned a non-zero exit status."
+        raise BackendError(detail)
+    parts = _parse_partition_list(result.stdout)
+    if not parts:
+        detail = result.stdout.strip()
+        if detail:
+            raise BackendError(
+                "Could not parse the partition list returned by payload-dumper-go. "
+                "Expected machine-readable lines in name:size_in_KiB format. "
+                f"Tool output: {detail[:1200]}"
+            )
+        raise BackendError(
+            "payload-dumper-go returned no partition metadata. "
+            "Verify that the input is a full OTA ZIP or payload.bin."
+        )
+    return parts
 def extract(source,output_dir,selected=None,progress=None,cancel_event=None,fingerprint=False):
  if not isinstance(source,str) or not source.strip():raise BackendError("Choose a payload .bin or OTA .zip file.")
  if not isinstance(output_dir,str) or not output_dir.strip():raise BackendError("Choose an output directory.")
@@ -51,7 +90,20 @@ def extract(source,output_dir,selected=None,progress=None,cancel_event=None,fing
   args=["-o",str(stage)]
   if selected:args.extend(["-p",",".join(selected)])
   args.append(str(src)); result=_run(cli,args,progress,cancel_event,EXTRACTION_TIMEOUT)
-  if result.returncode:raise BackendError(f"payload-dumper-go exited with status {result.returncode}; delta OTA operations may be unsupported.")
+  if result.returncode:
+   detail = result.stdout.strip() or f"payload-dumper-go exited with status {result.returncode}."
+   lowered = detail.lower()
+   if "source" in lowered and ("missing" in lowered or "required" in lowered):
+    raise BackendError(
+     "This incremental OTA requires base partition images. Extract the previous full OTA first. "
+     "The current DroidLab UI does not yet provide a base-image directory field."
+    )
+   if any(token in lowered for token in ("puffdiff", "zucchini", "lz4diff")):
+    raise BackendError(
+     "This OTA uses a delta operation not supported by payload-dumper-go "
+     "(PUFFDIFF, ZUCCHINI or LZ4DIFF). Try extracting unaffected partitions separately."
+    )
+   raise BackendError(f"payload-dumper-go exited with status {result.returncode}: {detail}")
   if cancel_event is not None and cancel_event.is_set():raise BackendError("Extraction cancelled before artifact publication.")
   artifacts=sorted(p for p in stage.rglob("*.img") if p.is_file() and not p.is_symlink() and p.stat().st_size>0)
   if not artifacts:raise BackendError("Extraction produced no non-empty image artifacts.")

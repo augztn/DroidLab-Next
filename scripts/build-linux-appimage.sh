@@ -13,7 +13,7 @@ command -v python3 >/dev/null || { echo "Python 3.10+ is required on the target 
 command -v wget >/dev/null || { echo "wget is required." >&2; exit 1; }
 command -v tar >/dev/null || { echo "tar is required." >&2; exit 1; }
 command -v sha256sum >/dev/null || { echo "sha256sum is required." >&2; exit 1; }
-command -v xz >/dev/null || { echo "xz is required." >&2; exit 1; }
+command -v xz >/dev/null || { echo "xz is required by payload-dumper-go. Install xz-utils (Debian/Ubuntu), xz (Fedora/macOS Homebrew), or the platform equivalent." >&2; exit 1; }
 command -v appimagetool >/dev/null || { echo "Install appimagetool before building the AppImage." >&2; exit 1; }
 cd apps/desktop
 flutter pub get --enforce-lockfile
@@ -37,6 +37,14 @@ tar -xzf "$WORK/download/$ARCHIVE" -C "$WORK/extract"
 PAYLOAD_DUMPER="$(find "$WORK/extract" -type f -name payload-dumper-go -print -quit)"
 [[ -n "$PAYLOAD_DUMPER" ]] || { echo "payload-dumper-go binary not found in release archive." >&2; exit 1; }
 install -m 0755 "$PAYLOAD_DUMPER" "$APPDIR/usr/bin/payload-dumper-go"
+"$APPDIR/usr/bin/payload-dumper-go" --help >/dev/null 2>&1 || {
+  echo "Bundled payload-dumper-go failed its startup smoke test." >&2
+  exit 1
+}
+"$APPDIR/usr/bin/payload-dumper-go" --help >/dev/null 2>&1 || {
+  echo "Bundled payload-dumper-go failed its startup smoke test." >&2
+  exit 1
+}
 # Also ship the CLI beside the regular extracted Linux desktop bundle.
 install -m 0755 "$PAYLOAD_DUMPER" "apps/desktop/build/linux/x64/release/bundle/payload-dumper-go"
 wget -q "https://raw.githubusercontent.com/ssut/payload-dumper-go/${BACKEND_VERSION}/LICENSE" -O "$APPDIR/usr/share/licenses/payload-dumper-go/LICENSE"
