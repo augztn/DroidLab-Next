@@ -486,7 +486,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
         onDragDone: _drop,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final showSideLog = constraints.maxWidth >= 1180;
+            final showSideLog = constraints.maxWidth >= 1000;
             final workspace = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -513,7 +513,7 @@ class _PayloadExtractorPageState extends ConsumerState<PayloadExtractorPage> {
                   Expanded(child: workspace),
                   const SizedBox(width: 14),
                   SizedBox(
-                    width: 360,
+                    width: 320,
                     height: 560,
                     child: activityPanel,
                   ),
