@@ -109,7 +109,7 @@ class _AdbServerLock:
 
 _ADB_SERVER_LOCK = _AdbServerLock()
 _ADB_SERVER_LOCK_TIMEOUT = 5.0
-_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active", "debloat.package.apply"}
+_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "adb.install", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active", "debloat.package.apply"}
 
 def emit(message: dict[str, Any]) -> None:
     envelope = {"version": PROTOCOL_VERSION, "timestamp": time.time(), **message}
