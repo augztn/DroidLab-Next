@@ -26,7 +26,7 @@ cp -a apps/desktop/build/linux/x64/release/bundle/. "$APPDIR/usr/bin/"
 cp -a backend/python/. "$APPDIR/usr/lib/droidlab/backend/"
 install -m 0755 "$(command -v xz)" "$APPDIR/opt/payload-dumper/bin/xz"
 mkdir -p "$WORK/download"
-wget -q --show-progress "https://github.com/ssut/payload-dumper-go/releases/download/${BACKEND_VERSION}/${ARCHIVE}" -O "$WORK/download/$ARCHIVE"
+curl --fail --location --silent --show-error --header "Accept: application/octet-stream" --retry 5 --retry-all-errors --connect-timeout 30 --max-time 300 "https://api.github.com/repos/ssut/payload-dumper-go/releases/assets/583009741" --output "$WORK/download/$ARCHIVE"
 case "$BACKEND_VERSION" in
   2.1.0) EXPECTED_SHA256="bbbb53a71955c69272afdef7bc7e83a1bb1770f453d0c21dcaf61a3ba0463c11" ;;
   *) echo "No verified payload-dumper-go checksum for version $BACKEND_VERSION." >&2; exit 1 ;;
@@ -43,7 +43,7 @@ install -m 0755 "$PAYLOAD_DUMPER" "$APPDIR/usr/bin/payload-dumper-go"
 }
 # Also ship the CLI beside the regular extracted Linux desktop bundle.
 install -m 0755 "$PAYLOAD_DUMPER" "apps/desktop/build/linux/x64/release/bundle/payload-dumper-go"
-wget -q "https://raw.githubusercontent.com/ssut/payload-dumper-go/${BACKEND_VERSION}/LICENSE" -O "$APPDIR/usr/share/licenses/payload-dumper-go/LICENSE"
+curl --fail --location --silent --show-error --retry 5 --retry-all-errors --connect-timeout 30 --max-time 120 "https://raw.githubusercontent.com/ssut/payload-dumper-go/${BACKEND_VERSION}/LICENSE" --output "$APPDIR/usr/share/licenses/payload-dumper-go/LICENSE"
 if command -v ldd >/dev/null; then
   ldd "$(command -v xz)" | awk '/=> \// {print $3} /^[[:space:]]*\// {print $1}' | sort -u | while read -r dependency; do
     [[ -f "$dependency" ]] || continue
