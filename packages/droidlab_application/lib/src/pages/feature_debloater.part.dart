@@ -392,7 +392,14 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         if (!mounted) return;
         final package = entry['package'] as String;
         final backupPath = entry['path'] as String;
-        final intent = {'operation': 'adb.restore', 'serial': serial, 'backup_path': backupPath};
+        // Keep the UI confirmation payload identical to the backend's
+        // canonical intent, including the package read from the backup manifest.
+        final intent = {
+          'operation': 'adb.restore',
+          'serial': serial,
+          'backup_path': backupPath,
+          'package': package,
+        };
         try {
           _recordOperationActivity(ref, 'App restore started · $package');
           await trackOperation(
