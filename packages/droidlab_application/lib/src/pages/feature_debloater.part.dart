@@ -834,9 +834,9 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         ]))),
         if (_packages.isNotEmpty) ...[
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
             child: Wrap(
-              spacing: 5,
+              spacing: 4,
               runSpacing: 2,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
@@ -844,8 +844,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
                 TextButton.icon(
                   style: TextButton.styleFrom(
-                    minimumSize: const Size(0, 32),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+                    minimumSize: const Size(0, 28),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 0),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
                   ),
@@ -855,8 +855,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                 ),
                 TextButton(
                   style: TextButton.styleFrom(
-                    minimumSize: const Size(0, 32),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+                    minimumSize: const Size(0, 28),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 0),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
                   ),
@@ -867,8 +867,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                 ),
                 FilledButton.tonalIcon(
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 34),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    minimumSize: const Size(0, 30),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
                   ),
@@ -876,12 +876,12 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                       ? null
                       : () => _applySelected('disable'),
                   icon: const Icon(Icons.pause_circle_outline, size: 15),
-                  label: const Text('Disable', style: TextStyle(fontSize: 12.5)),
+                  label: const Text('Disable selected', style: TextStyle(fontSize: 12)),
                 ),
                 FilledButton.tonalIcon(
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 34),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    minimumSize: const Size(0, 30),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
                   ),
@@ -889,12 +889,12 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                       ? null
                       : () => _applySelected('enable'),
                   icon: const Icon(Icons.play_circle_outline, size: 15),
-                  label: const Text('Enable', style: TextStyle(fontSize: 12.5)),
+                  label: const Text('Enable selected', style: TextStyle(fontSize: 12)),
                 ),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 34),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    minimumSize: const Size(0, 30),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
                   ),
@@ -902,12 +902,12 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                       ? null
                       : _backupSelected,
                   icon: const Icon(Icons.backup_outlined, size: 15),
-                  label: const Text('Back up', style: TextStyle(fontSize: 12.5)),
+                  label: const Text('Back up selected', style: TextStyle(fontSize: 12)),
                 ),
                 FilledButton.tonalIcon(
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 34),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    minimumSize: const Size(0, 30),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
                   ),
@@ -915,12 +915,12 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                       ? null
                       : () => _applySelected('restore'),
                   icon: const Icon(Icons.restore_rounded, size: 15),
-                  label: const Text('Restore', style: TextStyle(fontSize: 12.5)),
+                  label: const Text('Restore selected', style: TextStyle(fontSize: 12)),
                 ),
                 FilledButton.tonalIcon(
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 34),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    minimumSize: const Size(0, 30),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
                   ),
@@ -928,7 +928,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                       ? null
                       : () => _applySelected('uninstall'),
                   icon: const Icon(Icons.delete_outline, size: 15),
-                  label: const Text('Uninstall', style: TextStyle(fontSize: 12.5)),
+                  label: const Text('Uninstall selected', style: TextStyle(fontSize: 12)),
                 ),
               ],
             ),
