@@ -193,6 +193,80 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     }
   }
 
+  Future<void> _backupSelected() async {
+    final serial = _serial;
+    if (_busy || serial == null || _selectedPackages.isEmpty) return;
+    final packages = _selectedPackages.where((package) =>
+      _packages.any((item) => item['package'] == package && item['installed'] != false)
+    ).toList()..sort();
+    if (packages.isEmpty) {
+      setState(() => _error = 'Select at least one installed package to back up.');
+      return;
+    }
+    final destination = await getDirectoryPath();
+    if (destination == null || !mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Back up ${packages.length} app(s)?'),
+        content: Text(
+          'Save the base APK and split APKs for each selected app to:\n$destination\n\n'
+          'Private app data, accounts and settings are not included. '
+          'Each app is saved separately; failures will not stop the remaining backups.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Back up selected')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() { _busy = true; _error = null; _notice = null; });
+    final succeeded = <String>[];
+    final failed = <String, String>{};
+    try {
+      for (final package in packages) {
+        if (!mounted) return;
+        final intent = {
+          'operation': 'adb.backup',
+          'serial': serial,
+          'package': package,
+          'destination_path': destination,
+        };
+        try {
+          await trackOperation(
+            ref,
+            operation: 'Back up app APKs',
+            target: serial,
+            action: () => ref.read(backendClientProvider).request('adb.backup', {
+              ...intent, 'confirmed': true, 'confirmation': intent,
+            }, timeout: const Duration(minutes: 30)),
+            successSummary: (_) => 'APK backup completed for $package.',
+          );
+          succeeded.add(package);
+        } catch (error) {
+          if (error is BackendException && error.code == 'cancelled') {
+            failed[package] = error.toString();
+            break;
+          }
+          failed[package] = error.toString();
+        }
+      }
+      if (mounted) {
+        setState(() {
+          final summary = '${succeeded.length} backed up, ${failed.length} failed. Saved under $destination.';
+          if (failed.isEmpty) {
+            _notice = summary;
+          } else {
+            _error = '$summary First failure: ${failed.entries.first.key}: ${failed.entries.first.value}';
+          }
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _browseBackup() async {
     final directory = await getDirectoryPath();
     if (directory != null && mounted) setState(() => _backupPath.text = directory);
@@ -792,6 +866,13 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                       : () => _applySelected('enable'),
                   icon: const Icon(Icons.play_circle_outline, size: 17),
                   label: const Text('Enable selected'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _busy || _serial == null || _selectedPackages.isEmpty
+                      ? null
+                      : _backupSelected,
+                  icon: const Icon(Icons.backup_outlined, size: 17),
+                  label: const Text('Back up selected'),
                 ),
                 FilledButton.tonalIcon(
                   onPressed: _busy || _selectedPackages.isEmpty
