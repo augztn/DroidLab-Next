@@ -23,7 +23,7 @@ from droidlab.core.platform_tools_installer import (
 )
 from droidlab.core.file_transfer import (
     ensure_pull_target_is_new, publish_file_no_replace, validate_android_path,
-    validate_apk_source, validate_pull_directory, validate_push_source,
+    validate_apk_source, validate_apk_sources, validate_app_backup, validate_package_name, validate_pull_directory, validate_push_source,
 )
 
 PROTOCOL_VERSION = 1
@@ -109,7 +109,7 @@ class _AdbServerLock:
 
 _ADB_SERVER_LOCK = _AdbServerLock()
 _ADB_SERVER_LOCK_TIMEOUT = 5.0
-_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "adb.install", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active", "debloat.package.apply"}
+_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "adb.install", "adb.install_multiple", "adb.backup", "adb.restore", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active", "debloat.package.apply"}
 
 def emit(message: dict[str, Any]) -> None:
     envelope = {"version": PROTOCOL_VERSION, "timestamp": time.time(), **message}
@@ -497,6 +497,91 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
                 f"{result.stdout[-MAX_RETAINED_OUTPUT:]}"
             )
         return {"exit_code": 0, "serial": serial, "apk_path": str(apk_path), "output": result.stdout}
+
+    if operation == "adb.install_multiple":
+        serial = args.get("serial")
+        apks = validate_apk_sources(args.get("apk_paths"))
+        intent = {"operation": "adb.install_multiple", "serial": serial, "apk_paths": args.get("apk_paths")}
+        require_adb(serial, cancel_event=cancel)
+        require_confirmation(args, "ADB batch APK installation", intent)
+        command = [tool_path("adb"), "-s", serial, "install-multiple", "-r", *map(str, apks)]
+        response(request_id, "preflight", target=serial, command=command, destructive=True)
+        result = run_streaming(command, timeout=bounded_timeout(args.get("timeout_seconds"), 1800, 3600),
+            cancel_event=cancel, on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
+        if result.returncode:
+            raise RuntimeError(f"ADB batch APK installation failed ({result.returncode}): {result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        return {"exit_code": 0, "serial": serial, "installed_count": len(apks), "output": result.stdout}
+
+    if operation == "adb.backup":
+        serial = args.get("serial")
+        package = validate_package_name(args.get("package"))
+        parent_value = args.get("destination_path")
+        if not isinstance(parent_value, str) or not parent_value.strip():
+            raise ValueError("Choose a backup destination folder.")
+        parent = Path(parent_value).expanduser()
+        if parent.is_symlink():
+            raise ValueError("Backup destination must not be a symbolic link.")
+        parent.mkdir(parents=True, exist_ok=True)
+        parent = parent.resolve(strict=True)
+        target = parent / f"{package}-{int(time.time())}"
+        intent = {"operation": "adb.backup", "serial": serial, "package": package, "destination_path": str(parent)}
+        require_adb(serial, cancel_event=cancel)
+        require_confirmation(args, "Android app APK backup", intent)
+        listing = run_streaming([tool_path("adb"), "-s", serial, "shell", "pm", "path", package],
+            timeout=30, cancel_event=cancel)
+        if listing.returncode:
+            raise RuntimeError(f"Could not locate APKs for {package}: {listing.stdout[-MAX_RETAINED_OUTPUT:]}")
+        remote_paths = [line.strip()[8:] for line in listing.stdout.splitlines()
+            if line.strip().startswith("package:")]
+        if not remote_paths or len(remote_paths) > 64:
+            raise RuntimeError("Android returned no APK paths or an unsupported number of split APKs.")
+        for remote in remote_paths:
+            if not remote.startswith("/") or "\\x00" in remote or ".." in Path(remote).parts or not remote.endswith(".apk"):
+                raise RuntimeError("Android returned an unsafe APK path; backup was stopped.")
+        if target.exists() or target.is_symlink():
+            raise FileExistsError(f"Backup already exists: {target}")
+        with tempfile.TemporaryDirectory(prefix=".droidlab-backup-", dir=parent) as temporary:
+            stage = Path(temporary)
+            manifest = {"schema_version": 1, "package": package, "device_serial": serial,
+                "created_at": int(time.time()), "files": []}
+            for index, remote in enumerate(remote_paths):
+                filename = f"{index:02d}-{Path(remote).name}"
+                local = stage / filename
+                pulled = run_streaming([tool_path("adb"), "-s", serial, "pull", remote, str(local)],
+                    timeout=600, cancel_event=cancel,
+                    on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
+                if pulled.returncode or local.is_symlink() or not local.is_file() or local.stat().st_size <= 0:
+                    raise RuntimeError(f"APK backup failed for {remote}: {pulled.stdout[-MAX_RETAINED_OUTPUT:]}")
+                import hashlib
+                digest = hashlib.sha256(local.read_bytes()).hexdigest()
+                manifest["files"].append({"file": filename, "remote_path": remote, "sha256": digest})
+            (stage / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            if target.exists() or target.is_symlink():
+                raise FileExistsError(f"Backup already exists: {target}")
+            os.rename(stage, target)
+        return {"exit_code": 0, "package": package, "backup_path": str(target), "apk_count": len(remote_paths)}
+
+    if operation == "adb.restore":
+        serial = args.get("serial")
+        backup_value = args.get("backup_path")
+        root, apks = validate_app_backup(backup_value)
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        package = validate_package_name(manifest.get("package"))
+        import hashlib
+        for apk, entry in zip(apks, manifest["files"]):
+            expected = entry.get("sha256")
+            if not isinstance(expected, str) or hashlib.sha256(apk.read_bytes()).hexdigest() != expected:
+                raise ValueError(f"Backup integrity check failed for {apk.name}.")
+        intent = {"operation": "adb.restore", "serial": serial, "backup_path": str(root), "package": package}
+        require_adb(serial, cancel_event=cancel)
+        require_confirmation(args, "Android app restore", intent)
+        command = [tool_path("adb"), "-s", serial, "install-multiple", "-r", *map(str, apks)]
+        response(request_id, "preflight", target=serial, command=command, destructive=True)
+        result = run_streaming(command, timeout=bounded_timeout(args.get("timeout_seconds"), 1800, 3600),
+            cancel_event=cancel, on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
+        if result.returncode:
+            raise RuntimeError(f"App restore failed ({result.returncode}): {result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        return {"exit_code": 0, "serial": serial, "package": package, "output": result.stdout}
 
     if operation == "adb.transfer":
         serial = args.get("serial")
