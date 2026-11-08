@@ -9,6 +9,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 from urllib.parse import quote
@@ -109,20 +111,47 @@ def main() -> None:
 
     if not archive.is_file() or sha256(archive) != expected_digest:
         partial = archive.with_suffix(archive.suffix + ".download")
+        last_error: Exception | None = None
         try:
-            request = urllib.request.Request(
-                url, headers={"User-Agent": "DroidLab-runtime-stager"}
-            )
-            with urllib.request.urlopen(request, timeout=60) as response:
-                with partial.open("wb") as output:
-                    shutil.copyfileobj(response, output)
-            actual_digest = sha256(partial)
-            if actual_digest != expected_digest:
+            for attempt in range(5):
+                try:
+                    request = urllib.request.Request(
+                        url, headers={"User-Agent": "DroidLab-runtime-stager"}
+                    )
+                    with urllib.request.urlopen(request, timeout=90) as response:
+                        with partial.open("wb") as output:
+                            shutil.copyfileobj(response, output)
+                    actual_digest = sha256(partial)
+                    if actual_digest != expected_digest:
+                        raise RuntimeError(
+                            f"CPython archive checksum mismatch: expected "
+                            f"{expected_digest}, got {actual_digest}"
+                        )
+                    partial.replace(archive)
+                    last_error = None
+                    break
+                except urllib.error.HTTPError as error:
+                    if error.code < 500 and error.code != 429:
+                        raise
+                    last_error = error
+                except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+                    last_error = error
+                finally:
+                    if partial.exists():
+                        partial.unlink()
+                if last_error is not None and attempt < 4:
+                    delay = min(2 ** attempt, 16)
+                    print(
+                        f"CPython download attempt {attempt + 1}/5 failed "
+                        f"({last_error}); retrying in {delay}s.",
+                        file=sys.stderr,
+                    )
+                    time.sleep(delay)
+            if last_error is not None:
                 raise RuntimeError(
-                    f"CPython archive checksum mismatch: expected "
-                    f"{expected_digest}, got {actual_digest}"
-                )
-            partial.replace(archive)
+                    f"Unable to download verified CPython runtime after 5 attempts: "
+                    f"{last_error}"
+                ) from last_error
         finally:
             if partial.exists():
                 partial.unlink()
