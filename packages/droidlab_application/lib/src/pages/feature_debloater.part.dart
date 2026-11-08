@@ -128,7 +128,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text('Install ${paths.length} APK file(s)?'),
-        content: Text('Target device: $serial\n\nAndroid will install each selected APK separately. Existing apps are updated when Android's signing and install policies allow it.'),
+        content: Text("Target device: $serial\\n\\nAndroid will install each selected APK separately. Existing apps are updated when Android signing and install policies allow it."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Install')),
