@@ -504,13 +504,24 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         intent = {"operation": "adb.install_multiple", "serial": serial, "apk_paths": args.get("apk_paths")}
         require_adb(serial, cancel_event=cancel)
         require_confirmation(args, "ADB batch APK installation", intent)
-        command = [tool_path("adb"), "-s", serial, *(["install", "-r", str(apks[0])] if len(apks) == 1 else ["install-multiple", "-r", *map(str, apks)])]
-        response(request_id, "preflight", target=serial, command=command, destructive=True)
-        result = run_streaming(command, timeout=bounded_timeout(args.get("timeout_seconds"), 1800, 3600),
-            cancel_event=cancel, on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
-        if result.returncode:
-            raise RuntimeError(f"ADB batch APK installation failed ({result.returncode}): {result.stdout[-MAX_RETAINED_OUTPUT:]}")
-        return {"exit_code": 0, "serial": serial, "installed_count": len(apks), "output": result.stdout}
+        installed, failed, output = [], [], []
+        for apk in apks:
+            if cancel.is_set():
+                raise ProcessCancelledError("Batch APK installation cancelled.")
+            command = [tool_path("adb"), "-s", serial, "install", "-r", str(apk)]
+            response(request_id, "preflight", target=serial, command=command, destructive=True)
+            result = run_streaming(command, timeout=bounded_timeout(args.get("timeout_seconds"), 600, 1800),
+                cancel_event=cancel, on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
+            output.append(f"{apk.name}: {result.stdout.strip()}")
+            if result.returncode:
+                failed.append({"apk": str(apk), "error": result.stdout[-MAX_RETAINED_OUTPUT:]})
+            else:
+                installed.append(str(apk))
+        if failed and not installed:
+            raise RuntimeError(f"All {len(failed)} APK installations failed: {failed[0]['error']}")
+        return {"exit_code": 0 if not failed else 1, "serial": serial, "installed": installed,
+            "failed": failed, "installed_count": len(installed), "failed_count": len(failed),
+            "output": "\\n".join(output)}
 
     if operation == "adb.backup":
         serial = args.get("serial")
