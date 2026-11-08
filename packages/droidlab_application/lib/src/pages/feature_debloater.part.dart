@@ -919,21 +919,38 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                       runSpacing: 0,
                                       crossAxisAlignment: WrapCrossAlignment.center,
                                       children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: riskColor.withValues(alpha: 0.12),
-                                            border: Border.all(color: riskColor.withValues(alpha: 0.35)),
-                                            borderRadius: BorderRadius.circular(20),
-                                          ),
-                                          child: Text(
-                                            'Risk · $risk',
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                              fontSize: 11.5,
-                                              color: riskColor,
-                                              fontWeight: FontWeight.w600,
+                                        Tooltip(
+                                          message: 'View risk explanation and removal impact',
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              borderRadius: BorderRadius.circular(20),
+                                              onTap: () => _showGuidance(item),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                decoration: BoxDecoration(
+                                                  color: riskColor.withValues(alpha: 0.12),
+                                                  border: Border.all(color: riskColor.withValues(alpha: 0.35)),
+                                                  borderRadius: BorderRadius.circular(20),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.info_outline, size: 12, color: riskColor),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      'Risk · $risk',
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                                        fontSize: 11.5,
+                                                        color: riskColor,
+                                                        fontWeight: FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         ),
