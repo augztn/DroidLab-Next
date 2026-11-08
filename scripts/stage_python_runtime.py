@@ -113,12 +113,12 @@ def main() -> None:
         partial = archive.with_suffix(archive.suffix + ".download")
         last_error: Exception | None = None
         try:
-            for attempt in range(5):
+            for attempt in range(8):
                 try:
                     request = urllib.request.Request(
                         url, headers={"User-Agent": "DroidLab-runtime-stager"}
                     )
-                    with urllib.request.urlopen(request, timeout=90) as response:
+                    with urllib.request.urlopen(request, timeout=180) as response:
                         with partial.open("wb") as output:
                             shutil.copyfileobj(response, output)
                     actual_digest = sha256(partial)
@@ -139,17 +139,17 @@ def main() -> None:
                 finally:
                     if partial.exists():
                         partial.unlink()
-                if last_error is not None and attempt < 4:
-                    delay = min(2 ** attempt, 16)
+                if last_error is not None and attempt < 7:
+                    delay = min((attempt + 1) * 5, 30)
                     print(
-                        f"CPython download attempt {attempt + 1}/5 failed "
+                        f"CPython download attempt {attempt + 1}/8 failed "
                         f"({last_error}); retrying in {delay}s.",
                         file=sys.stderr,
                     )
                     time.sleep(delay)
             if last_error is not None:
                 raise RuntimeError(
-                    f"Unable to download verified CPython runtime after 5 attempts: "
+                    f"Unable to download verified CPython runtime after 8 attempts: "
                     f"{last_error}"
                 ) from last_error
         finally:
