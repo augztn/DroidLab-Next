@@ -29,6 +29,16 @@ part 'feature_about.part.dart';
 part 'feature_settings.part.dart';
 part 'feature_shared.part.dart';
 
+/// Add a concise, user-facing task event to the bounded Operation Console.
+void _recordOperationActivity(WidgetRef ref, String message) {
+  final lines = ref.read(operationConsoleLinesProvider);
+  final timestamp = DateTime.now().toLocal().toIso8601String();
+  final updated = [...lines, '$timestamp  $message'];
+  ref.read(operationConsoleLinesProvider.notifier).state = updated.length > 300
+      ? updated.sublist(updated.length - 300)
+      : updated;
+}
+
 Future<bool> _waitForDeviceTransport({
   required BuildContext context,
   required WidgetRef ref,
