@@ -85,6 +85,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   Set<String> _recommendations = {};
   bool _busy = false;
   final _apkPath = TextEditingController();
+  final _backupPath = TextEditingController();
+  List<String> _apkPaths = const [];
   List<Map<String, dynamic>> _packages = const [];
   Set<String> _disabled = {};
   final Set<String> _selectedPackages = {};
@@ -95,46 +97,41 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   @override
   void dispose() {
     _apkPath.dispose();
+    _backupPath.dispose();
     super.dispose();
   }
 
   Future<void> _browseApk() async {
     const group = XTypeGroup(label: 'Android application packages', extensions: ['apk']);
-    final file = await openFile(acceptedTypeGroups: [group]);
-    if (file != null && mounted) setState(() => _apkPath.text = file.path);
+    final files = await openFiles(acceptedTypeGroups: [group]);
+    if (files.isNotEmpty && mounted) {
+      setState(() {
+        _apkPaths = files.map((file) => file.path).toList(growable: false);
+        _apkPath.text = _apkPaths.join('; ');
+      });
+    }
   }
 
   Future<void> _installApk() async {
     final serial = _serial;
-    final path = _apkPath.text.trim();
-    if (_busy || serial == null || path.isEmpty) return;
-    final apk = File(path);
-    if (!await apk.exists() || await apk.length() == 0 || !path.toLowerCase().endsWith('.apk')) {
-      if (mounted) setState(() => _error = 'Choose an existing, non-empty .apk file.');
-      return;
+    final paths = _apkPaths;
+    if (_busy || serial == null || paths.isEmpty) return;
+    for (final path in paths) {
+      final apk = File(path);
+      if (!path.toLowerCase().endsWith('.apk') || !await apk.exists() || await apk.length() == 0) {
+        if (mounted) setState(() => _error = 'Every selected file must be an existing, non-empty .apk file.');
+        return;
+      }
     }
-    final intent = {
-      'operation': 'adb.install',
-      'serial': serial,
-      'apk_path': path,
-    };
+    final intent = {'operation': 'adb.install_multiple', 'serial': serial, 'apk_paths': paths};
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Confirm APK installation'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Device: $serial'),
-            Text('APK: $path'),
-            const SizedBox(height: 10),
-            const Text('Android will install this app. An existing app is updated only when its signing certificate and Android install policy allow it.'),
-          ],
-        ),
+        title: Text('Install ${paths.length} APK file(s)?'),
+        content: Text('Target device: $serial\n\nAndroid will install the selected APK set together. Split APKs must belong to the same app and compatible version.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Install app')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Install')),
         ],
       ),
     );
@@ -143,18 +140,92 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     try {
       final result = await trackOperation(
         ref,
-        operation: 'Install Android app (APK)',
+        operation: 'Install APK set',
         target: serial,
-        action: () => ref.read(backendClientProvider).request('adb.install', {
-          ...intent,
-          'confirmed': true,
-          'confirmation': intent,
-        }, timeout: const Duration(minutes: 15)),
+        action: () => ref.read(backendClientProvider).request('adb.install_multiple', {
+          ...intent, 'confirmed': true, 'confirmation': intent,
+        }, timeout: const Duration(minutes: 30)),
         successSummary: (_) => 'APK installation completed on $serial.',
       );
       if (mounted) setState(() => _notice = result.data['output']?.toString().trim().isNotEmpty == true
-          ? result.data['output'].toString()
-          : 'APK installation completed on $serial.');
+          ? result.data['output'].toString() : 'Installed ${paths.length} APK file(s).');
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (mounted && _serial == serial) await _load();
+  }
+
+  Future<void> _backupApp(Map<String, dynamic> item) async {
+    final serial = _serial;
+    final package = item['package'] as String;
+    if (_busy || serial == null || item['installed'] == false) return;
+    final destination = await getDirectoryPath();
+    if (destination == null || !mounted) return;
+    final intent = {'operation': 'adb.backup', 'serial': serial, 'package': package, 'destination_path': destination};
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Back up app APKs?'),
+        content: Text('Back up the base APK and all split APKs for $package to:\n$destination\n\nPrivate app data, accounts and settings are not included.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Back up')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() { _busy = true; _error = null; _notice = null; });
+    try {
+      final result = await trackOperation(
+        ref, operation: 'Back up app APKs', target: serial,
+        action: () => ref.read(backendClientProvider).request('adb.backup', {
+          ...intent, 'confirmed': true, 'confirmation': intent,
+        }, timeout: const Duration(minutes: 30)),
+        successSummary: (_) => 'App APK backup completed.',
+      );
+      if (mounted) setState(() => _notice = 'Backup saved to ${result.data['backup_path'] ?? destination}.');
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _browseBackup() async {
+    final directory = await getDirectoryPath();
+    if (directory != null && mounted) setState(() => _backupPath.text = directory);
+  }
+
+  Future<void> _restoreBackup() async {
+    final serial = _serial;
+    final path = _backupPath.text.trim();
+    if (_busy || serial == null || path.isEmpty) return;
+    final intent = {'operation': 'adb.restore', 'serial': serial, 'backup_path': path};
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Restore app backup?'),
+        content: Text('Restore the APK set in:\n$path\n\nTarget device: $serial\n\nThis installs the app packages only. Private app data is not restored.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Restore')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() { _busy = true; _error = null; _notice = null; });
+    try {
+      final result = await trackOperation(
+        ref, operation: 'Restore app APK backup', target: serial,
+        action: () => ref.read(backendClientProvider).request('adb.restore', {
+          ...intent, 'confirmed': true, 'confirmation': intent,
+        }, timeout: const Duration(minutes: 30)),
+        successSummary: (_) => 'App backup restored.',
+      );
+      if (mounted) setState(() => _notice = result.data['output']?.toString().trim().isNotEmpty == true
+          ? result.data['output'].toString() : 'Restored ${result.data['package'] ?? 'app'}.');
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -536,10 +607,10 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                 Row(children: [
                   const Icon(Icons.install_mobile),
                   const SizedBox(width: 8),
-                  Expanded(child: Text('Install Android app', style: Theme.of(context).textTheme.titleMedium)),
+                  Expanded(child: Text('Install APKs', style: Theme.of(context).textTheme.titleMedium)),
                 ]),
                 const SizedBox(height: 4),
-                Text('Install an APK from your computer to the selected device. Installed apps appear in the package inventory after refresh.',
+                Text('Select one APK or a compatible split-APK set to install on the selected device.',
                   style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 10),
                 Row(children: [
@@ -548,8 +619,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                     readOnly: true,
                     decoration: const InputDecoration(
                       isDense: true,
-                      labelText: 'APK file',
-                      hintText: 'Choose an .apk file',
+                      labelText: 'Selected APK files',
+                      hintText: 'Choose one or more .apk files',
                       border: OutlineInputBorder(),
                     ),
                   )),
@@ -562,6 +633,17 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                     icon: const Icon(Icons.install_mobile, size: 18),
                     label: const Text('Install'),
                   ),
+                ]),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: TextField(
+                    controller: _backupPath, readOnly: true,
+                    decoration: const InputDecoration(isDense: true, labelText: 'App backup folder', hintText: 'Choose a DroidLab app backup folder', border: OutlineInputBorder()),
+                  )),
+                  const SizedBox(width: 8),
+                  OutlinedButton(onPressed: _busy || _serial == null ? null : _browseBackup, child: const Text('Browse backup…')),
+                  const SizedBox(width: 8),
+                  FilledButton.tonal(onPressed: _busy || _serial == null || _backupPath.text.trim().isEmpty ? null : _restoreBackup, child: const Text('Restore')),
                 ]),
                 if (_serial == null)
                   Padding(
@@ -687,7 +769,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                 const riskWidth = 125.0;
                 const stateWidth = 105.0;
                 const guidanceWidth = 82.0;
-                const actionsWidth = 88.0;
+                const actionsWidth = 128.0;
                 const minTableWidth = selectWidth + packageWidth + functionWidth +
                     riskWidth + stateWidth + guidanceWidth + actionsWidth + 24;
                 final tableWidth = constraints.maxWidth < minTableWidth
@@ -799,6 +881,12 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                     onPressed: _busy ? null : () => _apply(item, 'disable'),
                                     icon: const Icon(Icons.pause_circle_outline, size: 18),
                                   ),
+                                IconButton(
+                                  tooltip: 'Back up base and split APKs',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: _busy || !installed ? null : () => _backupApp(item),
+                                  icon: const Icon(Icons.backup_outlined, size: 18),
+                                ),
                                 IconButton(
                                   tooltip: 'Uninstall for user',
                                   visualDensity: VisualDensity.compact,
