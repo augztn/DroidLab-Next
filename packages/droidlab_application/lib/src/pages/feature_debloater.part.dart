@@ -823,12 +823,11 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                   : LayoutBuilder(builder: (context, constraints) {
                 const selectWidth = 44.0;
                 const packageWidth = 300.0;
-                const functionWidth = 280.0;
-                const riskWidth = 125.0;
+                const functionWidth = 320.0;
                 const stateWidth = 105.0;
                 const actionsWidth = 128.0;
                 const minTableWidth = selectWidth + packageWidth + functionWidth +
-                    riskWidth + stateWidth + actionsWidth + 24;
+                    stateWidth + actionsWidth + 24;
                 final tableWidth = constraints.maxWidth < minTableWidth
                     ? minTableWidth : constraints.maxWidth;
                 return SingleChildScrollView(
@@ -845,8 +844,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                         child: const Row(children: [
                           SizedBox(width: selectWidth, child: Text('Select', maxLines: 1, softWrap: false)),
                           SizedBox(width: packageWidth, child: Text('Package Identifier / Label', maxLines: 1, softWrap: false)),
-                          SizedBox(width: functionWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('OEM / Function & Guidance', maxLines: 1, softWrap: false))),
-                          SizedBox(width: riskWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Advisory Risk', maxLines: 1, softWrap: false))),
+                          SizedBox(width: functionWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Package details', maxLines: 1, softWrap: false))),
                           SizedBox(width: stateWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('User State', maxLines: 1, softWrap: false))),
                           SizedBox(width: actionsWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Actions', maxLines: 1, softWrap: false))),
                         ]),
@@ -901,31 +899,51 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                 ])),
                               ])),
                               SizedBox(width: functionWidth, child: Padding(
-                                padding: const EdgeInsets.only(right: 8),
+                                padding: const EdgeInsets.only(right: 12, top: 5, bottom: 5),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(function, maxLines: 2, overflow: TextOverflow.ellipsis,
                                       style: Theme.of(context).textTheme.bodySmall),
-                                    Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: TextButton(
-                                        style: TextButton.styleFrom(
-                                          minimumSize: const Size(0, 28),
-                                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                          visualDensity: VisualDensity.compact,
+                                    const SizedBox(height: 5),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 2,
+                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: riskColor.withValues(alpha: 0.12),
+                                            border: Border.all(color: riskColor.withValues(alpha: 0.35)),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Text(
+                                            'Risk · $risk',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                              color: riskColor,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
                                         ),
-                                        onPressed: () => _showGuidance(item),
-                                        child: const Text('Explain package'),
-                                      ),
+                                        TextButton(
+                                          style: TextButton.styleFrom(
+                                            minimumSize: const Size(0, 28),
+                                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                            visualDensity: VisualDensity.compact,
+                                          ),
+                                          onPressed: () => _showGuidance(item),
+                                          child: const Text('Explain package'),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
                               )),
-                              SizedBox(width: riskWidth, child: Text(risk, maxLines: 2, overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: riskColor))),
                               SizedBox(width: stateWidth, child: Text(
                                 !installed ? 'not installed' : disabled ? 'disabled' : 'enabled',
                                 maxLines: 1, overflow: TextOverflow.ellipsis,
