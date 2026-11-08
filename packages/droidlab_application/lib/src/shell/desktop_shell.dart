@@ -17,14 +17,12 @@ class DesktopShell extends ConsumerStatefulWidget {
 class _DesktopShellState extends ConsumerState<DesktopShell> {
   bool _expanded = true;
   bool _consoleExpanded = true;
-  final List<String> _consoleLines = [];
   final ScrollController _consoleScrollController = ScrollController();
   final Set<String> _activeOperationIds = <String>{};
   StreamSubscription<BackendEvent>? _events;
   BackendClient? _eventClient;
   Timer? _deviceRefreshTimer;
-  Timer? _consoleFlushTimer;
-  final List<String> _pendingConsoleLines = [];
+  int _lastConsoleLineCount = 0;
   Timer? _operationLogFlushTimer;
   final List<String> _pendingOperationLogLines = [];
   String? _pendingDeviceToolRoute;
@@ -87,30 +85,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
               ? '[preflight details omitted]'
               : '[operation accepted]';
       unawaited(_appendOperationLog('$timestamp $persistedEvent'));
-      _pendingConsoleLines.add('$timestamp $line');
-      // Coalesce bursts of ADB/logcat output into one UI update. ADB can emit
-      // hundreds of lines per second; rebuilding the entire desktop shell for
-      // every line creates avoidable frame work.
-      _consoleFlushTimer ??= Timer(const Duration(milliseconds: 100), () {
-        _consoleFlushTimer = null;
-        if (!mounted || _pendingConsoleLines.isEmpty) return;
-        setState(() {
-          _consoleLines.addAll(_pendingConsoleLines);
-          _pendingConsoleLines.clear();
-          if (_consoleLines.length > 300) {
-            _consoleLines.removeRange(0, _consoleLines.length - 300);
-          }
-          ref.read(operationConsoleLinesProvider.notifier).state = List.unmodifiable(_consoleLines);
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!_consoleScrollController.hasClients) return;
-          _consoleScrollController.animateTo(
-            _consoleScrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOut,
-          );
-        });
-      });
+
     });
   }
 
@@ -175,10 +150,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   @override
   void dispose() {
     _deviceRefreshTimer?.cancel();
-    _consoleFlushTimer?.cancel();
     _consoleScrollController.dispose();
     _activeOperationIds.clear();
-    _pendingConsoleLines.clear();
     _operationLogFlushTimer?.cancel();
     unawaited(_events?.cancel() ?? Future<void>.value());
     unawaited(_closeOperationLog());
@@ -199,7 +172,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   }
 
 
-  Widget _buildOperationConsole(BuildContext context, ColorScheme colors) {
+  Widget _buildOperationConsole(BuildContext context, ColorScheme colors, List<String> consoleLines) {
     final border = BorderSide(color: colors.outlineVariant);
     return Container(
       decoration: BoxDecoration(color: colors.surface, border: Border(top: border)),
@@ -222,9 +195,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                 tooltip: 'Clear console',
                 visualDensity: VisualDensity.compact,
                 onPressed: () => setState(() {
-                  _consoleLines.clear();
-                  _pendingConsoleLines.clear();
                   ref.read(operationConsoleLinesProvider.notifier).state = const [];
+                  _lastConsoleLineCount = 0;
                 }),
                 icon: const Icon(Icons.delete_outline, size: 17),
               ),
@@ -247,11 +219,11 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                 child: ListView.builder(
                   controller: _consoleScrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  itemCount: _consoleLines.length,
+                  itemCount: consoleLines.length,
                   itemBuilder: (context, index) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     child: SelectableText(
-                      _consoleLines[index],
+                      consoleLines[index],
                       maxLines: 2,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontFamily: 'monospace',
@@ -269,6 +241,14 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
 
   @override
   Widget build(BuildContext context) {
+    final consoleLines = ref.watch(operationConsoleLinesProvider);
+    if (consoleLines.length != _lastConsoleLineCount) {
+      _lastConsoleLineCount = consoleLines.length;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_consoleScrollController.hasClients) return;
+        _consoleScrollController.jumpTo(_consoleScrollController.position.maxScrollExtent);
+      });
+    }
     final backend = ref.watch(backendReadyProvider);
     if (backend.hasValue) {
       unawaited(_subscribeToBackendEvents(ref.read(backendClientProvider)));
@@ -486,7 +466,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                     child: widget.child,
                   ),
                 ),
-                _buildOperationConsole(context, colors),
+                _buildOperationConsole(context, colors, consoleLines),
               ],
             ),
           ),
