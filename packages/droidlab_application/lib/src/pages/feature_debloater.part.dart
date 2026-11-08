@@ -834,59 +834,101 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         ]))),
         if (_packages.isNotEmpty) ...[
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             child: Wrap(
-              spacing: 8,
-              runSpacing: 6,
+              spacing: 5,
+              runSpacing: 2,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text('${_selectedPackages.length} selected',
-                    style: Theme.of(context).textTheme.labelLarge),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
                 TextButton.icon(
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
                   onPressed: _busy || visible.isEmpty ? null : () => _selectVisible(visible),
-                  icon: const Icon(Icons.select_all, size: 18),
-                  label: const Text('Select visible'),
+                  icon: const Icon(Icons.select_all, size: 15),
+                  label: const Text('Select visible', style: TextStyle(fontSize: 12.5)),
                 ),
                 TextButton(
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
                   onPressed: _busy || _selectedPackages.isEmpty
                       ? null
                       : () => setState(_selectedPackages.clear),
-                  child: const Text('Clear selection'),
+                  child: const Text('Clear selection', style: TextStyle(fontSize: 12.5)),
                 ),
                 FilledButton.tonalIcon(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 34),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
                   onPressed: _busy || _selectedPackages.isEmpty
                       ? null
                       : () => _applySelected('disable'),
-                  icon: const Icon(Icons.pause_circle_outline, size: 17),
-                  label: const Text('Disable selected'),
+                  icon: const Icon(Icons.pause_circle_outline, size: 15),
+                  label: const Text('Disable', style: TextStyle(fontSize: 12.5)),
                 ),
                 FilledButton.tonalIcon(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 34),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
                   onPressed: _busy || _selectedPackages.isEmpty
                       ? null
                       : () => _applySelected('enable'),
-                  icon: const Icon(Icons.play_circle_outline, size: 17),
-                  label: const Text('Enable selected'),
+                  icon: const Icon(Icons.play_circle_outline, size: 15),
+                  label: const Text('Enable', style: TextStyle(fontSize: 12.5)),
                 ),
                 OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 34),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
                   onPressed: _busy || _serial == null || _selectedPackages.isEmpty
                       ? null
                       : _backupSelected,
-                  icon: const Icon(Icons.backup_outlined, size: 17),
-                  label: const Text('Back up selected'),
+                  icon: const Icon(Icons.backup_outlined, size: 15),
+                  label: const Text('Back up', style: TextStyle(fontSize: 12.5)),
                 ),
                 FilledButton.tonalIcon(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 34),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
                   onPressed: _busy || _selectedPackages.isEmpty
                       ? null
                       : () => _applySelected('restore'),
-                  icon: const Icon(Icons.restore_rounded, size: 17),
-                  label: const Text('Restore selected'),
+                  icon: const Icon(Icons.restore_rounded, size: 15),
+                  label: const Text('Restore', style: TextStyle(fontSize: 12.5)),
                 ),
                 FilledButton.tonalIcon(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 34),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
                   onPressed: _busy || _selectedPackages.isEmpty
                       ? null
                       : () => _applySelected('uninstall'),
-                  icon: const Icon(Icons.delete_outline, size: 17),
-                  label: const Text('Uninstall selected'),
+                  icon: const Icon(Icons.delete_outline, size: 15),
+                  label: const Text('Uninstall', style: TextStyle(fontSize: 12.5)),
                 ),
               ],
             ),
