@@ -87,6 +87,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   final _apkPath = TextEditingController();
   final _backupPath = TextEditingController();
   List<String> _apkPaths = const [];
+  List<Map<String, dynamic>> _backupEntries = const [];
+  final Set<String> _selectedBackups = {};
   List<Map<String, dynamic>> _packages = const [];
   Set<String> _disabled = {};
   final Set<String> _selectedPackages = {};
@@ -269,39 +271,135 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
 
   Future<void> _browseBackup() async {
     final directory = await getDirectoryPath();
-    if (directory != null && mounted) setState(() => _backupPath.text = directory);
+    if (directory == null || !mounted) return;
+    final root = Directory(directory);
+    final entries = <Map<String, dynamic>>[];
+    try {
+      await for (final entity in root.list(followLinks: false)) {
+        if (entity is! Directory || await Link(entity.path).exists()) continue;
+        final manifestFile = File('${entity.path}${Platform.pathSeparator}manifest.json');
+        if (await Link(manifestFile.path).exists() || !await manifestFile.exists()) continue;
+        try {
+          final decoded = jsonDecode(await manifestFile.readAsString());
+          if (decoded is! Map<String, dynamic> ||
+              decoded['schema_version'] != 1 ||
+              decoded['package'] is! String ||
+              decoded['files'] is! List ||
+              (decoded['files'] as List).isEmpty) continue;
+          final package = decoded['package'] as String;
+          final files = (decoded['files'] as List).whereType<Map<String, dynamic>>().toList();
+          if (files.isEmpty || files.length != (decoded['files'] as List).length) continue;
+          var valid = true;
+          for (final item in files) {
+            final name = item['file'];
+            if (name is! String || name.isEmpty ||
+                name != name.split(Platform.pathSeparator).last ||
+                !name.toLowerCase().endsWith('.apk')) {
+              valid = false;
+              break;
+            }
+            final apk = File('${entity.path}${Platform.pathSeparator}$name');
+            if (await Link(apk.path).exists() || !await apk.exists() || await apk.length() == 0) {
+              valid = false;
+              break;
+            }
+          }
+          if (!valid) continue;
+          entries.add({
+            'package': package,
+            'path': entity.path,
+            'apk_count': files.length,
+            'created_at': decoded['created_at'],
+          });
+        } on FormatException {
+          continue;
+        } on FileSystemException {
+          continue;
+        }
+      }
+      entries.sort((a, b) => (a['package'] as String).compareTo(b['package'] as String));
+      if (!mounted) return;
+      setState(() {
+        _backupPath.text = directory;
+        _backupEntries = entries;
+        _selectedBackups.clear();
+        _error = null;
+        _notice = entries.isEmpty
+            ? 'No valid DroidLab app backups found in this folder.'
+            : 'Found ${entries.length} app backup(s). Select the apps you want to restore.';
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = 'Could not scan backup folder: $error');
+    }
   }
 
-  Future<void> _restoreBackup() async {
+  Future<void> _restoreSelectedBackups() async {
     final serial = _serial;
-    final path = _backupPath.text.trim();
-    if (_busy || serial == null || path.isEmpty) return;
-    final intent = {'operation': 'adb.restore', 'serial': serial, 'backup_path': path};
+    final selected = _backupEntries.where((entry) =>
+      _selectedBackups.contains(entry['path'] as String)).toList();
+    if (_busy || serial == null || selected.isEmpty) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Restore app backup?'),
-        content: Text('Restore the APK set in:\n$path\n\nTarget device: $serial\n\nThis installs the app packages only. Private app data is not restored.'),
+        title: Text('Restore ${selected.length} app(s)?'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Target device: $serial'),
+              const SizedBox(height: 8),
+              const Text('Each app backup is integrity-checked and installed separately. Failures do not stop the remaining apps. Private app data, accounts and settings are not included.'),
+              const SizedBox(height: 12),
+              for (final entry in selected) Text('• ${entry['package']}'),
+            ],
+          )),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Restore')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Restore selected')),
         ],
       ),
     );
     if (confirmed != true || !mounted) return;
     setState(() { _busy = true; _error = null; _notice = null; });
+    final restored = <String>[];
+    final failed = <String, String>{};
     try {
-      final result = await trackOperation(
-        ref, operation: 'Restore app APK backup', target: serial,
-        action: () => ref.read(backendClientProvider).request('adb.restore', {
-          ...intent, 'confirmed': true, 'confirmation': intent,
-        }, timeout: const Duration(minutes: 30)),
-        successSummary: (_) => 'App backup restored.',
-      );
-      if (mounted) setState(() => _notice = result.data['output']?.toString().trim().isNotEmpty == true
-          ? result.data['output'].toString() : 'Restored ${result.data['package'] ?? 'app'}.');
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      for (final entry in selected) {
+        if (!mounted) return;
+        final package = entry['package'] as String;
+        final backupPath = entry['path'] as String;
+        final intent = {'operation': 'adb.restore', 'serial': serial, 'backup_path': backupPath};
+        try {
+          await trackOperation(
+            ref,
+            operation: 'Restore app backup · $package',
+            target: serial,
+            action: () => ref.read(backendClientProvider).request('adb.restore', {
+              ...intent, 'confirmed': true, 'confirmation': intent,
+            }, timeout: const Duration(minutes: 30)),
+            successSummary: (_) => 'Restored $package.',
+          );
+          restored.add(package);
+        } catch (error) {
+          failed[package] = error.toString();
+          if (error is BackendException && error.code == 'cancelled') break;
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _selectedBackups.removeWhere((path) => selected.any((entry) =>
+            entry['path'] == path && restored.contains(entry['package'])));
+          final summary = '${restored.length} restored, ${failed.length} failed.';
+          if (failed.isEmpty) {
+            _notice = summary;
+          } else {
+            _error = '$summary First failure: ${failed.entries.first.key}: ${failed.entries.first.value}';
+          }
+        });
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -725,39 +823,90 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                   Row(children: [
                     Icon(Icons.backup_outlined, color: Theme.of(context).colorScheme.primary),
                     const SizedBox(width: 8),
-                    Expanded(child: Text('Restore app backup', style: Theme.of(context).textTheme.titleSmall)),
+                    Expanded(child: Text('Restore app backups', style: Theme.of(context).textTheme.titleSmall)),
+                    if (_backupEntries.isNotEmpty)
+                      Text('${_backupEntries.length} found', style: Theme.of(context).textTheme.labelSmall),
                   ]),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _backupPath,
                     readOnly: true,
-                    maxLines: 2,
+                    maxLines: 1,
                     decoration: const InputDecoration(
                       isDense: true,
-                      labelText: 'Backup folder',
-                      hintText: 'Choose a DroidLab backup folder',
+                      labelText: 'Backup parent folder',
+                      hintText: 'Choose the folder containing app backup folders',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.folder_outlined),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Wrap(
-                    alignment: WrapAlignment.end,
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _busy || _serial == null ? null : _browseBackup,
-                        icon: const Icon(Icons.folder_open, size: 18),
-                        label: const Text('Browse backup'),
+                  Row(children: [
+                    Expanded(child: OutlinedButton.icon(
+                      onPressed: _busy || _serial == null ? null : _browseBackup,
+                      icon: const Icon(Icons.folder_open, size: 18),
+                      label: const Text('Scan backup folder'),
+                    )),
+                    const SizedBox(width: 8),
+                    FilledButton.tonalIcon(
+                      onPressed: _busy || _serial == null || _selectedBackups.isEmpty
+                          ? null : _restoreSelectedBackups,
+                      icon: const Icon(Icons.restore_rounded, size: 18),
+                      label: Text('Restore (${_selectedBackups.length})'),
+                    ),
+                  ]),
+                  if (_backupEntries.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Text('${_selectedBackups.length} selected', style: Theme.of(context).textTheme.labelMedium),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: _busy ? null : () => setState(() {
+                          if (_selectedBackups.length == _backupEntries.length) {
+                            _selectedBackups.clear();
+                          } else {
+                            _selectedBackups
+                              ..clear()
+                              ..addAll(_backupEntries.map((entry) => entry['path'] as String));
+                          }
+                        }),
+                        child: Text(_selectedBackups.length == _backupEntries.length
+                            ? 'Clear' : 'Select all'),
                       ),
-                      FilledButton.tonalIcon(
-                        onPressed: _busy || _serial == null || _backupPath.text.trim().isEmpty ? null : _restoreBackup,
-                        icon: const Icon(Icons.restore_rounded, size: 18),
-                        label: const Text('Restore'),
+                    ]),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 220),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _backupEntries.length,
+                        itemBuilder: (context, index) {
+                          final entry = _backupEntries[index];
+                          final backup = entry['path'] as String;
+                          final selected = _selectedBackups.contains(backup);
+                          return CheckboxListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            value: selected,
+                            onChanged: _busy ? null : (value) => setState(() {
+                              if (value == true) {
+                                _selectedBackups.add(backup);
+                              } else {
+                                _selectedBackups.remove(backup);
+                              }
+                            }),
+                            title: Text(entry['package'] as String,
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text('${entry['apk_count']} APK file(s)'),
+                          );
+                        },
                       ),
-                    ],
-                  ),
+                    ),
+                  ] else
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text('Choose the parent backup folder to list its backed-up apps.',
+                        style: Theme.of(context).textTheme.bodySmall),
+                    ),
                   if (_serial == null)
                     Padding(
                       padding: const EdgeInsets.only(top: 12),
