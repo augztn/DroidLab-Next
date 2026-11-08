@@ -971,6 +971,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                   IconButton(
                                     tooltip: 'Restore for this user',
                                     visualDensity: VisualDensity.compact,
+                                    constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+                                    padding: EdgeInsets.zero,
                                     onPressed: _busy ? null : () => _apply(item, 'restore'),
                                     icon: const Icon(Icons.restore_rounded, size: 18),
                                   )
@@ -978,6 +980,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                   IconButton(
                                     tooltip: 'Enable package',
                                     visualDensity: VisualDensity.compact,
+                                    constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+                                    padding: EdgeInsets.zero,
                                     onPressed: _busy ? null : () => _apply(item, 'enable'),
                                     icon: const Icon(Icons.play_circle_outline, size: 18),
                                   )
@@ -985,18 +989,24 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                   IconButton(
                                     tooltip: 'Disable package',
                                     visualDensity: VisualDensity.compact,
+                                    constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+                                    padding: EdgeInsets.zero,
                                     onPressed: _busy ? null : () => _apply(item, 'disable'),
                                     icon: const Icon(Icons.pause_circle_outline, size: 18),
                                   ),
                                 IconButton(
                                   tooltip: 'Back up base and split APKs',
                                   visualDensity: VisualDensity.compact,
+                                    constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+                                    padding: EdgeInsets.zero,
                                   onPressed: _busy || !installed ? null : () => _backupApp(item),
                                   icon: const Icon(Icons.backup_outlined, size: 18),
                                 ),
                                 IconButton(
                                   tooltip: 'Uninstall for user',
                                   visualDensity: VisualDensity.compact,
+                                    constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+                                    padding: EdgeInsets.zero,
                                   onPressed: _busy || !installed ? null : () => _apply(item, 'uninstall'),
                                   icon: const Icon(Icons.delete_outline, size: 18),
                                 ),
