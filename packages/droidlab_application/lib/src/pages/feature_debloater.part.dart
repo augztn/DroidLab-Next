@@ -959,7 +959,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                     ]),
                   ),
                 );
-              }))),
+              })),
         if (_packages.isNotEmpty)
           Align(
             alignment: Alignment.centerLeft,
