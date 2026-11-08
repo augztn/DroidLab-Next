@@ -150,6 +150,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     );
     if (confirmed != true || !mounted) return;
     setState(() { _busy = true; _error = null; _notice = null; });
+    final apkNames = paths.map((path) => path.split(Platform.pathSeparator).last).toList();
+    _recordOperationActivity(ref, 'App installation started · ${apkNames.join(', ')}');
     try {
       final result = await trackOperation(
         ref,
@@ -160,9 +162,13 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         }, timeout: const Duration(minutes: 30)),
         successSummary: (_) => 'APK installation completed on $serial.',
       );
+      final installed = result.data['installed_count'] ?? 0;
+      final failed = result.data['failed_count'] ?? 0;
+      _recordOperationActivity(ref, 'App installation completed · $installed installed, $failed failed');
       if (mounted) setState(() => _notice = result.data['output']?.toString().trim().isNotEmpty == true
-          ? result.data['output'].toString() : '${result.data['installed_count'] ?? 0} installed, ${result.data['failed_count'] ?? 0} failed. See output for details.');
+          ? result.data['output'].toString() : '$installed installed, $failed failed. See output for details.');
     } catch (error) {
+      _recordOperationActivity(ref, 'App installation failed · $error');
       if (mounted) setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
