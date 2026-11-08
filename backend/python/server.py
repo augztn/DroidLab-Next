@@ -521,7 +521,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             raise RuntimeError(f"All {len(failed)} APK installations failed: {failed[0]['error']}")
         return {"exit_code": 0 if not failed else 1, "serial": serial, "installed": installed,
             "failed": failed, "installed_count": len(installed), "failed_count": len(failed),
-            "output": "\\n".join(output)}
+            "output": "\n".join(output)}
 
     if operation == "adb.backup":
         serial = args.get("serial")
