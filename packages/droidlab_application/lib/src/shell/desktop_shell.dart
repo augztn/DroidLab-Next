@@ -18,7 +18,6 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   bool _expanded = true;
   bool _consoleExpanded = true;
   final ScrollController _consoleScrollController = ScrollController();
-  final Set<String> _activeOperationIds = <String>{};
   StreamSubscription<BackendEvent>? _events;
   BackendClient? _eventClient;
   Timer? _deviceRefreshTimer;
@@ -57,28 +56,15 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     if (!mounted || !identical(_eventClient, client)) return;
     _events = client.events.listen((event) {
       if (!mounted || !identical(_eventClient, client)) return;
-      late final String line;
-      if (event is BackendOutput) {
-        line = '[${event.stream}] ${event.line}';
-      } else if (event is BackendPreflight) {
-        line = '[preflight] ${event.target}: ${event.command.join(' ')}';
-      } else if (event is BackendAccepted) {
-        _activeOperationIds.add(event.requestId);
-        line = '[accepted] ${event.requestId}';
-      } else if (event is BackendFinished) {
-        line = event.cancelled
-            ? '[cancelled] ${event.requestId}'
-            : event.succeeded
-                ? '[completed] ${event.requestId}'
-                : '[failed] ${event.requestId}';
-        _activeOperationIds.remove(event.requestId);
-      } else {
+      if (event is! BackendOutput &&
+          event is! BackendPreflight &&
+          event is! BackendAccepted &&
+          event is! BackendFinished) {
         return;
       }
       final timestamp = DateTime.now().toIso8601String();
-      // Keep detailed output and preflight commands in the live console only.
-      // The durable log stores event categories, never device IDs, paths,
-      // command arguments, or arbitrary command output.
+      // Persist event categories only; task activity is shown separately in
+      // the Operation Console and detailed backend output is intentionally hidden.
       final persistedEvent = event is BackendOutput
           ? '[output omitted]'
           : event is BackendPreflight
@@ -151,7 +137,6 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   void dispose() {
     _deviceRefreshTimer?.cancel();
     _consoleScrollController.dispose();
-    _activeOperationIds.clear();
     _operationLogFlushTimer?.cancel();
     unawaited(_events?.cancel() ?? Future<void>.value());
     unawaited(_closeOperationLog());
