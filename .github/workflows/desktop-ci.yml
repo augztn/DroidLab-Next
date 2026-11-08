@@ -149,6 +149,7 @@ jobs:
         env:
           VERSION: 0.1.0
           APPIMAGE_EXTRACT_AND_RUN: '1'
+          APPIMAGE_RUNTIME_FILE: ${{ runner.temp }}/appimage-runtime
         run: bash scripts/build-linux-appimage.sh
       - name: Smoke-test AppImage contents
         if: runner.os == 'Linux'
