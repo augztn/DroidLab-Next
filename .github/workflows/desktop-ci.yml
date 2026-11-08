@@ -121,8 +121,28 @@ jobs:
           set -euo pipefail
           url='https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage'
           expected='ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0'
-          wget -q "$url" -O "$RUNNER_TEMP/appimagetool"
+          runtime_url='https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64'
+          runtime_expected='1cc49bcf1e2ccd593c379adb17c9f85a36d619088296504de95b1d06215aebbf'
+          download_with_retry() {
+            local url="$1" destination="$2"
+            for attempt in {1..8}; do
+              if curl --fail --location --silent --show-error --retry 2 --retry-all-errors --connect-timeout 30 --max-time 300 "$url" --output "$destination"; then
+                return 0
+              fi
+              rm -f "$destination"
+              if [[ "$attempt" -lt 8 ]]; then
+                local delay=$(( attempt * 5 ))
+                echo "Download attempt $attempt/8 failed; retrying in ${delay}s." >&2
+                sleep "$delay"
+              fi
+            done
+            echo "Unable to download $url after 8 attempts." >&2
+            return 1
+          }
+          download_with_retry "$url" "$RUNNER_TEMP/appimagetool"
           echo "$expected  $RUNNER_TEMP/appimagetool" | sha256sum --check --status
+          download_with_retry "$runtime_url" "$RUNNER_TEMP/appimage-runtime"
+          echo "$runtime_expected  $RUNNER_TEMP/appimage-runtime" | sha256sum --check --status
           sudo install -m 0755 "$RUNNER_TEMP/appimagetool" /usr/local/bin/appimagetool
       - name: Build Linux AppImage
         if: runner.os == 'Linux'
