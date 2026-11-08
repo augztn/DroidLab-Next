@@ -504,7 +504,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         intent = {"operation": "adb.install_multiple", "serial": serial, "apk_paths": args.get("apk_paths")}
         require_adb(serial, cancel_event=cancel)
         require_confirmation(args, "ADB batch APK installation", intent)
-        command = [tool_path("adb"), "-s", serial, "install-multiple", "-r", *map(str, apks)]
+        command = [tool_path("adb"), "-s", serial, *(["install", "-r", str(apks[0])] if len(apks) == 1 else ["install-multiple", "-r", *map(str, apks)])]
         response(request_id, "preflight", target=serial, command=command, destructive=True)
         result = run_streaming(command, timeout=bounded_timeout(args.get("timeout_seconds"), 1800, 3600),
             cancel_event=cancel, on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
@@ -570,12 +570,16 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         import hashlib
         for apk, entry in zip(apks, manifest["files"]):
             expected = entry.get("sha256")
-            if not isinstance(expected, str) or hashlib.sha256(apk.read_bytes()).hexdigest() != expected:
+            digest = hashlib.sha256()
+            with apk.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            if not isinstance(expected, str) or digest.hexdigest() != expected:
                 raise ValueError(f"Backup integrity check failed for {apk.name}.")
         intent = {"operation": "adb.restore", "serial": serial, "backup_path": str(root), "package": package}
         require_adb(serial, cancel_event=cancel)
         require_confirmation(args, "Android app restore", intent)
-        command = [tool_path("adb"), "-s", serial, "install-multiple", "-r", *map(str, apks)]
+        command = [tool_path("adb"), "-s", serial, *(["install", "-r", str(apks[0])] if len(apks) == 1 else ["install-multiple", "-r", *map(str, apks)])]
         response(request_id, "preflight", target=serial, command=command, destructive=True)
         result = run_streaming(command, timeout=bounded_timeout(args.get("timeout_seconds"), 1800, 3600),
             cancel_event=cancel, on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
