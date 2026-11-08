@@ -823,11 +823,10 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                   : LayoutBuilder(builder: (context, constraints) {
                 const selectWidth = 44.0;
                 const packageWidth = 300.0;
-                const functionWidth = 320.0;
-                const stateWidth = 105.0;
+                const functionWidth = 380.0;
                 const actionsWidth = 128.0;
                 const minTableWidth = selectWidth + packageWidth + functionWidth +
-                    stateWidth + actionsWidth + 24;
+                    actionsWidth + 24;
                 final tableWidth = constraints.maxWidth < minTableWidth
                     ? minTableWidth : constraints.maxWidth;
                 return SingleChildScrollView(
@@ -845,7 +844,6 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                           SizedBox(width: selectWidth, child: Text('Select', maxLines: 1, softWrap: false)),
                           SizedBox(width: packageWidth, child: Text('Package Identifier / Label', maxLines: 1, softWrap: false)),
                           SizedBox(width: functionWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Package details', maxLines: 1, softWrap: false))),
-                          SizedBox(width: stateWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('User State', maxLines: 1, softWrap: false))),
                           SizedBox(width: actionsWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Actions', maxLines: 1, softWrap: false))),
                         ]),
                       ),
@@ -864,6 +862,12 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                               (system ? 'System package · review dependencies' : 'Installed user application');
                           final risk = guidance['risk']?.toString() ?? 'Not listed';
                           final riskLower = risk.toLowerCase();
+                          final state = !installed ? 'Not installed' : disabled ? 'Disabled' : 'Enabled';
+                          final stateColor = !installed
+                              ? Theme.of(context).colorScheme.onSurfaceVariant
+                              : disabled
+                                  ? Theme.of(context).colorScheme.secondary
+                                  : Theme.of(context).colorScheme.tertiary;
                           final riskColor = riskLower.startsWith('low')
                               ? Theme.of(context).colorScheme.tertiary
                               : riskLower.startsWith('critical') || riskLower.startsWith('high')
@@ -929,6 +933,22 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                             ),
                                           ),
                                         ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: stateColor.withValues(alpha: 0.12),
+                                            border: Border.all(color: stateColor.withValues(alpha: 0.35)),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Text(
+                                            state,
+                                            maxLines: 1,
+                                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                              color: stateColor,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
                                         TextButton(
                                           style: TextButton.styleFrom(
                                             minimumSize: const Size(0, 28),
@@ -944,10 +964,6 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                   ],
                                 ),
                               )),
-                              SizedBox(width: stateWidth, child: Text(
-                                !installed ? 'not installed' : disabled ? 'disabled' : 'enabled',
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'))),
                               SizedBox(width: actionsWidth, child: Row(children: [
                                 if (!installed)
                                   IconButton(
