@@ -16,3 +16,9 @@ class BackendPreflight extends BackendEvent {
 class BackendAccepted extends BackendEvent {
   const BackendAccepted({required super.requestId});
 }
+
+class BackendFinished extends BackendEvent {
+  const BackendFinished({required super.requestId, required this.succeeded, required this.cancelled});
+  final bool succeeded;
+  final bool cancelled;
+}
