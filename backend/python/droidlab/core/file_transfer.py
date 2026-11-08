@@ -112,22 +112,6 @@ def validate_package_name(value: object) -> str:
     return value
 
 
-def create_backup_manifest(directory: Path, package: str, remote_paths: list[str]) -> dict:
-    package = validate_package_name(package)
-    if not remote_paths or len(remote_paths) > 64:
-        raise ValueError("Android returned an invalid APK path list.")
-    files = []
-    for index, remote in enumerate(remote_paths):
-        if not isinstance(remote, str) or not remote.startswith("/") or "\\x00" in remote or ".." in PurePosixPath(remote).parts:
-            raise ValueError("Android returned an unsafe APK path.")
-        source_name = PurePosixPath(remote).name
-        if not source_name.endswith(".apk"):
-            raise ValueError("Android returned a non-APK package path.")
-        filename = f"{index:02d}-{source_name}"
-        files.append({"remote_path": remote, "file": filename})
-    return {"schema_version": 1, "package": package, "files": files}
-
-
 def validate_app_backup(value: object) -> tuple[Path, list[Path]]:
     if not isinstance(value, str) or not value.strip():
         raise ValueError("backup_path must be a backup folder.")
