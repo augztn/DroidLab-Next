@@ -13,15 +13,10 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE_TAG = "20261026"
 PYTHON_VERSION = "3.11.18"
-RELEASE_BASE = (
-    "https://github.com/astral-sh/python-build-standalone/releases/download/"
-    + RELEASE_TAG
-)
 
 # Digests are published by the immutable python-build-standalone release.
 ASSETS = {
@@ -100,6 +95,13 @@ def main() -> None:
             f"{sys.platform}/{machine}."
         )
     filename, expected_digest = asset
+    asset_ids = {
+        ("win32", "AMD64"): 678573809,
+        ("win32", "x86_64"): 678573809,
+        ("darwin", "arm64"): 678573102,
+        ("darwin", "aarch64"): 678573102,
+        ("darwin", "x86_64"): 678573792,
+    }
     destination = bundle_destination()
     if not destination.parent.is_dir():
         raise SystemExit(f"Application bundle directory is missing: {destination.parent}")
@@ -107,7 +109,7 @@ def main() -> None:
     work_root = ROOT / "build/python-runtime"
     work_root.mkdir(parents=True, exist_ok=True)
     archive = work_root / filename
-    url = f"{RELEASE_BASE}/{quote(filename, safe='')}"
+    url = f"https://api.github.com/repos/astral-sh/python-build-standalone/releases/assets/{asset_ids[(sys.platform, machine)]}"
 
     if not archive.is_file() or sha256(archive) != expected_digest:
         partial = archive.with_suffix(archive.suffix + ".download")
@@ -116,7 +118,7 @@ def main() -> None:
             for attempt in range(8):
                 try:
                     request = urllib.request.Request(
-                        url, headers={"User-Agent": "DroidLab-runtime-stager"}
+                        url, headers={"User-Agent": "DroidLab-runtime-stager", "Accept": "application/octet-stream"}
                     )
                     with urllib.request.urlopen(request, timeout=180) as response:
                         with partial.open("wb") as output:
