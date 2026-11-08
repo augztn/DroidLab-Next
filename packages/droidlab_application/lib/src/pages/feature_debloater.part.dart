@@ -971,16 +971,6 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                             ),
                                           ),
                                         ),
-                                        TextButton(
-                                          style: TextButton.styleFrom(
-                                            minimumSize: const Size(0, 26),
-                                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                            visualDensity: VisualDensity.compact,
-                                          ),
-                                          onPressed: () => _showGuidance(item),
-                                          child: const Text('Explain', style: TextStyle(fontSize: 12.5)),
-                                        ),
                                       ],
                                     ),
                                   ],
