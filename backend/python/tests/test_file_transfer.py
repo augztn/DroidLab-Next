@@ -14,6 +14,8 @@ from droidlab.core.file_transfer import (
     publish_file_no_replace,
     validate_android_path,
     validate_apk_source,
+    validate_apk_sources,
+    validate_app_backup,
     validate_pull_directory,
     validate_push_source,
 )
@@ -57,6 +59,35 @@ class FileTransferValidationTests(unittest.TestCase):
                 validate_apk_source(str(wrong_type))
             with self.assertRaises(ValueError):
                 validate_apk_source(directory)
+
+    def test_batch_apk_validation_rejects_empty_duplicates_and_invalid_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            first = Path(directory) / "one.apk"
+            second = Path(directory) / "two.apk"
+            first.write_bytes(b"one")
+            second.write_bytes(b"two")
+            self.assertEqual(validate_apk_sources([str(first), str(second)]), [first.resolve(), second.resolve()])
+            with self.assertRaises(ValueError):
+                validate_apk_sources([])
+            with self.assertRaises(ValueError):
+                validate_apk_sources([str(first), str(first)])
+
+    def test_app_backup_validation_rejects_traversal_and_missing_apks(self):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "base.apk").write_bytes(b"apk")
+            (root / "manifest.json").write_text(json.dumps({
+                "schema_version": 1, "package": "com.example.app",
+                "files": [{"file": "base.apk"}],
+            }), encoding="utf-8")
+            self.assertEqual(validate_app_backup(str(root))[1], [root / "base.apk"])
+            (root / "manifest.json").write_text(json.dumps({
+                "schema_version": 1, "package": "com.example.app",
+                "files": [{"file": "../outside.apk"}],
+            }), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                validate_app_backup(str(root))
 
     def test_pull_publication_falls_back_when_hard_links_are_unsupported(self):
         with tempfile.TemporaryDirectory() as directory:
