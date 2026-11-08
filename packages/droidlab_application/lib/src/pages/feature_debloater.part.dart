@@ -785,7 +785,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                   ]),
                   const SizedBox(height: 4),
                   Text(
-                    'Install one or more APK files on the selected device. Each file is processed separately.',
+                    'Select multiple APK files to install several apps in one batch.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 14),
@@ -815,7 +815,9 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                       FilledButton.icon(
                         onPressed: _busy || _serial == null || _apkPaths.isEmpty ? null : _installApk,
                         icon: const Icon(Icons.install_mobile, size: 18),
-                        label: const Text('Install'),
+                        label: Text(_apkPaths.length > 1
+                            ? 'Install ${_apkPaths.length} APKs'
+                            : 'Install APK'),
                       ),
                     ],
                   ),
@@ -920,10 +922,19 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                   if (_apkPaths.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 10),
-                      child: Text(
-                        '${_apkPaths.length} APK file(s) selected',
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
+                      child: Row(children: [
+                        Expanded(child: Text(
+                          '${_apkPaths.length} APK file(s) selected',
+                          style: Theme.of(context).textTheme.labelMedium,
+                        )),
+                        TextButton(
+                          onPressed: _busy ? null : () => setState(() {
+                            _apkPaths = const [];
+                            _apkPath.clear();
+                          }),
+                          child: const Text('Clear'),
+                        ),
+                      ]),
                     ),
                 ],
               ),
