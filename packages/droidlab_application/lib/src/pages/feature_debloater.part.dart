@@ -970,6 +970,273 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
             ],
           );
 
+          final packageListHeight = (constraints.maxHeight * 0.65)
+              .clamp(320.0, 720.0)
+              .toDouble();
+
+          final packagePanel = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+        Card(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), child: Column(children: [
+          Row(children: [
+            const Icon(Icons.warning_amber_rounded), const SizedBox(width: 8),
+            Expanded(child: Text('System-app changes can break Android features. Uninstall for user does not remove the system image APK. Package guidance is device-dependent; no package is automatically marked safe.', style: Theme.of(context).textTheme.bodySmall)),
+          ]),
+          const SizedBox(height: 6),
+          Row(children: [
+            Expanded(child: TextField(
+              decoration: const InputDecoration(isDense: true, prefixIcon: Icon(Icons.search), hintText: 'Search package IDs', border: OutlineInputBorder()),
+              onChanged: (value) => setState(() => _query = value),
+            )),
+            const SizedBox(width: 8),
+            DropdownButton<String>(
+              value: _filter,
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('All')),
+                DropdownMenuItem(value: 'user', child: Text('User apps')),
+                DropdownMenuItem(value: 'system', child: Text('System apps')),
+              ],
+              onChanged: (value) => setState(() => _filter = value ?? 'all'),
+            ),
+          ]),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(spacing: 6, runSpacing: 0, children: [
+              for (final filter in const [
+                ('all', 'All Risks'),
+                ('recommended', 'Recommended'),
+                ('low', 'Low Risk'),
+                ('conditional', 'Conditional'),
+                ('review', 'Review First'),
+                ('critical', 'Critical'),
+              ])
+                FilterChip(
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  label: Text(filter.$2),
+                  selected: _riskFilter == filter.$1,
+                  onSelected: (_) => setState(() => _riskFilter = filter.$1),
+                ),
+            ]),
+          ),
+        ]))),
+        if (_packages.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text('${_selectedPackages.length} selected',
+                    style: Theme.of(context).textTheme.labelLarge),
+                TextButton.icon(
+                  onPressed: _busy || visible.isEmpty ? null : () => _selectVisible(visible),
+                  icon: const Icon(Icons.select_all, size: 18),
+                  label: const Text('Select visible'),
+                ),
+                TextButton(
+                  onPressed: _busy || _selectedPackages.isEmpty
+                      ? null
+                      : () => setState(_selectedPackages.clear),
+                  child: const Text('Clear selection'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: _busy || _selectedPackages.isEmpty
+                      ? null
+                      : () => _applySelected('disable'),
+                  icon: const Icon(Icons.pause_circle_outline, size: 17),
+                  label: const Text('Disable selected'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: _busy || _selectedPackages.isEmpty
+                      ? null
+                      : () => _applySelected('enable'),
+                  icon: const Icon(Icons.play_circle_outline, size: 17),
+                  label: const Text('Enable selected'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: _busy || _selectedPackages.isEmpty
+                      ? null
+                      : () => _applySelected('restore'),
+                  icon: const Icon(Icons.restore_rounded, size: 17),
+                  label: const Text('Restore selected'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: _busy || _selectedPackages.isEmpty
+                      ? null
+                      : () => _applySelected('uninstall'),
+                  icon: const Icon(Icons.delete_outline, size: 17),
+                  label: const Text('Uninstall selected'),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (_error != null) Padding(padding: const EdgeInsets.all(8), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
+        if (_notice != null) Padding(padding: const EdgeInsets.all(8), child: Text(_notice!, style: TextStyle(color: Theme.of(context).colorScheme.tertiary))),
+        const SizedBox(height: 4),
+        SizedBox(height: packageListHeight, child: _busy
+          ? const Center(child: CircularProgressIndicator())
+          : _serial == null
+              ? const _EmptyPanel(icon: Icons.usb_off, title: 'Select an authorized device', message: 'Connect a phone, enable USB debugging, authorize it, then refresh devices.')
+              : _packages.isEmpty
+                  ? const _EmptyPanel(icon: Icons.apps, title: 'No package inventory loaded', message: 'Load packages to inspect the selected Android user.')
+                  : LayoutBuilder(builder: (context, constraints) {
+                const selectWidth = 44.0;
+                const packageWidth = 300.0;
+                const functionWidth = 220.0;
+                const riskWidth = 125.0;
+                const stateWidth = 105.0;
+                const guidanceWidth = 82.0;
+                const actionsWidth = 128.0;
+                const minTableWidth = selectWidth + packageWidth + functionWidth +
+                    riskWidth + stateWidth + guidanceWidth + actionsWidth + 24;
+                final tableWidth = constraints.maxWidth < minTableWidth
+                    ? minTableWidth : constraints.maxWidth;
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: Column(children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                        ),
+                        child: const Row(children: [
+                          SizedBox(width: selectWidth, child: Text('Select', maxLines: 1, softWrap: false)),
+                          SizedBox(width: packageWidth, child: Text('Package Identifier / Label', maxLines: 1, softWrap: false)),
+                          SizedBox(width: functionWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('OEM / Function', maxLines: 1, softWrap: false))),
+                          SizedBox(width: riskWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Advisory Risk', maxLines: 1, softWrap: false))),
+                          SizedBox(width: stateWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('User State', maxLines: 1, softWrap: false))),
+                          SizedBox(width: guidanceWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Guidance', maxLines: 1, softWrap: false))),
+                          SizedBox(width: actionsWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Actions', maxLines: 1, softWrap: false))),
+                        ]),
+                      ),
+                      Expanded(child: ListView.separated(
+                        itemCount: visible.length,
+                        separatorBuilder: (_, __) => Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
+                        itemBuilder: (context, index) {
+                          final item = visible[index];
+                          final package = item['package'] as String;
+                          final system = item['system'] == true;
+                          final disabled = _disabled.contains(package);
+                          final installed = item['installed'] != false;
+                          final guidance = _guidance[package] ?? const <String, dynamic>{};
+                          final app = guidance['app']?.toString() ?? package;
+                          final function = guidance['function']?.toString() ??
+                              (system ? 'System package · review dependencies' : 'Installed user application');
+                          final risk = guidance['risk']?.toString() ?? 'Not listed';
+                          final riskLower = risk.toLowerCase();
+                          final riskColor = riskLower.startsWith('low')
+                              ? Theme.of(context).colorScheme.tertiary
+                              : riskLower.startsWith('critical') || riskLower.startsWith('high')
+                                  ? Theme.of(context).colorScheme.error
+                                  : Theme.of(context).colorScheme.secondary;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                              SizedBox(width: selectWidth, child: Checkbox(
+                                value: _selectedPackages.contains(package),
+                                onChanged: _busy ? null : (selected) => setState(() {
+                                  if (selected == true) {
+                                    _selectedPackages.add(package);
+                                    _error = null;
+                                  } else {
+                                    _selectedPackages.remove(package);
+                                    _error = null;
+                                  }
+                                }),
+                              )),
+                              SizedBox(width: packageWidth, child: Row(children: [
+                                _PackageIconBadge(identifier: package),
+                                const SizedBox(width: 9),
+                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text(app, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 2),
+                                  SelectableText(package, maxLines: 1,
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      fontFamily: 'monospace',
+                                    )),
+                                ])),
+                              ])),
+                              SizedBox(width: functionWidth, child: Padding(
+                                padding: const EdgeInsets.only(right: 16),
+                                child: Text(function, maxLines: 2, overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall),
+                              )),
+                              SizedBox(width: riskWidth, child: Text(risk, maxLines: 2, overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: riskColor))),
+                              SizedBox(width: stateWidth, child: Text(
+                                !installed ? 'not installed' : disabled ? 'disabled' : 'enabled',
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'))),
+                              SizedBox(width: guidanceWidth, child: TextButton(
+                                onPressed: () => _showGuidance(item),
+                                child: const Text('Explain'),
+                              )),
+                              SizedBox(width: actionsWidth, child: Row(children: [
+                                if (!installed)
+                                  IconButton(
+                                    tooltip: 'Restore for this user',
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: _busy ? null : () => _apply(item, 'restore'),
+                                    icon: const Icon(Icons.restore_rounded, size: 18),
+                                  )
+                                else if (disabled)
+                                  IconButton(
+                                    tooltip: 'Enable package',
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: _busy ? null : () => _apply(item, 'enable'),
+                                    icon: const Icon(Icons.play_circle_outline, size: 18),
+                                  )
+                                else
+                                  IconButton(
+                                    tooltip: 'Disable package',
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: _busy ? null : () => _apply(item, 'disable'),
+                                    icon: const Icon(Icons.pause_circle_outline, size: 18),
+                                  ),
+                                IconButton(
+                                  tooltip: 'Back up base and split APKs',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: _busy || !installed ? null : () => _backupApp(item),
+                                  icon: const Icon(Icons.backup_outlined, size: 18),
+                                ),
+                                IconButton(
+                                  tooltip: 'Uninstall for user',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: _busy || !installed ? null : () => _apply(item, 'uninstall'),
+                                  icon: const Icon(Icons.delete_outline, size: 18),
+                                ),
+                              ])),
+                            ]),
+                          );
+                        },
+                      )),
+                    ]),
+                  ),
+                );
+              }))),
+        if (_packages.isNotEmpty)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Text(
+                '${visible.length} of ${_packages.length} packages · ${_disabled.length} disabled',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ),
+            ],
+          );
+
           if (constraints.maxWidth >= 1120) {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -984,13 +1251,21 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
             );
           }
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              installPanel,
-              const SizedBox(height: 10),
-              Expanded(child: packagePanel),
-            ],
+          // Short/narrow windows need one page-level scroll surface. Keep the
+          // package list bounded so it can scroll independently inside the page.
+          return SingleChildScrollView(
+            primary: true,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  installPanel,
+                  const SizedBox(height: 10),
+                  packagePanel,
+                ],
+              ),
+            ),
           );
         },
       ),
