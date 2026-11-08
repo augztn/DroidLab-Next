@@ -204,12 +204,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         _notice = 'Backup saved to ${result.data['backup_path'] ?? destination}.';
       });
       _recordOperationActivity(ref, 'App backup completed · $package');
-      /*noop*/
-      if (false) setState(() => _notice = null);
-      /*end noop*/
-      //
-      });
     } catch (error) {
+      _recordOperationActivity(ref, 'App backup failed · $package · $error');
       if (mounted) setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -257,6 +253,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
           'destination_path': destination,
         };
         try {
+          _recordOperationActivity(ref, 'App backup started · $package');
           await trackOperation(
             ref,
             operation: 'Back up app APKs',
@@ -267,7 +264,9 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
             successSummary: (_) => 'APK backup completed for $package.',
           );
           succeeded.add(package);
+          _recordOperationActivity(ref, 'App backup completed · $package');
         } catch (error) {
+          _recordOperationActivity(ref, 'App backup failed · $package · $error');
           if (error is BackendException && error.code == 'cancelled') {
             failed[package] = error.toString();
             break;
@@ -395,6 +394,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         final backupPath = entry['path'] as String;
         final intent = {'operation': 'adb.restore', 'serial': serial, 'backup_path': backupPath};
         try {
+          _recordOperationActivity(ref, 'App restore started · $package');
           await trackOperation(
             ref,
             operation: 'Restore app backup · $package',
@@ -405,7 +405,9 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
             successSummary: (_) => 'Restored $package.',
           );
           restored.add(package);
+          _recordOperationActivity(ref, 'App restore completed · $package');
         } catch (error) {
+          _recordOperationActivity(ref, 'App restore failed · $package · $error');
           failed[package] = error.toString();
           if (error is BackendException && error.code == 'cancelled') break;
         }
