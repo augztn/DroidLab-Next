@@ -547,7 +547,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if not remote_paths or len(remote_paths) > 64:
             raise RuntimeError("Android returned no APK paths or an unsupported number of split APKs.")
         for remote in remote_paths:
-            if not remote.startswith("/") or "\\x00" in remote or ".." in Path(remote).parts or not remote.endswith(".apk"):
+            if not remote.startswith("/") or "\x00" in remote or ".." in Path(remote).parts or not remote.endswith(".apk"):
                 raise RuntimeError("Android returned an unsafe APK path; backup was stopped.")
         if target.exists() or target.is_symlink():
             raise FileExistsError(f"Backup already exists: {target}")
