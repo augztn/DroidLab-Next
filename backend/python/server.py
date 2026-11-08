@@ -564,7 +564,11 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
                 if pulled.returncode or local.is_symlink() or not local.is_file() or local.stat().st_size <= 0:
                     raise RuntimeError(f"APK backup failed for {remote}: {pulled.stdout[-MAX_RETAINED_OUTPUT:]}")
                 import hashlib
-                digest = hashlib.sha256(local.read_bytes()).hexdigest()
+                digest = hashlib.sha256()
+                with local.open("rb") as stream:
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                        digest.update(chunk)
+                digest = digest.hexdigest()
                 manifest["files"].append({"file": filename, "remote_path": remote, "sha256": digest})
             (stage / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
             if target.exists() or target.is_symlink():
