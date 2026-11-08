@@ -128,7 +128,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text('Install ${paths.length} APK file(s)?'),
-        content: Text('Target device: $serial\n\nAndroid will install the selected APK set together. Split APKs must belong to the same app and compatible version.'),
+        content: Text('Target device: $serial\n\nAndroid will install each selected APK separately. Existing apps are updated when Android's signing and install policies allow it.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Install')),
@@ -140,7 +140,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     try {
       final result = await trackOperation(
         ref,
-        operation: 'Install APK set',
+        operation: 'Install multiple APKs',
         target: serial,
         action: () => ref.read(backendClientProvider).request('adb.install_multiple', {
           ...intent, 'confirmed': true, 'confirmation': intent,
@@ -148,7 +148,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         successSummary: (_) => 'APK installation completed on $serial.',
       );
       if (mounted) setState(() => _notice = result.data['output']?.toString().trim().isNotEmpty == true
-          ? result.data['output'].toString() : 'Installed ${paths.length} APK file(s).');
+          ? result.data['output'].toString() : '${result.data['installed_count'] ?? 0} installed, ${result.data['failed_count'] ?? 0} failed. See output for details.');
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -610,7 +610,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                   Expanded(child: Text('Install APKs', style: Theme.of(context).textTheme.titleMedium)),
                 ]),
                 const SizedBox(height: 4),
-                Text('Select one APK or a compatible split-APK set to install on the selected device.',
+                Text('Select one or more APK files. Each app is installed separately, with individual results.',
                   style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 10),
                 Row(children: [
