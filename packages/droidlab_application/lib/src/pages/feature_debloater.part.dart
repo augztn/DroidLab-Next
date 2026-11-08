@@ -597,119 +597,65 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
           icon: const Icon(Icons.refresh),
         ),
       ],
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final installPanel = Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(children: [
-                    Icon(Icons.install_mobile, color: Theme.of(context).colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text('APK installation', style: Theme.of(context).textTheme.titleMedium)),
-                  ]),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Install one or more APK files on the selected device. Each file is processed separately.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(children: [
+                  const Icon(Icons.install_mobile),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Install APKs', style: Theme.of(context).textTheme.titleMedium)),
+                ]),
+                const SizedBox(height: 4),
+                Text('Select one or more APK files. Each app is installed separately, with individual results.',
+                  style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: TextField(
                     controller: _apkPath,
                     readOnly: true,
-                    maxLines: 2,
                     decoration: const InputDecoration(
                       isDense: true,
                       labelText: 'Selected APK files',
-                      hintText: 'No APK files selected',
+                      hintText: 'Choose one or more .apk files',
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.insert_drive_file_outlined),
                     ),
+                  )),
+                  const SizedBox(width: 8),
+                  OutlinedButton(onPressed: _busy || _serial == null ? null : _browseApk,
+                    child: const Text('Browse APK…')),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: _busy || _serial == null ? null : _installApk,
+                    icon: const Icon(Icons.install_mobile, size: 18),
+                    label: const Text('Install'),
                   ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    alignment: WrapAlignment.end,
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _busy || _serial == null ? null : _browseApk,
-                        icon: const Icon(Icons.folder_open, size: 18),
-                        label: const Text('Browse APKs'),
-                      ),
-                      FilledButton.icon(
-                        onPressed: _busy || _serial == null || _apkPaths.isEmpty ? null : _installApk,
-                        icon: const Icon(Icons.install_mobile, size: 18),
-                        label: const Text('Install'),
-                      ),
-                    ],
+                ]),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: TextField(
+                    controller: _backupPath, readOnly: true,
+                    decoration: const InputDecoration(isDense: true, labelText: 'App backup folder', hintText: 'Choose a DroidLab app backup folder', border: OutlineInputBorder()),
+                  )),
+                  const SizedBox(width: 8),
+                  OutlinedButton(onPressed: _busy || _serial == null ? null : _browseBackup, child: const Text('Browse backup…')),
+                  const SizedBox(width: 8),
+                  FilledButton.tonal(onPressed: _busy || _serial == null || _backupPath.text.trim().isEmpty ? null : _restoreBackup, child: const Text('Restore')),
+                ]),
+                if (_serial == null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text('Select an authorized ADB device above to install apps.',
+                      style: Theme.of(context).textTheme.bodySmall),
                   ),
-                  const Divider(height: 28),
-                  Row(children: [
-                    Icon(Icons.backup_outlined, color: Theme.of(context).colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text('Restore app backup', style: Theme.of(context).textTheme.titleSmall)),
-                  ]),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _backupPath,
-                    readOnly: true,
-                    maxLines: 2,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      labelText: 'Backup folder',
-                      hintText: 'Choose a DroidLab backup folder',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.folder_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    alignment: WrapAlignment.end,
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _busy || _serial == null ? null : _browseBackup,
-                        icon: const Icon(Icons.folder_open, size: 18),
-                        label: const Text('Browse backup'),
-                      ),
-                      FilledButton.tonalIcon(
-                        onPressed: _busy || _serial == null || _backupPath.text.trim().isEmpty ? null : _restoreBackup,
-                        icon: const Icon(Icons.restore_rounded, size: 18),
-                        label: const Text('Restore'),
-                      ),
-                    ],
-                  ),
-                  if (_serial == null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Text(
-                        'Select an authorized ADB device above to enable installation and restore.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  if (_apkPaths.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 10),
-                      child: Text(
-                        '${_apkPaths.length} APK file(s) selected',
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                    ),
-                ],
-              ),
+              ],
             ),
-          );
-
-          final packagePanel = Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+          ),
+        ),
+        const SizedBox(height: 10),
         Card(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), child: Column(children: [
           Row(children: [
             const Icon(Icons.warning_amber_rounded), const SizedBox(width: 8),
@@ -967,33 +913,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
               ),
             ),
           ),
-            ],
-          );
-
-          if (constraints.maxWidth >= 1120) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: packagePanel),
-                const SizedBox(width: 14),
-                SizedBox(
-                  width: 370,
-                  child: SingleChildScrollView(child: installPanel),
-                ),
-              ],
-            );
-          }
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              installPanel,
-              const SizedBox(height: 10),
-              Expanded(child: packagePanel),
-            ],
-          );
-        },
-      ),
+      ]),
     );
   }
 }
