@@ -18,6 +18,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   bool _expanded = true;
   bool _consoleExpanded = true;
   final List<String> _consoleLines = [];
+  final ScrollController _consoleScrollController = ScrollController();
+  final Set<String> _activeOperationIds = <String>{};
   StreamSubscription<BackendEvent>? _events;
   BackendClient? _eventClient;
   Timer? _deviceRefreshTimer;
@@ -63,7 +65,31 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       } else if (event is BackendPreflight) {
         line = '[preflight] ${event.target}: ${event.command.join(' ')}';
       } else if (event is BackendAccepted) {
+        _activeOperationIds.add(event.requestId);
         line = '[accepted] ${event.requestId}';
+      } else if (event is BackendFinished) {
+        line = event.cancelled
+            ? '[cancelled] ${event.requestId}'
+            : event.succeeded
+                ? '[completed] ${event.requestId}'
+                : '[failed] ${event.requestId}';
+        if (_activeOperationIds.remove(event.requestId)) {
+          final message = event.cancelled
+              ? 'Operation cancelled'
+              : event.succeeded
+                  ? 'Operation completed successfully'
+                  : 'Operation failed — see Operation Console for details';
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(SnackBar(
+                content: Text(message),
+                duration: const Duration(seconds: 4),
+                behavior: SnackBarBehavior.floating,
+              ));
+          });
+        }
       } else {
         return;
       }
@@ -91,6 +117,14 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
             _consoleLines.removeRange(0, _consoleLines.length - 300);
           }
           ref.read(operationConsoleLinesProvider.notifier).state = List.unmodifiable(_consoleLines);
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!_consoleScrollController.hasClients) return;
+          _consoleScrollController.animateTo(
+            _consoleScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+          );
         });
       });
     });
@@ -158,6 +192,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   void dispose() {
     _deviceRefreshTimer?.cancel();
     _consoleFlushTimer?.cancel();
+    _consoleScrollController.dispose();
+    _activeOperationIds.clear();
     _pendingConsoleLines.clear();
     _operationLogFlushTimer?.cancel();
     unawaited(_events?.cancel() ?? Future<void>.value());
@@ -225,6 +261,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
               child: DecoratedBox(
                 decoration: BoxDecoration(color: colors.surfaceContainerLowest, border: Border(top: border)),
                 child: ListView.builder(
+                  controller: _consoleScrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   itemCount: _consoleLines.length,
                   itemBuilder: (context, index) => Padding(
