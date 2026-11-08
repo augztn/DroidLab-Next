@@ -823,13 +823,12 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                   : LayoutBuilder(builder: (context, constraints) {
                 const selectWidth = 44.0;
                 const packageWidth = 300.0;
-                const functionWidth = 220.0;
+                const functionWidth = 280.0;
                 const riskWidth = 125.0;
                 const stateWidth = 105.0;
-                const guidanceWidth = 82.0;
                 const actionsWidth = 128.0;
                 const minTableWidth = selectWidth + packageWidth + functionWidth +
-                    riskWidth + stateWidth + guidanceWidth + actionsWidth + 24;
+                    riskWidth + stateWidth + actionsWidth + 24;
                 final tableWidth = constraints.maxWidth < minTableWidth
                     ? minTableWidth : constraints.maxWidth;
                 return SingleChildScrollView(
@@ -846,10 +845,9 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                         child: const Row(children: [
                           SizedBox(width: selectWidth, child: Text('Select', maxLines: 1, softWrap: false)),
                           SizedBox(width: packageWidth, child: Text('Package Identifier / Label', maxLines: 1, softWrap: false)),
-                          SizedBox(width: functionWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('OEM / Function', maxLines: 1, softWrap: false))),
+                          SizedBox(width: functionWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('OEM / Function & Guidance', maxLines: 1, softWrap: false))),
                           SizedBox(width: riskWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Advisory Risk', maxLines: 1, softWrap: false))),
                           SizedBox(width: stateWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('User State', maxLines: 1, softWrap: false))),
-                          SizedBox(width: guidanceWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Guidance', maxLines: 1, softWrap: false))),
                           SizedBox(width: actionsWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Actions', maxLines: 1, softWrap: false))),
                         ]),
                       ),
@@ -903,9 +901,28 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                 ])),
                               ])),
                               SizedBox(width: functionWidth, child: Padding(
-                                padding: const EdgeInsets.only(right: 16),
-                                child: Text(function, maxLines: 2, overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall),
+                                padding: const EdgeInsets.only(right: 8),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(function, maxLines: 2, overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context).textTheme.bodySmall),
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: TextButton(
+                                        style: TextButton.styleFrom(
+                                          minimumSize: const Size(0, 28),
+                                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                        onPressed: () => _showGuidance(item),
+                                        child: const Text('Explain package'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               )),
                               SizedBox(width: riskWidth, child: Text(risk, maxLines: 2, overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(color: riskColor))),
@@ -913,10 +930,6 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                 !installed ? 'not installed' : disabled ? 'disabled' : 'enabled',
                                 maxLines: 1, overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'))),
-                              SizedBox(width: guidanceWidth, child: TextButton(
-                                onPressed: () => _showGuidance(item),
-                                child: const Text('Explain'),
-                              )),
                               SizedBox(width: actionsWidth, child: Row(children: [
                                 if (!installed)
                                   IconButton(
