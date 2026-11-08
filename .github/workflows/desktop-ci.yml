@@ -119,14 +119,14 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           set -euo pipefail
-          url='https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage'
+          url='https://api.github.com/repos/AppImage/appimagetool/releases/assets/324406736'
           expected='ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0'
-          runtime_url='https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64'
-          runtime_expected='1cc49bcf1e2ccd593c379adb17c9f85a36d619088296504de95b1d06215aebbf'
+          runtime_url='https://api.github.com/repos/AppImage/type2-runtime/releases/assets/326011592'
+          runtime_expected='2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d'
           download_with_retry() {
             local url="$1" destination="$2"
             for attempt in {1..8}; do
-              if curl --fail --location --silent --show-error --retry 2 --retry-all-errors --connect-timeout 30 --max-time 300 "$url" --output "$destination"; then
+              if curl --fail --location --silent --show-error --header "Accept: application/octet-stream" --retry 2 --retry-all-errors --connect-timeout 30 --max-time 300 "$url" --output "$destination"; then
                 return 0
               fi
               rm -f "$destination"
