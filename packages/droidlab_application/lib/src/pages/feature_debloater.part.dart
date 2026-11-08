@@ -190,6 +190,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     );
     if (confirmed != true || !mounted) return;
     setState(() { _busy = true; _error = null; _notice = null; });
+    _recordOperationActivity(ref, 'App backup started · $package');
     try {
       final result = await trackOperation(
         ref, operation: 'Back up app APKs', target: serial,
@@ -201,6 +202,12 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       if (mounted) setState(() {
         _lastBackupAt = DateTime.now();
         _notice = 'Backup saved to ${result.data['backup_path'] ?? destination}.';
+      });
+      _recordOperationActivity(ref, 'App backup completed · $package');
+      /*noop*/
+      if (false) setState(() => _notice = null);
+      /*end noop*/
+      //
       });
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
