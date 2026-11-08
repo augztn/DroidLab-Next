@@ -4,7 +4,6 @@ from __future__ import annotations
 import errno
 import os
 import shutil
-import hashlib
 import json
 import re
 from pathlib import Path, PurePosixPath
