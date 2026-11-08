@@ -822,9 +822,9 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                   ? const _EmptyPanel(icon: Icons.apps, title: 'No package inventory loaded', message: 'Load packages to inspect the selected Android user.')
                   : LayoutBuilder(builder: (context, constraints) {
                 const selectWidth = 44.0;
-                const packageWidth = 300.0;
-                const functionWidth = 380.0;
-                const actionsWidth = 128.0;
+                const packageWidth = 280.0;
+                const functionWidth = 320.0;
+                const actionsWidth = 112.0;
                 const minTableWidth = selectWidth + packageWidth + functionWidth +
                     actionsWidth + 24;
                 final tableWidth = constraints.maxWidth < minTableWidth
@@ -835,7 +835,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                     width: tableWidth,
                     child: Column(children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.surfaceContainerHighest,
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
@@ -874,9 +874,11 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                   ? Theme.of(context).colorScheme.error
                                   : Theme.of(context).colorScheme.secondary;
                           return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
                             child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
                               SizedBox(width: selectWidth, child: Checkbox(
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 value: _selectedPackages.contains(package),
                                 onChanged: _busy ? null : (selected) => setState(() {
                                   if (selected == true) {
@@ -903,17 +905,17 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                 ])),
                               ])),
                               SizedBox(width: functionWidth, child: Padding(
-                                padding: const EdgeInsets.only(right: 12, top: 5, bottom: 5),
+                                padding: const EdgeInsets.only(right: 8, top: 2, bottom: 2),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(function, maxLines: 2, overflow: TextOverflow.ellipsis,
+                                    Text(function, maxLines: 1, overflow: TextOverflow.ellipsis,
                                       style: Theme.of(context).textTheme.bodySmall),
-                                    const SizedBox(height: 5),
+                                    const SizedBox(height: 2),
                                     Wrap(
-                                      spacing: 8,
-                                      runSpacing: 2,
+                                      spacing: 5,
+                                      runSpacing: 0,
                                       crossAxisAlignment: WrapCrossAlignment.center,
                                       children: [
                                         Container(
@@ -951,8 +953,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                         ),
                                         TextButton(
                                           style: TextButton.styleFrom(
-                                            minimumSize: const Size(0, 28),
-                                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                                            minimumSize: const Size(0, 24),
+                                            padding: const EdgeInsets.symmetric(horizontal: 3),
                                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                             visualDensity: VisualDensity.compact,
                                           ),
@@ -964,7 +966,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                   ],
                                 ),
                               )),
-                              SizedBox(width: actionsWidth, child: Row(children: [
+                              SizedBox(width: actionsWidth, child: Row(mainAxisSize: MainAxisSize.min, children: [
                                 if (!installed)
                                   IconButton(
                                     tooltip: 'Restore for this user',
