@@ -95,6 +95,17 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
   int _loadGeneration = 0;
   String? _error;
   String? _notice;
+  DateTime? _lastBackupAt;
+  DateTime? _lastRestoreAt;
+
+  String _formatActionTime(DateTime? value) {
+    if (value == null) return 'Not yet';
+    final local = value.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = local.hour < 12 ? 'AM' : 'PM';
+    return '$hour:$minute $period';
+  }
 
   @override
   void dispose() {
@@ -187,7 +198,10 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
         }, timeout: const Duration(minutes: 30)),
         successSummary: (_) => 'App APK backup completed.',
       );
-      if (mounted) setState(() => _notice = 'Backup saved to ${result.data['backup_path'] ?? destination}.');
+      if (mounted) setState(() {
+        _lastBackupAt = DateTime.now();
+        _notice = 'Backup saved to ${result.data['backup_path'] ?? destination}.';
+      });
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -256,6 +270,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       }
       if (mounted) {
         setState(() {
+          if (succeeded.isNotEmpty) _lastBackupAt = DateTime.now();
           final summary = '${succeeded.length} backed up, ${failed.length} failed. Saved under $destination.';
           if (failed.isEmpty) {
             _notice = summary;
@@ -390,6 +405,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
       }
       if (mounted) {
         setState(() {
+          if (restored.isNotEmpty) _lastRestoreAt = DateTime.now();
           _selectedBackups.removeWhere((path) => selected.any((entry) =>
             entry['path'] == path && restored.contains(entry['package'])));
           final summary = '${restored.length} restored, ${failed.length} failed.';
@@ -828,6 +844,15 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                     Expanded(child: Text('Restore app backups', style: Theme.of(context).textTheme.titleSmall)),
                     if (_backupEntries.isNotEmpty)
                       Text('${_backupEntries.length} found', style: Theme.of(context).textTheme.labelSmall),
+                  ]),
+                  const SizedBox(height: 4),
+                  Wrap(spacing: 16, runSpacing: 4, children: [
+                    Text('Last backup: ${_formatActionTime(_lastBackupAt)}',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    Text('Last restore: ${_formatActionTime(_lastRestoreAt)}',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   ]),
                   const SizedBox(height: 8),
                   TextField(
