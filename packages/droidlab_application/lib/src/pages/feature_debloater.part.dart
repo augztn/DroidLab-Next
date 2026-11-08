@@ -461,7 +461,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
     }).toList(growable: false);
 
     return _PageFrame(
-      title: 'Android Debloater Workspace',
+      title: 'ADB App Manager',
       subtitle: 'Inspect installed packages. Every package change requires explicit confirmation.',
       actions: [
         SizedBox(
