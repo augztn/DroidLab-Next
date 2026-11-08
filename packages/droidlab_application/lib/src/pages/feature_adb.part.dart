@@ -11,7 +11,6 @@ class _AdbToolkitPageState extends ConsumerState<AdbToolkitPage> {
   final _serial = TextEditingController();
   final _command = TextEditingController(text: 'getprop ro.build.version.release');
   final _package = TextEditingController();
-  final _apk = TextEditingController();
   final _transferLocal = TextEditingController();
   final _transferRemote = TextEditingController(text: '/sdcard/Download/');
   String _transferDirection = 'push';
