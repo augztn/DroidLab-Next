@@ -73,23 +73,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
             : event.succeeded
                 ? '[completed] ${event.requestId}'
                 : '[failed] ${event.requestId}';
-        if (_activeOperationIds.remove(event.requestId)) {
-          final message = event.cancelled
-              ? 'Operation cancelled'
-              : event.succeeded
-                  ? 'Operation completed successfully'
-                  : 'Operation failed — see Operation Console for details';
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(
-                content: Text(message),
-                duration: const Duration(seconds: 4),
-                behavior: SnackBarBehavior.floating,
-              ));
-          });
-        }
+        _activeOperationIds.remove(event.requestId);
       } else {
         return;
       }
