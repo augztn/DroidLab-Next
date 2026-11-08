@@ -822,8 +822,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                   ? const _EmptyPanel(icon: Icons.apps, title: 'No package inventory loaded', message: 'Load packages to inspect the selected Android user.')
                   : LayoutBuilder(builder: (context, constraints) {
                 const selectWidth = 44.0;
-                const packageWidth = 280.0;
-                const functionWidth = 320.0;
+                const packageWidth = 300.0;
+                const functionWidth = 340.0;
                 const actionsWidth = 112.0;
                 const minTableWidth = selectWidth + packageWidth + functionWidth +
                     actionsWidth + 24;
@@ -835,16 +835,16 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                     width: tableWidth,
                     child: Column(children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                         decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.surfaceContainerHighest,
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
                         ),
-                        child: const Row(children: [
-                          SizedBox(width: selectWidth, child: Text('Select', maxLines: 1, softWrap: false)),
-                          SizedBox(width: packageWidth, child: Text('Package Identifier / Label', maxLines: 1, softWrap: false)),
-                          SizedBox(width: functionWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Package details', maxLines: 1, softWrap: false))),
-                          SizedBox(width: actionsWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Actions', maxLines: 1, softWrap: false))),
+                        child: Row(children: [
+                          SizedBox(width: selectWidth, child: Text('Select', maxLines: 1, softWrap: false, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700))),
+                          SizedBox(width: packageWidth, child: Text('Package Identifier / Label', maxLines: 1, softWrap: false, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700))),
+                          SizedBox(width: functionWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Package details', maxLines: 1, softWrap: false, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)))),
+                          SizedBox(width: actionsWidth, child: Padding(padding: EdgeInsets.only(left: 8), child: Text('Actions', maxLines: 1, softWrap: false, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)))),
                         ]),
                       ),
                       Expanded(child: ListView.separated(
@@ -874,7 +874,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                   ? Theme.of(context).colorScheme.error
                                   : Theme.of(context).colorScheme.secondary;
                           return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
                               SizedBox(width: selectWidth, child: Checkbox(
                                 visualDensity: VisualDensity.compact,
@@ -895,12 +895,13 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                 const SizedBox(width: 9),
                                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   Text(app, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
-                                  const SizedBox(height: 2),
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14, fontWeight: FontWeight.w600)),
+                                  const SizedBox(height: 3),
                                   SelectableText(package, maxLines: 1,
                                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                                       fontFamily: 'monospace',
+                                      fontSize: 11.5,
                                     )),
                                 ])),
                               ])),
@@ -911,7 +912,7 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(function, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context).textTheme.bodySmall),
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 13)),
                                     const SizedBox(height: 2),
                                     Wrap(
                                       spacing: 5,
@@ -929,7 +930,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                             'Risk · $risk',
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                              fontSize: 11.5,
                                               color: riskColor,
                                               fontWeight: FontWeight.w600,
                                             ),
@@ -945,7 +947,8 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                           child: Text(
                                             state,
                                             maxLines: 1,
-                                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                              fontSize: 11.5,
                                               color: stateColor,
                                               fontWeight: FontWeight.w600,
                                             ),
@@ -953,13 +956,13 @@ class _DebloaterPageState extends ConsumerState<DebloaterPage> {
                                         ),
                                         TextButton(
                                           style: TextButton.styleFrom(
-                                            minimumSize: const Size(0, 24),
-                                            padding: const EdgeInsets.symmetric(horizontal: 3),
+                                            minimumSize: const Size(0, 26),
+                                            padding: const EdgeInsets.symmetric(horizontal: 4),
                                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                             visualDensity: VisualDensity.compact,
                                           ),
                                           onPressed: () => _showGuidance(item),
-                                          child: const Text('Explain package'),
+                                          child: const Text('Explain', style: TextStyle(fontSize: 12.5)),
                                         ),
                                       ],
                                     ),
