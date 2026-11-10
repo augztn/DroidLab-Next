@@ -308,7 +308,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
             ),
           ],
         ),
-      )).whenComplete(() { _modePromptOpen = false; });
+      ).whenComplete(() { _modePromptOpen = false; }));
     });
   }
 
