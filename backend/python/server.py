@@ -650,7 +650,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             raise ValueError("Choose an existing Android .apk file.")
         require_adb(serial, cancel_event=cancel)
         intent = {"operation": "apps.install", "serial": serial,
-                  "apk_path": str(apk_file), "replace": replace_existing}
+                  "apk_path": apk_path, "replace": replace_existing}
         require_confirmation(args, "Android APK installation", intent)
         command = [tool_path("adb"), "-s", serial, "install"]
         if replace_existing:
