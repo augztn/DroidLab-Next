@@ -734,8 +734,8 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             for name in files
         ):
             raise ValueError("The APK backup manifest contains invalid file names.")
-        apk_files = [source / name for name in files]
-        if any(not item.is_file() for item in apk_files):
+        apk_files = [(source / name).resolve() for name in files]
+        if any(item.parent != source or not item.is_file() for item in apk_files):
             raise ValueError("One or more APK files are missing from this backup.")
         intent = {"operation": "apps.restore", "serial": serial, "backup_dir": backup_dir}
         require_confirmation(args, "APK backup restore", intent)
