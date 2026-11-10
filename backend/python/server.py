@@ -668,9 +668,9 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
 
     if operation == "apps.backup":
         serial, package, backup_dir = args.get("serial"), args.get("package"), args.get("backup_dir")
-        if not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+", package):
+        if not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
             raise ValueError("Invalid Android package name.")
-        if not isinstance(backup_dir, str) or not backup_dir.strip() or "\\x00" in backup_dir:
+        if not isinstance(backup_dir, str) or not backup_dir.strip() or "\x00" in backup_dir:
             raise ValueError("Choose a backup destination folder.")
         destination = Path(backup_dir).expanduser().resolve()
         intent = {"operation": "apps.backup", "serial": serial, "package": package, "backup_dir": backup_dir}
@@ -685,7 +685,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             if not value.startswith("package:"):
                 continue
             remote = value[len("package:"):]
-            if not remote.startswith("/") or "\\x00" in remote or ".." in Path(remote).parts:
+            if not remote.startswith("/") or "\x00" in remote or ".." in Path(remote).parts:
                 raise RuntimeError("Android returned an invalid APK path; backup was stopped.")
             if remote not in remote_paths:
                 remote_paths.append(remote)
@@ -715,7 +715,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
 
     if operation == "apps.restore":
         serial, backup_dir = args.get("serial"), args.get("backup_dir")
-        if not isinstance(backup_dir, str) or not backup_dir.strip() or "\\x00" in backup_dir:
+        if not isinstance(backup_dir, str) or not backup_dir.strip() or "\x00" in backup_dir:
             raise ValueError("Choose an application APK backup folder.")
         source = Path(backup_dir).expanduser().resolve()
         manifest_path = source / "manifest.json"
@@ -727,7 +727,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             raise ValueError("The APK backup manifest is unreadable.") from exc
         package = manifest.get("package") if isinstance(manifest, dict) else None
         files = manifest.get("files") if isinstance(manifest, dict) else None
-        if manifest.get("schema_version") != 1 or not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+", package):
+        if manifest.get("schema_version") != 1 or not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
             raise ValueError("The APK backup manifest is invalid or unsupported.")
         if not isinstance(files, list) or not files or any(
             not isinstance(name, str) or name != Path(name).name or Path(name).suffix.lower() != ".apk"
