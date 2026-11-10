@@ -203,7 +203,7 @@ class _AppManagerPageState extends ConsumerState<AppManagerPage> {
                   )),
         if (_apps.isNotEmpty) Align(alignment: Alignment.centerLeft,
           child: Padding(padding: const EdgeInsets.only(top: 6),
-            child: Text('\${visible.length} of \${_apps.length} installed applications',
+            child: Text('${visible.length} of ${_apps.length} installed applications',
               style: Theme.of(context).textTheme.bodySmall))),
       ]),
     );
