@@ -641,7 +641,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
     if operation == "apps.install":
         serial, apk_path = args.get("serial"), args.get("apk_path")
         replace_existing = args.get("replace", True)
-        if not isinstance(apk_path, str) or not apk_path.strip() or "\\x00" in apk_path:
+        if not isinstance(apk_path, str) or not apk_path.strip() or "\x00" in apk_path:
             raise ValueError("Choose an existing APK file.")
         if not isinstance(replace_existing, bool):
             raise ValueError("replace must be a boolean.")
