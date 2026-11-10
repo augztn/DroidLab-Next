@@ -599,10 +599,25 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         ]),
       ],
     );
-    final slotPanel = panel(
-      'A/B Active Slot Switcher (fastboot.set_active)',
-      'Uses primary --set-active syntax with automatic legacy set_active fallback.',
+    final modeSlotPanel = panel(
+      'Device Mode & A/B Slot',
+      'Manage reboot targets and the active boot slot from one place. Confirm each device-state change before execution.',
       [
+
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('system'), child: const Text('Reboot system')),
+          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('recovery'), child: const Text('Reboot recovery')),
+          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('bootloader'), child: const Text('Reboot bootloader')),
+          FilledButton.tonal(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('fastbootd'), child: const Text('Reboot to Fastbootd')),
+        ]),
+        const Divider(height: 24),
+        Row(children: [
+          Icon(Icons.swap_horiz_rounded, size: 18, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          Text('A/B active slot', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 10),
+
         Row(children: [
           Expanded(child: FilledButton(
             onPressed: _busy || !fastbootTarget ? null : () => _setActiveSlot('a'),
@@ -642,18 +657,6 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
             onPressed: _busy || !fastbootTarget ? null : _wipeUserdata,
             child: const Text('Factory wipe'),
           ),
-        ]),
-      ],
-    );
-    final rebootPanel = panel(
-      'Mode-Aware Fastboot Reboot',
-      'Select the next device transport. Reboot operations require a fresh target check.',
-      [
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('system'), child: const Text('Reboot system')),
-          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('recovery'), child: const Text('Reboot recovery')),
-          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('bootloader'), child: const Text('Reboot bootloader')),
-          FilledButton.tonal(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('fastbootd'), child: const Text('Reboot to Fastbootd')),
         ]),
       ],
     );
@@ -706,14 +709,12 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         final left = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           flashPanel,
           const SizedBox(height: 14),
-          rebootPanel,
-        ]);
-        final right = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          slotPanel,
+          advancedPanel,
           const SizedBox(height: 14),
           erasePanel,
-          const SizedBox(height: 14),
-          advancedPanel,
+        ]);
+        final right = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          modeSlotPanel,
         ]);
         final deviceLabel = selectedDevice == null
             ? 'No target selected'
@@ -792,9 +793,8 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
                 const SizedBox(width: 24),
                 Expanded(child: SingleChildScrollView(child: right)),
               ])
-            : ListView(children: [flashPanel, const SizedBox(height: 14), slotPanel,
-                const SizedBox(height: 14), erasePanel, const SizedBox(height: 14), rebootPanel,
-                const SizedBox(height: 14), advancedPanel])),
+            : ListView(children: [flashPanel, const SizedBox(height: 14), advancedPanel,
+                const SizedBox(height: 14), erasePanel, const SizedBox(height: 14), modeSlotPanel])),
           if (_output.isNotEmpty) ...[const SizedBox(height: 12), _OutputPanel(output: _output)],
         ]);
       }),
