@@ -407,20 +407,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ('cyberpunk_glass', 'Cyberpunk Glass', 'cyberpunk_glass', Icons.auto_awesome_outlined),
             ('standard_dark', 'Standard Dark', 'standard_dark', Icons.contrast),
             ('oled_black', 'OLED Black', 'oled_black', Icons.dark_mode_outlined),
+            ('minimalist_dark', 'Minimalist Dark', 'minimalist_dark', Icons.layers_outlined),
+            ('monochromatic', 'Monochromatic', 'monochromatic', Icons.filter_b_and_w_outlined),
           ];
-          return compact
-            ? Column(children: [
-                for (final item in themes) Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+          final itemWidth = compact
+              ? constraints.maxWidth
+              : (constraints.maxWidth - 24) / 3;
+          return Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (final item in themes)
+                SizedBox(
+                  width: itemWidth,
                   child: _themeChoice(context, item.$1, item.$2, item.$3, item.$4),
                 ),
-              ])
-            : Row(children: [
-                for (var i = 0; i < themes.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 12),
-                  Expanded(child: _themeChoice(context, themes[i].$1, themes[i].$2, themes[i].$3, themes[i].$4)),
-                ],
-              ]);
+            ],
+          );
         }),
       ]),
     ));
