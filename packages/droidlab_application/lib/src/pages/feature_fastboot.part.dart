@@ -106,9 +106,6 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     );
     if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
-    if (operation == 'fastboot.flash') {
-      _recordOperationActivity(ref, 'Flash started · $partition');
-    }
     try {
       final args = <String, dynamic>{
         'serial': serial,
@@ -140,14 +137,8 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           timeout: const Duration(minutes: 20),
         ),
       );
-      if (operation == 'fastboot.flash') {
-        _recordOperationActivity(ref, 'Flash completed · $partition');
-      }
       if (mounted) setState(() => _output = result.data.toString());
     } catch (error) {
-      if (operation == 'fastboot.flash') {
-        _recordOperationActivity(ref, 'Flash failed · $partition · $error');
-      }
       if (mounted) setState(() => _output = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
