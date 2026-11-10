@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../state/backend_providers.dart';
+import '../state/app_settings.dart';
 
 class DesktopShell extends ConsumerStatefulWidget {
   const DesktopShell({required this.child, required this.currentLocation, super.key});
