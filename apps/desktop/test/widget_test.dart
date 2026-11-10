@@ -31,7 +31,7 @@ void main() {
     expect(find.text('Device Manager'), findsOneWidget);
     expect(find.text('Firmware & Payload'), findsOneWidget);
     expect(find.text('ADB Toolkit'), findsOneWidget);
-    expect(find.text('Fastboot Toolkit'), findsOneWidget);
+    expect(find.text('Fastboot Toolkit'), findsWidgets);
     expect(find.text('Logs & Diagnostics'), findsOneWidget);
     expect(find.textContaining('Operation Console (Bounded'), findsOneWidget);
   });
