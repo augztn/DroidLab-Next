@@ -311,6 +311,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ('cyberpunk_glass', 'Cyberpunk Glass', 'cyberpunk_glass', Icons.auto_awesome_outlined),
             ('standard_dark', 'Standard Dark', 'standard_dark', Icons.contrast),
             ('oled_black', 'OLED Black', 'oled_black', Icons.dark_mode_outlined),
+            ('minimalist_dark', 'Minimalist Dark', 'charcoal · slate accents', Icons.blur_on_outlined),
+            ('monochromatic', 'Monochromatic', 'grayscale · no color accents', Icons.filter_b_and_w_outlined),
           ];
           return compact
             ? Column(children: [
