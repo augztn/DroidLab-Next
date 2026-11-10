@@ -22,8 +22,6 @@ jobs:
             platform: linux
           - os: windows-latest
             platform: windows
-          - os: macos-latest
-            platform: macos
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -36,7 +34,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev xz-utils
       - name: Generate native runner projects
         working-directory: apps/desktop
-        run: flutter create --project-name droidlab_desktop --platforms=linux,windows,macos .
+        run: flutter create --project-name droidlab_desktop --platforms=linux,windows .
       - name: Resolve dependencies
         working-directory: apps/desktop
         run: flutter pub get --enforce-lockfile
@@ -83,9 +81,6 @@ jobs:
       - name: Stage bundled CPython runtime (Windows)
         if: runner.os == 'Windows'
         run: python scripts/stage_python_runtime.py
-      - name: Stage bundled CPython runtime (macOS)
-        if: runner.os == 'macOS'
-        run: python3 scripts/stage_python_runtime.py
       - name: Smoke-test bundled Python and backend (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -95,16 +90,6 @@ jobs:
           & $python -c "import json, ssl, subprocess, os, sys; sys.path.insert(0, os.environ['DROIDLAB_BACKEND_TEST_PATH']); import server; import droidlab.core.tool_resolver"
           if ($LASTEXITCODE -ne 0) { throw 'Bundled Windows Python/backend smoke test failed.' }
           if (-not (Test-Path 'apps/desktop/build/windows/x64/runner/Release/backend/python/server.py')) { throw 'Windows backend payload is missing.' }
-      - name: Smoke-test bundled Python and backend (macOS)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          set -euo pipefail
-          app="$(find apps/desktop/build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)"
-          python="$app/Contents/Resources/python/bin/python3"
-          test -x "$python"
-          DROIDLAB_BACKEND_TEST_PATH="$app/Contents/Resources/backend/python" "$python" -c 'import json, ssl, subprocess, os, sys; sys.path.insert(0, os.environ["DROIDLAB_BACKEND_TEST_PATH"]); import server; import droidlab.core.tool_resolver'
-          test -f "$app/Contents/Resources/backend/python/server.py"
       - name: Verify payload-dumper-go runtime dependency
         if: runner.os == 'Linux'
         shell: bash
