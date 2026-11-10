@@ -345,7 +345,8 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
   }
 
   Future<void> _readFastbootInfo(String serial) async {
-    if (_deviceInfoLoading || _deviceInfoSerial == serial && _deviceInfo.isNotEmpty) return;
+    if (_deviceInfoSerial == serial &&
+        (_deviceInfoLoading || _deviceInfo.isNotEmpty || _deviceInfoError != null)) return;
     setState(() {
       _deviceInfoSerial = serial;
       _deviceInfoLoading = true;
@@ -356,17 +357,21 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         'device.info',
         {'serial': serial},
       );
-      if (!mounted || _serial.text.trim() != serial) return;
+      if (!mounted) return;
+      if (_serial.text.trim() != serial) {
+        setState(() => _deviceInfoLoading = false);
+        return;
+      }
       final raw = result.data['metadata'];
       setState(() {
         _deviceInfo = raw is Map<String, dynamic> ? raw : const {};
         _deviceInfoLoading = false;
       });
     } catch (error) {
-      if (mounted && _serial.text.trim() == serial) {
+      if (mounted) {
         setState(() {
-          _deviceInfoError = error.toString();
           _deviceInfoLoading = false;
+          if (_serial.text.trim() == serial) _deviceInfoError = error.toString();
         });
       }
     }
