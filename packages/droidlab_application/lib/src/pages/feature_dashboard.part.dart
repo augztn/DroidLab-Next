@@ -166,11 +166,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               : constraints.maxWidth >= 560
                   ? 2
                   : 1;
+          // Keep the overview cards compact on wide desktop layouts. The
+          // previous 2.x ratio made each status card consume ~220px vertically.
           final aspectRatio = columns == 3
-              ? 2.15
+              ? 3.65
               : columns == 2
-                  ? 2.35
-                  : 3.0;
+                  ? 2.8
+                  : 3.2;
           return GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
