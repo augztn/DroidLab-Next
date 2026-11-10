@@ -6,7 +6,7 @@ void main() {
   test('light theme adapts shared surfaces and preserves the selected accent', () {
     final theme = DroidLabTheme.light();
     expect(theme.brightness, Brightness.light);
-    expect(theme.colorScheme.primary, const Color(0xFF7054E8));
+    expect(theme.colorScheme.primary, const Color(0xFF1679B8));
     expect(theme.scaffoldBackgroundColor, const Color(0xFFF4F7FA));
     expect(theme.cardTheme.color, Colors.white);
   });
@@ -22,7 +22,7 @@ void main() {
         'muted': Color(0xFFAAA4C5),
         'input': Color(0xFF100F20),
         'accent': Color(0xFF9A82FF),
-        'accent2': Color(0xFF1679B8),
+        'accent2': Color(0xFF7054E8),
         'console': Color(0xFF0C0B19),
       },
       'standard_dark': {
