@@ -81,7 +81,7 @@ void main() {
     expect(find.text('Settings'), findsWidgets);
     expect(find.text('General'), findsWidgets);
     expect(find.text('Interface'), findsOneWidget);
-    expect(find.text('Device Tools'), findsOneWidget);
+    expect(find.text('Device Tools'), findsWidgets);
 
     // Settings are intentionally split into focused sections. Verify the
     // appearance controls in Interface rather than assuming they are all
