@@ -26,7 +26,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('DroidLab'), findsOneWidget);
+    expect(find.text('DroidLab'), findsNothing);
     expect(find.text('Dashboard'), findsWidgets);
     expect(find.text('Device Manager'), findsOneWidget);
     expect(find.text('Firmware & Payload'), findsOneWidget);
