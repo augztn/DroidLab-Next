@@ -25,7 +25,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   final List<String> _pendingConsoleLines = [];
   Timer? _operationLogFlushTimer;
   final List<String> _pendingOperationLogLines = [];
-  String? _pendingDeviceToolRoute;
+  String? _lastModePromptKey;
+  bool _modePromptOpen = false;
   Future<void> _logWriteQueue = Future<void>.value();
   IOSink? _operationLogSink;
   int _operationLogBytes = 0;
@@ -156,6 +157,14 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   }
 
   @override
+  void didUpdateWidget(covariant DesktopShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentLocation != widget.currentLocation) {
+      _lastModePromptKey = null;
+    }
+  }
+
+  @override
   void dispose() {
     _deviceRefreshTimer?.cancel();
     _consoleFlushTimer?.cancel();
@@ -247,6 +256,76 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     );
   }
 
+  void _maybePromptForDeviceToolMode(
+    Map<String, dynamic>? data,
+    String? selectedSerial,
+  ) {
+    if (!mounted || _modePromptOpen ||
+        (widget.currentLocation != '/adb' && widget.currentLocation != '/fastboot') ||
+        data == null) {
+      return;
+    }
+    final devices = (data['devices'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>().toList(growable: false);
+    Map<String, dynamic>? target;
+    if (selectedSerial != null && selectedSerial.isNotEmpty) {
+      for (final device in devices) {
+        if (device['serial'] == selectedSerial) { target = device; break; }
+      }
+    } else {
+      final ready = devices.where((device) {
+        final transport = device['transport'], state = device['state'];
+        return (transport == 'adb' && state == 'device') ||
+            (transport == 'fastboot' && (state == 'fastboot' || state == 'fastbootd'));
+      }).toList(growable: false);
+      if (ready.length == 1) target = ready.single;
+    }
+    if (target == null) return;
+    final transport = target['transport']?.toString();
+    final state = target['state']?.toString() ?? 'unknown';
+    final serial = target['serial']?.toString() ?? 'Unknown device';
+    final destination = transport == 'fastboot' &&
+            (state == 'fastboot' || state == 'fastbootd')
+        ? '/fastboot'
+        : transport == 'adb' && state == 'device' ? '/adb' : null;
+    if (destination == null || destination == widget.currentLocation) return;
+    final key = '$serial:$state:$destination:${widget.currentLocation}';
+    if (_lastModePromptKey == key) return;
+    _lastModePromptKey = key;
+    _modePromptOpen = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.currentLocation !=
+          (destination == '/fastboot' ? '/adb' : '/fastboot')) {
+        _modePromptOpen = false;
+        return;
+      }
+      unawaited(showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) => AlertDialog(
+          icon: Icon(destination == '/fastboot' ? Icons.memory_rounded : Icons.phone_android_rounded),
+          title: Text(destination == '/fastboot'
+              ? 'Device detected in Fastboot mode'
+              : 'Device detected in Android (ADB) mode'),
+          content: Text(destination == '/fastboot'
+              ? '$serial is currently in $state mode. ADB commands are unavailable in this mode. Switch to Fastboot Toolkit to continue with bootloader or Fastbootd operations.'
+              : '$serial is back in Android mode. Fastboot commands are unavailable in this mode. Switch to ADB Toolkit to continue with Android device operations.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Stay here')),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                if (mounted) context.go(destination);
+              },
+              icon: const Icon(Icons.arrow_forward_rounded),
+              label: Text(destination == '/fastboot' ? 'Open Fastboot Toolkit' : 'Open ADB Toolkit'),
+            ),
+          ],
+        ),
+      )).whenComplete(() { _modePromptOpen = false; });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final backend = ref.watch(backendReadyProvider);
@@ -254,27 +333,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       unawaited(_subscribeToBackendEvents(ref.read(backendClientProvider)));
     }
     final devices = ref.watch(deviceListProvider);
-    final detectedToolRoute = devices.valueOrNull == null
-        ? null
-        : preferredDeviceToolLocation(devices.valueOrNull!);
-    if ((widget.currentLocation == '/adb' ||
-            widget.currentLocation == '/fastboot') &&
-        detectedToolRoute != null &&
-        detectedToolRoute != widget.currentLocation &&
-        _pendingDeviceToolRoute != detectedToolRoute) {
-      _pendingDeviceToolRoute = detectedToolRoute;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        final destination = _pendingDeviceToolRoute;
-        _pendingDeviceToolRoute = null;
-        if (destination != null &&
-            (widget.currentLocation == '/adb' ||
-                widget.currentLocation == '/fastboot')) {
-          context.go(destination);
-        }
-      });
-    }
     final targetSerial = ref.watch(selectedTargetSerialProvider);
+    _maybePromptForDeviceToolMode(devices.valueOrNull, targetSerial);
     return LayoutBuilder(builder: (context, constraints) {
       final compact = constraints.maxWidth < 1000;
       final expanded = _expanded && !compact;
