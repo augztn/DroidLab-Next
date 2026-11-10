@@ -109,7 +109,7 @@ class _AdbServerLock:
 
 _ADB_SERVER_LOCK = _AdbServerLock()
 _ADB_SERVER_LOCK_TIMEOUT = 5.0
-_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active", "debloat.package.apply"}
+_MUTATING = {"apps.install", "adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active", "debloat.package.apply"}
 
 def emit(message: dict[str, Any]) -> None:
     envelope = {"version": PROTOCOL_VERSION, "timestamp": time.time(), **message}
@@ -638,6 +638,34 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         else:
             raise RuntimeError("Unsupported device transport.")
         return {"serial": serial, "transport": device.get("transport"), "state": device.get("state"), "metadata": values}
+    if operation == "apps.install":
+        serial, apk_path = args.get("serial"), args.get("apk_path")
+        replace_existing = args.get("replace", True)
+        if not isinstance(apk_path, str) or not apk_path.strip() or "\\x00" in apk_path:
+            raise ValueError("Choose an existing APK file.")
+        if not isinstance(replace_existing, bool):
+            raise ValueError("replace must be a boolean.")
+        apk_file = Path(apk_path).expanduser().resolve()
+        if apk_file.suffix.lower() != ".apk" or not apk_file.is_file():
+            raise ValueError("Choose an existing Android .apk file.")
+        require_adb(serial, cancel_event=cancel)
+        intent = {"operation": "apps.install", "serial": serial,
+                  "apk_path": str(apk_file), "replace": replace_existing}
+        require_confirmation(args, "Android APK installation", intent)
+        command = [tool_path("adb"), "-s", serial, "install"]
+        if replace_existing:
+            command.append("-r")
+        command.append(str(apk_file))
+        response(request_id, "preflight", target=serial, command=command, destructive=False)
+        result = run_streaming(command, timeout=300, cancel_event=cancel,
+            on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
+        if result.returncode:
+            raise RuntimeError(f"APK installation failed ({result.returncode}): {result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        output = result.stdout.strip()
+        if "success" not in output.casefold():
+            raise RuntimeError(f"ADB did not confirm APK installation: {output or 'empty response'}")
+        return {"serial": serial, "apk_path": str(apk_file), "output": output}
+
     if operation == "debloat.catalog.list":
         entries, recommendations = load_catalog()
         return {
@@ -654,7 +682,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
             raise ValueError("Invalid Android package name.")
         return lookup_guidance(package)
-    if operation == "debloat.packages.list":
+    if operation in {"debloat.packages.list", "apps.packages.list"}:
         serial = args.get("serial")
         user_id = args.get("user_id", 0)
         if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id < 0 or user_id > 2147483647:
