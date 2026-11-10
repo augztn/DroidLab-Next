@@ -265,30 +265,15 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
         data == null) {
       return;
     }
-    final devices = (data['devices'] as List<dynamic>? ?? const [])
-        .whereType<Map<String, dynamic>>().toList(growable: false);
-    Map<String, dynamic>? target;
-    if (selectedSerial != null && selectedSerial.isNotEmpty) {
-      for (final device in devices) {
-        if (device['serial'] == selectedSerial) { target = device; break; }
-      }
-    } else {
-      final ready = devices.where((device) {
-        final transport = device['transport'], state = device['state'];
-        return (transport == 'adb' && state == 'device') ||
-            (transport == 'fastboot' && (state == 'fastboot' || state == 'fastbootd'));
-      }).toList(growable: false);
-      if (ready.length == 1) target = ready.single;
-    }
-    if (target == null) return;
-    final transport = target['transport']?.toString();
-    final state = target['state']?.toString() ?? 'unknown';
-    final serial = target['serial']?.toString() ?? 'Unknown device';
-    final destination = transport == 'fastboot' &&
-            (state == 'fastboot' || state == 'fastbootd')
-        ? '/fastboot'
-        : transport == 'adb' && state == 'device' ? '/adb' : null;
-    if (destination == null || destination == widget.currentLocation) return;
+    final suggestion = deviceToolModeSwitchSuggestion(
+      data,
+      currentLocation: widget.currentLocation,
+      selectedSerial: selectedSerial,
+    );
+    if (suggestion == null) return;
+    final destination = suggestion['destination']!;
+    final state = suggestion['state']!;
+    final serial = suggestion['serial']!;
     final key = '$serial:$state:$destination:${widget.currentLocation}';
     if (_lastModePromptKey == key) return;
     _lastModePromptKey = key;
