@@ -319,7 +319,14 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
     }
     final devices = ref.watch(deviceListProvider);
     final targetSerial = ref.watch(selectedTargetSerialProvider);
-    _maybePromptForDeviceToolMode(devices.valueOrNull, targetSerial);
+    final modePromptsEnabled = ref.watch(droidLabSettingsProvider.select(
+      (settings) => settings.valueOrNull?.autoSwitchDeviceToolPrompts ?? true,
+    ));
+    if (modePromptsEnabled) {
+      _maybePromptForDeviceToolMode(devices.valueOrNull, targetSerial);
+    } else {
+      _lastModePromptKey = null;
+    }
     return LayoutBuilder(builder: (context, constraints) {
       final compact = constraints.maxWidth < 1000;
       final expanded = _expanded && !compact;
