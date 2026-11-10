@@ -736,14 +736,6 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           const SizedBox(height: 14),
           erasePanel,
         ]);
-        final deviceLabel = selectedDevice == null
-            ? 'No target selected'
-            : (selectedDevice['model']?.toString().trim().isNotEmpty == true
-                ? selectedDevice['model'].toString()
-                : selectedDevice['product']?.toString() ?? 'Android device');
-        final transportLabel = selectedDevice == null
-            ? 'Waiting for a device'
-            : '${selectedDevice['transport'] ?? 'unknown'} · ${selectedDevice['mode'] ?? selectedDevice['state'] ?? 'unknown'}';
         final infoLabels = <String>[
           'Brand / Manufacturer',
           'Device name / Model',
