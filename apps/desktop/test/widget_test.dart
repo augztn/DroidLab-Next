@@ -55,7 +55,11 @@ void main() {
     expect(find.text('Fastboot Toolkit'), findsWidgets);
     expect(find.text('Guarded Partition Flash (fastboot.flash)'), findsOneWidget);
     expect(find.text('Preview & Confirm Flash'), findsOneWidget);
-    expect(find.text('A/B Active Slot Switcher (fastboot.set_active)'), findsOneWidget);
+    expect(find.text('Device Mode & A/B Slot'), findsOneWidget);
+    expect(find.text('A/B active slot'), findsOneWidget);
+    expect(find.text('Set Active Slot A'), findsOneWidget);
+    expect(find.text('Set Active Slot B'), findsOneWidget);
+    expect(find.text('Switch to other slot'), findsOneWidget);
   });
 
   testWidgets('Settings exposes persistent themes and executable paths',
