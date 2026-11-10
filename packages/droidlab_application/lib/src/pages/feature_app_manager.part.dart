@@ -78,6 +78,77 @@ class _AppManagerPageState extends ConsumerState<AppManagerPage> {
     if (mounted) await _load();
   }
 
+
+  Future<void> _backupApk(Map<String, dynamic> app) async {
+    if (_serial == null || _busy) return;
+    final package = app['package'] as String;
+    final directory = await getDirectoryPath(confirmButtonText: 'Choose backup destination');
+    if (directory == null || !mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Back up application APKs?'),
+        content: Text('Save the APK and split APK files for $package under $directory. Private app data is not included.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Back up APKs')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() { _busy = true; _error = null; _notice = null; });
+    try {
+      final serial = _serial!;
+      final intent = {'operation': 'apps.backup', 'serial': serial, 'package': package, 'backup_dir': directory};
+      final result = await trackOperation(
+        ref, operation: 'Back up application APKs', target: serial,
+        action: () => ref.read(backendClientProvider).request(
+          'apps.backup', {...intent, 'confirmed': true, 'confirmation': intent},
+          timeout: const Duration(minutes: 10)),
+      );
+      if (mounted) setState(() => _notice = result.data['output']?.toString() ?? 'APK backup completed.');
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _restoreApkBackup() async {
+    if (_serial == null || _busy) return;
+    final directory = await getDirectoryPath(confirmButtonText: 'Select APK backup folder');
+    if (directory == null || !mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Restore application APK backup?'),
+        content: Text('Install the APK set described by the backup manifest from $directory on device $_serial? Existing app versions may be replaced.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Restore APKs')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() { _busy = true; _error = null; _notice = null; });
+    try {
+      final serial = _serial!;
+      final intent = {'operation': 'apps.restore', 'serial': serial, 'backup_dir': directory};
+      final result = await trackOperation(
+        ref, operation: 'Restore application APK backup', target: serial,
+        action: () => ref.read(backendClientProvider).request(
+          'apps.restore', {...intent, 'confirmed': true, 'confirmation': intent},
+          timeout: const Duration(minutes: 10)),
+      );
+      if (mounted) setState(() => _notice = result.data['output']?.toString() ?? 'APK restore completed.');
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (mounted) await _load();
+  }
+
   Future<void> _uninstall(Map<String, dynamic> app) async {
     if (_serial == null || _busy || app['system'] == true) return;
     final package = app['package'] as String;
@@ -150,13 +221,15 @@ class _AppManagerPageState extends ConsumerState<AppManagerPage> {
         )),
         FilledButton.icon(onPressed: _serial == null || _busy ? null : _installApk,
           icon: const Icon(Icons.install_mobile_rounded, size: 18), label: const Text('Install APK')),
+        OutlinedButton.icon(onPressed: _serial == null || _busy ? null : _restoreApkBackup,
+          icon: const Icon(Icons.restore_rounded, size: 18), label: const Text('Restore backup')),
         OutlinedButton.icon(onPressed: _serial == null || _busy ? null : _load,
           icon: const Icon(Icons.refresh, size: 18), label: const Text('Refresh apps')),
       ],
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Card(child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
           const Icon(Icons.info_outline_rounded), const SizedBox(width: 10),
-          Expanded(child: Text('App Manager focuses on app installation and user-app removal. System package risk, recommendations, disable/restore guidance and bulk debloating remain in Android Debloater.',
+          Expanded(child: Text('App Manager handles APK install, uninstall and APK-only backup/restore. Backups do not include private app data. System-package risk and debloating remain in Android Debloater.',
             style: Theme.of(context).textTheme.bodySmall)),
         ]))),
         const SizedBox(height: 10),
@@ -195,9 +268,14 @@ class _AppManagerPageState extends ConsumerState<AppManagerPage> {
                         trailing: system
                           ? const Tooltip(message: 'Use Android Debloater for system-package actions',
                               child: Icon(Icons.shield_outlined))
-                          : IconButton(tooltip: 'Uninstall for this user',
-                              onPressed: _busy ? null : () => _uninstall(app),
-                              icon: const Icon(Icons.delete_outline_rounded)),
+                          : Row(mainAxisSize: MainAxisSize.min, children: [
+                              IconButton(tooltip: 'Back up APK files',
+                                onPressed: _busy ? null : () => _backupApk(app),
+                                icon: const Icon(Icons.backup_outlined)),
+                              IconButton(tooltip: 'Uninstall for this user',
+                                onPressed: _busy ? null : () => _uninstall(app),
+                                icon: const Icon(Icons.delete_outline_rounded)),
+                            ]),
                       );
                     },
                   )),
