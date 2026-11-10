@@ -145,6 +145,57 @@ String? preferredDeviceToolLocation(Map<String, dynamic> data) {
   return hasAdb ? '/adb' : '/fastboot';
 }
 
+
+/// Returns a suggested ADB/Fastboot tool switch for the active target.
+/// Ambiguous multi-device sessions never trigger a prompt.
+Map<String, String>? deviceToolModeSwitchSuggestion(
+  Map<String, dynamic>? data, {
+  required String currentLocation,
+  String? selectedSerial,
+}) {
+  if (data == null ||
+      (currentLocation != '/adb' && currentLocation != '/fastboot')) {
+    return null;
+  }
+  final devices = (data['devices'] as List<dynamic>? ?? const [])
+      .whereType<Map<String, dynamic>>()
+      .toList(growable: false);
+  Map<String, dynamic>? target;
+  if (selectedSerial != null && selectedSerial.isNotEmpty) {
+    for (final device in devices) {
+      if (device['serial'] == selectedSerial) {
+        target = device;
+        break;
+      }
+    }
+  } else {
+    final ready = devices.where((device) {
+      final transport = device['transport'];
+      final state = device['state'];
+      return (transport == 'adb' && state == 'device') ||
+          (transport == 'fastboot' &&
+              (state == 'fastboot' || state == 'fastbootd'));
+    }).toList(growable: false);
+    if (ready.length == 1) target = ready.single;
+  }
+  if (target == null) return null;
+
+  final transport = target['transport']?.toString();
+  final state = target['state']?.toString() ?? 'unknown';
+  final destination = transport == 'fastboot' &&
+          (state == 'fastboot' || state == 'fastbootd')
+      ? '/fastboot'
+      : transport == 'adb' && state == 'device'
+          ? '/adb'
+          : null;
+  if (destination == null || destination == currentLocation) return null;
+  return {
+    'serial': target['serial']?.toString() ?? 'Unknown device',
+    'state': state,
+    'destination': destination,
+  };
+}
+
 /// Typed device-discovery boundary used by features migrating off raw JSON.
 final deviceRepositoryProvider = Provider<DeviceRepository>((ref) {
   return BackendDeviceRepository(ref.watch(backendClientProvider));

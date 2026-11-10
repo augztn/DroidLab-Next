@@ -79,11 +79,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Settings'), findsWidgets);
+    expect(find.text('General'), findsWidgets);
+    expect(find.text('Interface'), findsOneWidget);
+    expect(find.text('Device Tools'), findsWidgets);
+
+    // Settings are intentionally split into focused sections. Verify the
+    // appearance controls in Interface rather than assuming they are all
+    // mounted on the initial General section.
+    await tester.tap(find.text('Interface').last);
+    await tester.pumpAndSettle();
     expect(find.text('Appearance & Theme Identity'), findsOneWidget);
     expect(find.text('Cyberpunk Glass'), findsOneWidget);
     expect(find.text('Standard Dark'), findsOneWidget);
     expect(find.text('OLED Black'), findsOneWidget);
     expect(find.text('Switch to Light Surface'), findsOneWidget);
+
+    await tester.tap(find.text('Device Tools').last);
+    await tester.pumpAndSettle();
     expect(find.text('Python executable'), findsOneWidget);
     expect(find.text('Backend script'), findsOneWidget);
     expect(find.text('ADB executable'), findsOneWidget);

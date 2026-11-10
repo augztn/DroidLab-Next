@@ -9,6 +9,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ShellRoute(builder: (context, state, child) => DesktopShell(currentLocation: state.matchedLocation, child: child), routes: [
       GoRoute(path: '/dashboard', builder: (_, __) => const DashboardPage()),
       GoRoute(path: '/devices', builder: (_, __) => const DeviceManagerPage()),
+      GoRoute(path: '/apps', builder: (_, __) => const AppManagerPage()),
       GoRoute(path: '/debloater', builder: (_, __) => const DebloaterPage()),
       GoRoute(path: '/firmware', builder: (_, __) => const PayloadExtractorPage()),
       GoRoute(path: '/payload', redirect: (_, __) => '/firmware'),

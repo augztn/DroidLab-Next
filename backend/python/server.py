@@ -109,7 +109,7 @@ class _AdbServerLock:
 
 _ADB_SERVER_LOCK = _AdbServerLock()
 _ADB_SERVER_LOCK_TIMEOUT = 5.0
-_MUTATING = {"adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active", "debloat.package.apply"}
+_MUTATING = {"apps.install", "apps.backup", "apps.restore", "adb.shell", "adb.reboot", "adb.sideload", "adb.transfer", "fastboot.flash", "fastboot.erase", "fastboot.reboot", "fastboot.wipe", "fastboot.set_active", "debloat.package.apply"}
 
 def emit(message: dict[str, Any]) -> None:
     envelope = {"version": PROTOCOL_VERSION, "timestamp": time.time(), **message}
@@ -638,6 +638,121 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         else:
             raise RuntimeError("Unsupported device transport.")
         return {"serial": serial, "transport": device.get("transport"), "state": device.get("state"), "metadata": values}
+    if operation == "apps.install":
+        serial, apk_path = args.get("serial"), args.get("apk_path")
+        replace_existing = args.get("replace", True)
+        if not isinstance(apk_path, str) or not apk_path.strip() or "\x00" in apk_path:
+            raise ValueError("Choose an existing APK file.")
+        if not isinstance(replace_existing, bool):
+            raise ValueError("replace must be a boolean.")
+        apk_file = Path(apk_path).expanduser().resolve()
+        if apk_file.suffix.lower() != ".apk" or not apk_file.is_file():
+            raise ValueError("Choose an existing Android .apk file.")
+        require_adb(serial, cancel_event=cancel)
+        intent = {"operation": "apps.install", "serial": serial,
+                  "apk_path": apk_path, "replace": replace_existing}
+        require_confirmation(args, "Android APK installation", intent)
+        command = [tool_path("adb"), "-s", serial, "install"]
+        if replace_existing:
+            command.append("-r")
+        command.append(str(apk_file))
+        response(request_id, "preflight", target=serial, command=command, destructive=False)
+        result = run_streaming(command, timeout=300, cancel_event=cancel,
+            on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
+        if result.returncode:
+            raise RuntimeError(f"APK installation failed ({result.returncode}): {result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        output = result.stdout.strip()
+        if "success" not in output.casefold():
+            raise RuntimeError(f"ADB did not confirm APK installation: {output or 'empty response'}")
+        return {"serial": serial, "apk_path": str(apk_file), "output": output}
+
+    if operation == "apps.backup":
+        serial, package, backup_dir = args.get("serial"), args.get("package"), args.get("backup_dir")
+        if not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
+            raise ValueError("Invalid Android package name.")
+        if not isinstance(backup_dir, str) or not backup_dir.strip() or "\x00" in backup_dir:
+            raise ValueError("Choose a backup destination folder.")
+        destination = Path(backup_dir).expanduser().resolve()
+        intent = {"operation": "apps.backup", "serial": serial, "package": package, "backup_dir": backup_dir}
+        require_confirmation(args, "APK backup", intent)
+        require_adb(serial, cancel_event=cancel)
+        paths_result = run_capture([tool_path("adb"), "-s", serial, "shell", "pm", "path", package], 45, cancel)
+        if paths_result.returncode:
+            raise RuntimeError(f"Could not locate APK files for {package}: {paths_result.stdout[-MAX_RETAINED_OUTPUT:]}")
+        remote_paths = []
+        for line in paths_result.stdout.splitlines():
+            value = line.strip()
+            if not value.startswith("package:"):
+                continue
+            remote = value[len("package:"):]
+            if not remote.startswith("/") or "\x00" in remote or ".." in Path(remote).parts:
+                raise RuntimeError("Android returned an invalid APK path; backup was stopped.")
+            if remote not in remote_paths:
+                remote_paths.append(remote)
+        if not remote_paths:
+            raise RuntimeError(f"No installed APK paths were returned for {package}.")
+        package_dir = destination / package
+        package_dir.mkdir(parents=True, exist_ok=True)
+        saved_files = []
+        for index, remote in enumerate(remote_paths):
+            filename = "base.apk" if index == 0 else f"split_{index}.apk"
+            local = package_dir / filename
+            command = [tool_path("adb"), "-s", serial, "pull", remote, str(local)]
+            response(request_id, "preflight", target=serial, command=command, destructive=False)
+            pulled = run_streaming(command, timeout=180, cancel_event=cancel,
+                on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
+            if pulled.returncode or not local.is_file():
+                raise RuntimeError(f"APK backup failed for {filename}: {pulled.stdout[-MAX_RETAINED_OUTPUT:]}")
+            saved_files.append(filename)
+        manifest = {"schema_version": 1, "package": package, "files": saved_files,
+                    "backup_type": "apk_files_only"}
+        manifest_path = package_dir / "manifest.json"
+        temporary_manifest = package_dir / "manifest.json.tmp"
+        temporary_manifest.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        temporary_manifest.replace(manifest_path)
+        return {"serial": serial, "package": package, "backup_dir": str(package_dir),
+                "files": saved_files, "output": f"Saved {len(saved_files)} APK file(s). App data is not included."}
+
+    if operation == "apps.restore":
+        serial, backup_dir = args.get("serial"), args.get("backup_dir")
+        if not isinstance(backup_dir, str) or not backup_dir.strip() or "\x00" in backup_dir:
+            raise ValueError("Choose an application APK backup folder.")
+        source = Path(backup_dir).expanduser().resolve()
+        manifest_path = source / "manifest.json"
+        if not manifest_path.is_file():
+            raise ValueError("The selected folder does not contain a DroidLab APK backup manifest.")
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError("The APK backup manifest is unreadable.") from exc
+        if not isinstance(manifest, dict):
+            raise ValueError("The APK backup manifest must be a JSON object.")
+        package = manifest.get("package")
+        files = manifest.get("files")
+        if manifest.get("schema_version") != 1 or not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
+            raise ValueError("The APK backup manifest is invalid or unsupported.")
+        if not isinstance(files, list) or not files or any(
+            not isinstance(name, str) or name != Path(name).name or Path(name).suffix.lower() != ".apk"
+            for name in files
+        ):
+            raise ValueError("The APK backup manifest contains invalid file names.")
+        apk_files = [(source / name).resolve() for name in files]
+        if any(item.parent != source or not item.is_file() for item in apk_files):
+            raise ValueError("One or more APK files are missing from this backup.")
+        intent = {"operation": "apps.restore", "serial": serial, "backup_dir": backup_dir}
+        require_confirmation(args, "APK backup restore", intent)
+        require_adb(serial, cancel_event=cancel)
+        command = [tool_path("adb"), "-s", serial, "install-multiple", "-r", *[str(item) for item in apk_files]]
+        response(request_id, "preflight", target=serial, command=command, destructive=False)
+        restored = run_streaming(command, timeout=300, cancel_event=cancel,
+            on_line=lambda line: response(request_id, "output", stream="stdout", line=line))
+        if restored.returncode:
+            raise RuntimeError(f"APK restore failed ({restored.returncode}): {restored.stdout[-MAX_RETAINED_OUTPUT:]}")
+        output = restored.stdout.strip()
+        if "success" not in output.casefold():
+            raise RuntimeError(f"ADB did not confirm APK restore: {output or 'empty response'}")
+        return {"serial": serial, "package": package, "output": output}
+
     if operation == "debloat.catalog.list":
         entries, recommendations = load_catalog()
         return {
@@ -654,7 +769,7 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
         if not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
             raise ValueError("Invalid Android package name.")
         return lookup_guidance(package)
-    if operation == "debloat.packages.list":
+    if operation in {"debloat.packages.list", "apps.packages.list"}:
         serial = args.get("serial")
         user_id = args.get("user_id", 0)
         if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id < 0 or user_id > 2147483647:

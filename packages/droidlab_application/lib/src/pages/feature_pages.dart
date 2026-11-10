@@ -21,6 +21,7 @@ import '../state/operation_history.dart';
 part 'feature_dashboard.part.dart';
 part 'feature_devices.part.dart';
 part 'feature_debloater.part.dart';
+part 'feature_app_manager.part.dart';
 part 'feature_adb.part.dart';
 part 'feature_fastboot.part.dart';
 part 'feature_payload.part.dart';
