@@ -14,16 +14,16 @@ void main() {
   test('all dark surfaces stay synchronized with the legacy token palettes', () {
     const palettes = <String, Map<String, Color>>{
       'cyberpunk_glass': {
-        'bg': Color(0xFF121026),
-        'panel': Color(0xFF1D1A38),
-        'panel_alt': Color(0xFF262247),
-        'border': Color(0xFF39345B),
-        'text': Color(0xFFF2F0FF),
-        'muted': Color(0xFFAAA4C5),
-        'input': Color(0xFF100F20),
-        'accent': Color(0xFF9A82FF),
-        'accent2': Color(0xFF7054E8),
-        'console': Color(0xFF0C0B19),
+        'bg': Color(0xFF10151C),
+        'panel': Color(0xFF171F29),
+        'panel_alt': Color(0xFF202C39),
+        'border': Color(0xFF304253),
+        'text': Color(0xFFEDF4FB),
+        'muted': Color(0xFF9AABBA),
+        'input': Color(0xFF0B1118),
+        'accent': Color(0xFF59C7FF),
+        'accent2': Color(0xFF1679B8),
+        'console': Color(0xFF080D13),
       },
       'standard_dark': {
         'bg': Color(0xFF111113),
@@ -71,9 +71,9 @@ void main() {
     final theme = DroidLabTheme.dark();
     expect(theme.useMaterial3, isTrue);
     expect(theme.brightness, Brightness.dark);
-    expect(theme.colorScheme.primary, const Color(0xFF9A82FF));
-    expect(theme.scaffoldBackgroundColor, const Color(0xFF121026));
-    expect(theme.inputDecorationTheme.fillColor, const Color(0xFF100F20));
+    expect(theme.colorScheme.primary, const Color(0xFF59C7FF));
+    expect(theme.scaffoldBackgroundColor, const Color(0xFF10151C));
+    expect(theme.inputDecorationTheme.fillColor, const Color(0xFF0B1118));
   });
 
   test('standard dark theme uses the legacy charcoal palette', () {
