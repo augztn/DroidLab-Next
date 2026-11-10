@@ -72,7 +72,7 @@ class DroidLabSettings {
   static String _validThemeMode(Object? value) =>
       const {'light', 'dark', 'system'}.contains(value) ? value as String : 'dark';
   static String _validTheme(Object? value) =>
-      const {'cyberpunk_glass', 'standard_dark', 'oled_black'}.contains(value)
+      const {'cyberpunk_glass', 'standard_dark', 'oled_black', 'minimalist_dark', 'monochromatic'}.contains(value)
           ? value as String : 'cyberpunk_glass';
 }
 
