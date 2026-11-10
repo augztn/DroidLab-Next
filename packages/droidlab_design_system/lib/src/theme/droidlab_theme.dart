@@ -24,6 +24,8 @@ abstract final class DroidLabTheme {
     final primary = switch (themeName) {
       'standard_dark' => const Color(0xFF2868D7),
       'oled_black' => const Color(0xFF386FDA),
+      'minimalist_dark' => const Color(0xFF536779),
+      'monochromatic' => const Color(0xFF52565C),
       _ => const Color(0xFF1679B8),
     };
     return _build(
@@ -54,6 +56,22 @@ abstract final class DroidLabTheme {
         console: const Color(0xFF030304), border: const Color(0xFF29292F),
         primary: const Color(0xFF78AAFF), secondary: const Color(0xFF386FDA),
         text: const Color(0xFFF5F5F7), muted: const Color(0xFF9696A3),
+      ),
+      'minimalist_dark' => (
+        background: const Color(0xFF14181D), sidebar: const Color(0xFF191F26),
+        surface: const Color(0xFF1B222A), panelAlt: const Color(0xFF242D37),
+        input: const Color(0xFF11161C), button: const Color(0xFF293541),
+        console: const Color(0xFF0D1217), border: const Color(0xFF303C48),
+        primary: const Color(0xFF91A7B8), secondary: const Color(0xFF637C90),
+        text: const Color(0xFFE7EDF2), muted: const Color(0xFF9AA8B4),
+      ),
+      'monochromatic' => (
+        background: const Color(0xFF151515), sidebar: const Color(0xFF1B1B1B),
+        surface: const Color(0xFF202020), panelAlt: const Color(0xFF2A2A2A),
+        input: const Color(0xFF111111), button: const Color(0xFF303030),
+        console: const Color(0xFF0A0A0A), border: const Color(0xFF3A3A3A),
+        primary: const Color(0xFFD0D0D0), secondary: const Color(0xFF929292),
+        text: const Color(0xFFF0F0F0), muted: const Color(0xFFA0A0A0),
       ),
       _ => (
         background: const Color(0xFF10151C), sidebar: const Color(0xFF171F29),
