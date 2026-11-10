@@ -12,6 +12,7 @@ class DroidLabSettings {
     this.adbPath = '',
     this.fastbootPath = '',
     this.payloadDumperPath = '',
+    this.autoSwitchDeviceToolPrompts = true,
   });
 
   final String theme;
@@ -21,10 +22,12 @@ class DroidLabSettings {
   final String adbPath;
   final String fastbootPath;
   final String payloadDumperPath;
+  final bool autoSwitchDeviceToolPrompts;
 
   DroidLabSettings copyWith({
     String? theme, String? themeMode, String? pythonPath, String? backendPath,
     String? adbPath, String? fastbootPath, String? payloadDumperPath,
+    bool? autoSwitchDeviceToolPrompts,
   }) => DroidLabSettings(
         theme: theme ?? this.theme,
         themeMode: themeMode ?? this.themeMode,
@@ -33,6 +36,7 @@ class DroidLabSettings {
         adbPath: adbPath ?? this.adbPath,
         fastbootPath: fastbootPath ?? this.fastbootPath,
         payloadDumperPath: payloadDumperPath ?? this.payloadDumperPath,
+        autoSwitchDeviceToolPrompts: autoSwitchDeviceToolPrompts ?? this.autoSwitchDeviceToolPrompts,
       );
 
   factory DroidLabSettings.fromJson(Map<String, dynamic> json) {
@@ -50,6 +54,9 @@ class DroidLabSettings {
         adbPath: _string(json['adb_path'] ?? json['adb']),
         fastbootPath: _string(json['fastboot_path'] ?? json['fastboot']),
         payloadDumperPath: _string(json['payload_dumper_path'] ?? json['payload_dumper_go']),
+        autoSwitchDeviceToolPrompts: json['auto_switch_device_tool_prompts'] is bool
+            ? json['auto_switch_device_tool_prompts'] as bool
+            : true,
       );
   }
 
@@ -58,6 +65,7 @@ class DroidLabSettings {
         'theme': theme, 'theme_mode': themeMode, 'python_path': pythonPath, 'backend_path': backendPath,
         'adb_path': adbPath, 'fastboot_path': fastbootPath,
         'payload_dumper_path': payloadDumperPath,
+        'auto_switch_device_tool_prompts': autoSwitchDeviceToolPrompts,
       };
 
   static String _string(Object? value) => value is String ? value.trim() : '';
