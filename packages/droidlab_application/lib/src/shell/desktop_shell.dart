@@ -341,36 +341,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
           }
         });
       }
-      return Scaffold(body: SafeArea(child: Column(children: [
-        Container(
-          height: 58,
-          padding: const EdgeInsets.symmetric(horizontal: 22),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            border: Border(bottom: BorderSide(color: colors.outlineVariant)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () => context.go('/dashboard'),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Image.asset('assets/branding/droidlab_app_icon.png', width: 36, height: 36, fit: BoxFit.contain),
-                    const SizedBox(width: 10),
-                    Flexible(child: Text('DroidLab', maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700, letterSpacing: -0.5,
-                      ),
-                    )),
-                  ]),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(child: Row(children: [
+      return Scaffold(body: SafeArea(child: Row(children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 160),
             width: expanded ? 276 : (constraints.maxWidth < 620 ? 56 : 64),
@@ -524,8 +495,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
               ],
             ),
           ),
-        ])),
-      ])));
+        ])));
     });
   }
 }
