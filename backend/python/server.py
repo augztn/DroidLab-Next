@@ -725,8 +725,10 @@ def execute(request_id: str, operation: str, args: dict[str, Any], cancel: threa
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise ValueError("The APK backup manifest is unreadable.") from exc
-        package = manifest.get("package") if isinstance(manifest, dict) else None
-        files = manifest.get("files") if isinstance(manifest, dict) else None
+        if not isinstance(manifest, dict):
+            raise ValueError("The APK backup manifest must be a JSON object.")
+        package = manifest.get("package")
+        files = manifest.get("files")
         if manifest.get("schema_version") != 1 or not isinstance(package, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", package):
             raise ValueError("The APK backup manifest is invalid or unsupported.")
         if not isinstance(files, list) or not files or any(
