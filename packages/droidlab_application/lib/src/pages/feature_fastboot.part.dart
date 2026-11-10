@@ -730,11 +730,11 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           flashPanel,
           const SizedBox(height: 14),
           advancedPanel,
-          const SizedBox(height: 14),
-          erasePanel,
         ]);
         final right = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           modeSlotPanel,
+          const SizedBox(height: 14),
+          erasePanel,
         ]);
         final deviceLabel = selectedDevice == null
             ? 'No target selected'
@@ -841,7 +841,7 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
                 Expanded(child: SingleChildScrollView(child: right)),
               ])
             : ListView(children: [flashPanel, const SizedBox(height: 14), advancedPanel,
-                const SizedBox(height: 14), erasePanel, const SizedBox(height: 14), modeSlotPanel])),
+                const SizedBox(height: 14), modeSlotPanel, const SizedBox(height: 14), erasePanel])),
           if (_output.isNotEmpty) ...[const SizedBox(height: 12), _OutputPanel(output: _output)],
         ]);
       }),
