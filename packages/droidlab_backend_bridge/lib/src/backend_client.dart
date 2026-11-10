@@ -195,18 +195,21 @@ class BackendClient {
       } else if (type == 'accepted') {
         _events.add(BackendAccepted(requestId: id));
       } else if (type == 'completed') {
+        _events.add(BackendFinished(requestId: id, succeeded: true, cancelled: false));
         if (completer != null && !completer.isCompleted) {
           final result = value['result'];
           completer.complete(BackendResult(result is Map<String, dynamic> ? result : const {}));
           _pending.remove(id);
         }
       } else if (type == 'failed') {
+        _events.add(BackendFinished(requestId: id, succeeded: false, cancelled: false));
         if (completer != null && !completer.isCompleted) {
           final error = value['error'] as Map<String, dynamic>? ?? const {};
           completer.completeError(BackendException(error['message'] as String? ?? 'Backend operation failed.', code: error['code'] as String?));
           _pending.remove(id);
         }
       } else if (type == 'cancelled') {
+        _events.add(BackendFinished(requestId: id, succeeded: false, cancelled: true));
         if (completer != null && !completer.isCompleted) {
           completer.completeError(const BackendException('Operation cancelled; device-side effects may already have occurred.', code: 'cancelled'));
           _pending.remove(id);

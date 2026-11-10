@@ -17,6 +17,10 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
   String _output = '';
   bool _busy = false;
   List<Map<String, dynamic>> _discoveredPartitions = [];
+  String? _deviceInfoSerial;
+  Map<String, dynamic> _deviceInfo = const {};
+  bool _deviceInfoLoading = false;
+  String? _deviceInfoError;
 
   @override
   void dispose() {
@@ -102,6 +106,9 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     );
     if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
+    if (operation == 'fastboot.flash') {
+      _recordOperationActivity(ref, 'Flash started · $partition');
+    }
     try {
       final args = <String, dynamic>{
         'serial': serial,
@@ -133,8 +140,14 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           timeout: const Duration(minutes: 20),
         ),
       );
+      if (operation == 'fastboot.flash') {
+        _recordOperationActivity(ref, 'Flash completed · $partition');
+      }
       if (mounted) setState(() => _output = result.data.toString());
     } catch (error) {
+      if (operation == 'fastboot.flash') {
+        _recordOperationActivity(ref, 'Flash failed · $partition · $error');
+      }
       if (mounted) setState(() => _output = error.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -332,28 +345,35 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
   }
 
   Future<void> _readFastbootInfo(String serial) async {
-    if (_busy) return;
-    setState(() => _busy = true);
+    if (_deviceInfoSerial == serial &&
+        (_deviceInfoLoading || _deviceInfo.isNotEmpty || _deviceInfoError != null)) return;
+    setState(() {
+      _deviceInfoSerial = serial;
+      _deviceInfoLoading = true;
+      _deviceInfoError = null;
+    });
     try {
       final result = await ref.read(backendClientProvider).request(
         'device.info',
         {'serial': serial},
       );
+      if (!mounted) return;
+      if (_serial.text.trim() != serial) {
+        setState(() => _deviceInfoLoading = false);
+        return;
+      }
+      final raw = result.data['metadata'];
+      setState(() {
+        _deviceInfo = raw is Map<String, dynamic> ? raw : const {};
+        _deviceInfoLoading = false;
+      });
+    } catch (error) {
       if (mounted) {
-        final metadata = result.data['metadata'] as Map<String, dynamic>;
         setState(() {
-          _output = metadata.entries
-              .map((entry) => entry.key + ': ' +
-                  (entry.value?.toString().isNotEmpty == true
-                      ? entry.value.toString()
-                      : '—'))
-              .join('\n');
+          _deviceInfoLoading = false;
+          if (_serial.text.trim() == serial) _deviceInfoError = error.toString();
         });
       }
-    } catch (error) {
-      if (mounted) setState(() => _output = error.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -479,6 +499,18 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
     if (selectedSerial != null && selectedSerial != _serial.text && !_busy) {
       _serial.text = selectedSerial;
     }
+    if (selectedSerial != null && _deviceInfoSerial != selectedSerial && !_deviceInfoLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _serial.text.trim() == selectedSerial) {
+          _readFastbootInfo(selectedSerial);
+        }
+      });
+    }
+    if (selectedSerial == null && _deviceInfoSerial != null) {
+      _deviceInfoSerial = null;
+      _deviceInfo = const {};
+      _deviceInfoError = null;
+    }
     final matchingDevices = fastbootDevices.where((device) => device['serial'] == selectedSerial).toList();
     final selectedDevice = matchingDevices.isEmpty ? null : matchingDevices.first;
     final fastbootTarget = isFastbootDeviceReady(selectedDevice);
@@ -584,16 +616,28 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
           OutlinedButton.icon(
             onPressed: _busy || !fastbootTarget ? null : _discoverPartitions,
             icon: const Icon(Icons.list_alt), label: const Text('Discover partitions')),
-          OutlinedButton.icon(
-            onPressed: _busy || !fastbootTarget ? null : () => _readFastbootInfo(selectedSerial!),
-            icon: const Icon(Icons.info_outline), label: const Text('Device info')),
         ]),
       ],
     );
-    final slotPanel = panel(
-      'A/B Active Slot Switcher (fastboot.set_active)',
-      'Uses primary --set-active syntax with automatic legacy set_active fallback.',
+    final modeSlotPanel = panel(
+      'Device Mode & A/B Slot',
+      'Manage reboot targets and the active boot slot from one place. Confirm each device-state change before execution.',
       [
+
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('system'), child: const Text('Reboot system')),
+          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('recovery'), child: const Text('Reboot recovery')),
+          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('bootloader'), child: const Text('Reboot bootloader')),
+          FilledButton.tonal(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('fastbootd'), child: const Text('Reboot to Fastbootd')),
+        ]),
+        const Divider(height: 24),
+        Row(children: [
+          Icon(Icons.swap_horiz_rounded, size: 18, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          Text('A/B active slot', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 10),
+
         Row(children: [
           Expanded(child: FilledButton(
             onPressed: _busy || !fastbootTarget ? null : () => _setActiveSlot('a'),
@@ -636,18 +680,6 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         ]),
       ],
     );
-    final rebootPanel = panel(
-      'Mode-Aware Fastboot Reboot',
-      'Select the next device transport. Reboot operations require a fresh target check.',
-      [
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('system'), child: const Text('Reboot system')),
-          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('recovery'), child: const Text('Reboot recovery')),
-          OutlinedButton(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('bootloader'), child: const Text('Reboot bootloader')),
-          FilledButton.tonal(onPressed: _busy || !fastbootTarget ? null : () => _rebootFastboot('fastbootd'), child: const Text('Reboot to Fastbootd')),
-        ]),
-      ],
-    );
     final advancedPanel = panel(
       'Advanced Fastboot Command',
       'Preview the exact argument vector before execution.',
@@ -669,8 +701,8 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
       ],
     );
     return _PageFrame(
-      title: 'Fastboot Toolkit & Guarded Flashing',
-      subtitle: 'Strict ASCII partition allowlist · Distinguishes bootloader Fastboot vs Userspace Fastbootd',
+      title: 'Fastboot Toolkit',
+      subtitle: 'Guarded flashing and device controls',
       actions: [targetSelector],
       child: LayoutBuilder(builder: (context, constraints) {
         final wide = constraints.maxWidth >= 1100;
@@ -697,73 +729,90 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
         final left = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           flashPanel,
           const SizedBox(height: 14),
-          rebootPanel,
-        ]);
-        final right = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          slotPanel,
-          const SizedBox(height: 14),
-          erasePanel,
-          const SizedBox(height: 14),
           advancedPanel,
         ]);
-        final deviceLabel = selectedDevice == null
-            ? 'No target selected'
-            : (selectedDevice['model']?.toString().trim().isNotEmpty == true
-                ? selectedDevice['model'].toString()
-                : selectedDevice['product']?.toString() ?? 'Android device');
-        final transportLabel = selectedDevice == null
-            ? 'Waiting for a device'
-            : '${selectedDevice['transport'] ?? 'unknown'} · ${selectedDevice['mode'] ?? selectedDevice['state'] ?? 'unknown'}';
+        final right = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          modeSlotPanel,
+          const SizedBox(height: 14),
+          erasePanel,
+        ]);
+        final infoLabels = <String>[
+          'Brand / Manufacturer',
+          'Device name / Model',
+          'Model code',
+          'Codename',
+          'Active slot',
+          'Bootloader',
+          'Android Version',
+          'Android SDK',
+          'Battery',
+          'Mode',
+        ];
         final targetStatus = Card(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            child: Row(children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: (fastbootTarget
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurfaceVariant).withValues(alpha: 0.11),
-                  borderRadius: BorderRadius.circular(11),
+            padding: const EdgeInsets.fromLTRB(14, 11, 14, 12),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Row(children: [
+                Icon(Icons.phone_android_rounded, size: 19,
+                  color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('Device information', style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700)),
+                const Spacer(),
+                if (_deviceInfoLoading)
+                  const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: (fastbootTarget ? Theme.of(context).colorScheme.tertiary : Theme.of(context).colorScheme.surfaceContainerHighest).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                  ),
+                  child: Text(
+                    fastbootTarget ? 'FASTBOOT READY' : selectedDevice == null ? 'NOT CONNECTED' : 'WRONG MODE',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: fastbootTarget ? Theme.of(context).colorScheme.tertiary : Theme.of(context).colorScheme.onSurfaceVariant,
+                      letterSpacing: 0.35),
+                  ),
                 ),
-                child: Icon(
-                  fastbootTarget ? Icons.usb_rounded : Icons.usb_off_rounded,
-                  color: fastbootTarget
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(width: 13),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(deviceLabel, maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 3),
-                Text(selectedSerial == null ? 'Connect a device or select one above' : '$selectedSerial  ·  $transportLabel',
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontFamily: selectedSerial == null ? null : 'monospace')),
-              ])),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                decoration: BoxDecoration(
-                  color: (fastbootTarget
-                      ? Theme.of(context).colorScheme.tertiary
-                      : Theme.of(context).colorScheme.surfaceContainerHighest).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-                ),
-                child: Text(
-                  fastbootTarget ? 'FASTBOOT READY' : selectedDevice == null ? 'NOT CONNECTED' : 'WRONG MODE',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: fastbootTarget
-                        ? Theme.of(context).colorScheme.tertiary
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
-                    letterSpacing: 0.45),
-                ),
-              ),
+              ]),
+              const SizedBox(height: 10),
+              if (_deviceInfoError != null)
+                Text('Device information unavailable: $_deviceInfoError',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12))
+              else
+                LayoutBuilder(builder: (context, infoConstraints) {
+                  final columns = infoConstraints.maxWidth >= 1050 ? 5
+                      : infoConstraints.maxWidth >= 650 ? 3 : 2;
+                  final itemWidth = (infoConstraints.maxWidth - (columns - 1) * 14) / columns;
+                  return Wrap(
+                    spacing: 14,
+                    runSpacing: 9,
+                    children: [
+                      for (final label in infoLabels)
+                        SizedBox(width: itemWidth, child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                            const SizedBox(height: 2),
+                            SelectableText(
+                              selectedSerial == null ? '—'
+                                  : (_deviceInfo[label]?.toString().trim().isNotEmpty == true
+                                      ? _deviceInfo[label].toString()
+                                      : '—'),
+                              maxLines: 1,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'monospace'),
+                            ),
+                          ],
+                        )),
+                    ],
+                  );
+                }),
             ]),
           ),
         );
@@ -783,9 +832,8 @@ class _FastbootToolkitPageState extends ConsumerState<FastbootToolkitPage> {
                 const SizedBox(width: 24),
                 Expanded(child: SingleChildScrollView(child: right)),
               ])
-            : ListView(children: [flashPanel, const SizedBox(height: 14), slotPanel,
-                const SizedBox(height: 14), erasePanel, const SizedBox(height: 14), rebootPanel,
-                const SizedBox(height: 14), advancedPanel])),
+            : ListView(children: [flashPanel, const SizedBox(height: 14), advancedPanel,
+                const SizedBox(height: 14), modeSlotPanel, const SizedBox(height: 14), erasePanel])),
           if (_output.isNotEmpty) ...[const SizedBox(height: 12), _OutputPanel(output: _output)],
         ]);
       }),

@@ -19,6 +19,17 @@ void main() {
     expect(settings.adbPath, isEmpty);
     expect(settings.fastbootPath, isEmpty);
   });
+  test('loads and persists minimalist and monochromatic theme selections', () async {
+    final temporary = await Directory.systemTemp.createTemp('droidlab-theme-settings-');
+    addTearDown(() => temporary.delete(recursive: true));
+    final file = File(temporary.path + '/config.json');
+    final store = DroidLabSettingsStore(file: file);
+
+    for (final theme in ['minimalist_dark', 'monochromatic']) {
+      await store.save(DroidLabSettings(theme: theme));
+      expect((await store.load()).theme, theme);
+    }
+  });
 
   test('recovers settings backup after interrupted atomic save', () async {
     final temporary = await Directory.systemTemp.createTemp('droidlab-settings-recovery-');

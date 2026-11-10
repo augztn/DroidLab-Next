@@ -49,6 +49,30 @@ void main() {
         'accent2': Color(0xFF386FDA),
         'console': Color(0xFF030304),
       },
+      'minimalist_dark': {
+        'bg': Color(0xFF14181D),
+        'panel': Color(0xFF1B222A),
+        'panel_alt': Color(0xFF242D37),
+        'border': Color(0xFF303C48),
+        'text': Color(0xFFE7EDF2),
+        'muted': Color(0xFF9AA8B4),
+        'input': Color(0xFF11161C),
+        'accent': Color(0xFF91A7B8),
+        'accent2': Color(0xFF637C90),
+        'console': Color(0xFF0D1217),
+      },
+      'monochromatic': {
+        'bg': Color(0xFF151515),
+        'panel': Color(0xFF202020),
+        'panel_alt': Color(0xFF2A2A2A),
+        'border': Color(0xFF3A3A3A),
+        'text': Color(0xFFF0F0F0),
+        'muted': Color(0xFFA0A0A0),
+        'input': Color(0xFF111111),
+        'accent': Color(0xFFD0D0D0),
+        'accent2': Color(0xFF929292),
+        'console': Color(0xFF0A0A0A),
+      },
     };
     for (final entry in palettes.entries) {
       final theme = DroidLabTheme.dark(themeName: entry.key);

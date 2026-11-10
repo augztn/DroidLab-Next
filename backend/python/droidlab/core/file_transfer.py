@@ -4,6 +4,8 @@ from __future__ import annotations
 import errno
 import os
 import shutil
+import json
+import re
 from pathlib import Path, PurePosixPath
 
 
@@ -82,3 +84,62 @@ def publish_file_no_replace(source: Path, destination: Path) -> None:
         except OSError:
             pass
         raise
+
+
+def validate_apk_source(value: object) -> Path:
+    """Validate a local APK before passing it to the ADB package installer."""
+    source = validate_push_source(value)
+    if source.suffix.lower() != ".apk":
+        raise ValueError("Choose an Android application package with the .apk extension.")
+    if source.stat().st_size <= 0:
+        raise ValueError("The APK file is empty.")
+    return source
+
+
+def validate_apk_sources(value: object) -> list[Path]:
+    if not isinstance(value, list) or not value or len(value) > 100:
+        raise ValueError("apk_paths must contain between 1 and 100 APK files.")
+    sources = [validate_apk_source(item) for item in value]
+    if len({str(item) for item in sources}) != len(sources):
+        raise ValueError("Select each APK file only once.")
+    return sources
+
+
+def validate_package_name(value: object) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+", value):
+        raise ValueError("Invalid Android package name.")
+    return value
+
+
+def validate_app_backup(value: object) -> tuple[Path, list[Path]]:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("backup_path must be a backup folder.")
+    root = Path(value).expanduser()
+    if root.is_symlink() or not root.is_dir():
+        raise ValueError("Backup path must be an existing directory, not a symbolic link.")
+    root = root.resolve(strict=True)
+    manifest_path = root / "manifest.json"
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise ValueError("Backup manifest is missing or unsafe.")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError("Backup manifest is invalid.") from error
+    if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
+        raise ValueError("Unsupported app backup format.")
+    validate_package_name(manifest.get("package"))
+    entries = manifest.get("files")
+    if not isinstance(entries, list) or not entries or len(entries) > 64:
+        raise ValueError("Backup contains no valid APK set.")
+    apks = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError("Backup manifest contains an invalid entry.")
+        name = entry.get("file")
+        if not isinstance(name, str) or Path(name).name != name or not name.endswith(".apk"):
+            raise ValueError("Backup manifest contains an unsafe APK filename.")
+        apk = root / name
+        if apk.is_symlink() or not apk.is_file() or apk.stat().st_size <= 0:
+            raise ValueError(f"Backup APK is missing or invalid: {name}")
+        apks.append(apk.resolve(strict=True))
+    return root, apks
