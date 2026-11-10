@@ -12,7 +12,7 @@ abstract final class DroidLabTokens {
   static const border = Color(0xFF39345B);
   static const primary = Color(0xFF9A82FF);
   static const secondary = Color(0xFF7054E8);
-  static const text = Color(0xFFEDF4FB);
+  static const text = Color(0xFFF2F0FF);
   static const muted = Color(0xFFAAA4C5);
   static const success = Color(0xFF35C98A);
   static const warning = Color(0xFFF2B84B);
