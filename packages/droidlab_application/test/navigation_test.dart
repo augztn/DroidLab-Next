@@ -1,5 +1,6 @@
 import 'package:droidlab_application/droidlab_application.dart';
 import 'package:droidlab_application/src/state/backend_providers.dart';
+import 'package:droidlab_application/src/state/app_settings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 void main() {
@@ -137,4 +138,22 @@ void main() {
       isNull,
     );
   });
+  test('device mode prompt preference defaults on for existing config', () {
+    final settings = DroidLabSettings.fromJson(const {
+      'schema_version': 1,
+      'theme': 'standard_dark',
+    });
+    expect(settings.autoSwitchDeviceToolPrompts, isTrue);
+  });
+
+  test('device mode prompt preference persists and can be disabled', () {
+    const settings = DroidLabSettings(autoSwitchDeviceToolPrompts: false);
+    final restored = DroidLabSettings.fromJson(settings.toJson());
+    expect(restored.autoSwitchDeviceToolPrompts, isFalse);
+    expect(settings.copyWith(theme: 'oled_black').autoSwitchDeviceToolPrompts,
+        isFalse);
+    expect(settings.copyWith(autoSwitchDeviceToolPrompts: true)
+        .autoSwitchDeviceToolPrompts, isTrue);
+  });
+
 }
