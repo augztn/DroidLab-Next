@@ -1,6 +1,5 @@
 import 'package:droidlab_application/droidlab_application.dart';
 import 'package:droidlab_application/src/state/backend_providers.dart';
-import 'package:droidlab_application/src/state/app_settings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 void main() {
