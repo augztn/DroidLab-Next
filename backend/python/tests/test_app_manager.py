@@ -24,7 +24,7 @@ class AppManagerProtocolTests(unittest.TestCase):
                         "serial": "DEVICE-1", "apk_path": str(apk), "replace": True,
                         "confirmed": True,
                     }, threading.Event())
-            require_adb.assert_not_called()
+            require_adb.assert_called_once_with('DEVICE-1', cancel_event=ANY)
 
     def test_apk_install_uses_argument_vector_and_requires_success(self):
         with tempfile.TemporaryDirectory() as directory:
