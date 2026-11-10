@@ -74,6 +74,57 @@ void main() {
     expect(isFastbootDeviceReady(null), isFalse);
   });
 
+  test('ADB page suggests Fastboot Toolkit when selected device is in Fastboot', () {
+    expect(
+      deviceToolModeSwitchSuggestion({
+        'devices': [
+          {'serial': 'PHONE-1', 'transport': 'fastboot', 'state': 'fastboot'},
+        ],
+      }, currentLocation: '/adb', selectedSerial: 'PHONE-1'),
+      {'serial': 'PHONE-1', 'state': 'fastboot', 'destination': '/fastboot'},
+    );
+  });
+
+  test('Fastboot page suggests ADB Toolkit when selected device returns to Android', () {
+    expect(
+      deviceToolModeSwitchSuggestion({
+        'devices': [
+          {'serial': 'PHONE-1', 'transport': 'adb', 'state': 'device'},
+        ],
+      }, currentLocation: '/fastboot', selectedSerial: 'PHONE-1'),
+      {'serial': 'PHONE-1', 'state': 'device', 'destination': '/adb'},
+    );
+  });
+
+  test('mode switch suggestion does not guess across ambiguous devices', () {
+    expect(
+      deviceToolModeSwitchSuggestion({
+        'devices': [
+          {'serial': 'ADB-1', 'transport': 'adb', 'state': 'device'},
+          {'serial': 'FB-1', 'transport': 'fastboot', 'state': 'fastboot'},
+        ],
+      }, currentLocation: '/adb'),
+      isNull,
+    );
+  });
+
+  test('mode switch suggestion follows selected device in mixed sessions', () {
+    final data = {
+      'devices': [
+        {'serial': 'ADB-1', 'transport': 'adb', 'state': 'device'},
+        {'serial': 'FB-1', 'transport': 'fastboot', 'state': 'fastbootd'},
+      ],
+    };
+    expect(
+      deviceToolModeSwitchSuggestion(data, currentLocation: '/adb', selectedSerial: 'FB-1'),
+      {'serial': 'FB-1', 'state': 'fastbootd', 'destination': '/fastboot'},
+    );
+    expect(
+      deviceToolModeSwitchSuggestion(data, currentLocation: '/adb', selectedSerial: 'ADB-1'),
+      isNull,
+    );
+  });
+
   test('mixed or empty device discovery never forces a tool route', () {
     expect(preferredDeviceToolLocation({'devices': []}), isNull);
     expect(
