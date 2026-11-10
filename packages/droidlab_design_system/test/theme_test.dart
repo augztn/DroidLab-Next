@@ -71,9 +71,9 @@ void main() {
     final theme = DroidLabTheme.dark();
     expect(theme.useMaterial3, isTrue);
     expect(theme.brightness, Brightness.dark);
-    expect(theme.colorScheme.primary, const Color(0xFF59C7FF));
-    expect(theme.scaffoldBackgroundColor, const Color(0xFF10151C));
-    expect(theme.inputDecorationTheme.fillColor, const Color(0xFF0B1118));
+    expect(theme.colorScheme.primary, const Color(0xFF9A82FF));
+    expect(theme.scaffoldBackgroundColor, const Color(0xFF121026));
+    expect(theme.inputDecorationTheme.fillColor, const Color(0xFF100F20));
   });
 
   test('standard dark theme uses the legacy charcoal palette', () {
