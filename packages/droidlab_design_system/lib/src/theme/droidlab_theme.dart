@@ -2,18 +2,18 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 
 abstract final class DroidLabTokens {
-  static const background = Color(0xFF10151C);
-  static const sidebar = Color(0xFF171F29);
-  static const surface = Color(0xFF171F29);
-  static const panelAlt = Color(0xFF202C39);
-  static const input = Color(0xFF0B1118);
-  static const button = Color(0xFF243444);
-  static const console = Color(0xFF080D13);
-  static const border = Color(0xFF304253);
-  static const primary = Color(0xFF59C7FF);
-  static const secondary = Color(0xFF1679B8);
+  static const background = Color(0xFF121026);
+  static const sidebar = Color(0xFF17152E);
+  static const surface = Color(0xFF1D1A38);
+  static const panelAlt = Color(0xFF262247);
+  static const input = Color(0xFF100F20);
+  static const button = Color(0xFF302A50);
+  static const console = Color(0xFF0C0B19);
+  static const border = Color(0xFF39345B);
+  static const primary = Color(0xFF9A82FF);
+  static const secondary = Color(0xFF7054E8);
   static const text = Color(0xFFEDF4FB);
-  static const muted = Color(0xFF9AABBA);
+  static const muted = Color(0xFFAAA4C5);
   static const success = Color(0xFF35C98A);
   static const warning = Color(0xFFF2B84B);
   static const error = Color(0xFFF87171);
@@ -56,12 +56,12 @@ abstract final class DroidLabTheme {
         text: const Color(0xFFF5F5F7), muted: const Color(0xFF9696A3),
       ),
       _ => (
-        background: const Color(0xFF10151C), sidebar: const Color(0xFF171F29),
-        surface: const Color(0xFF171F29), panelAlt: const Color(0xFF202C39),
-        input: const Color(0xFF0B1118), button: const Color(0xFF243444),
-        console: const Color(0xFF080D13), border: const Color(0xFF304253),
-        primary: const Color(0xFF59C7FF), secondary: const Color(0xFF1679B8),
-        text: const Color(0xFFEDF4FB), muted: const Color(0xFF9AABBA),
+        background: const Color(0xFF121026), sidebar: const Color(0xFF17152E),
+        surface: const Color(0xFF1D1A38), panelAlt: const Color(0xFF262247),
+        input: const Color(0xFF100F20), button: const Color(0xFF302A50),
+        console: const Color(0xFF0C0B19), border: const Color(0xFF39345B),
+        primary: const Color(0xFF9A82FF), secondary: const Color(0xFF7054E8),
+        text: const Color(0xFFF2F0FF), muted: const Color(0xFFAAA4C5),
       ),
     };
     return _build(
