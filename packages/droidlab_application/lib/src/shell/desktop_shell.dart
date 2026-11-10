@@ -33,7 +33,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   static const _groups = <(String, List<(String, String, IconData)>)>[
     ('WORKSPACE', [('Dashboard','/dashboard',Icons.grid_view_rounded),('Device Manager','/devices',Icons.devices_rounded)]),
     ('FIRMWARE', [('Firmware & Payload','/firmware',Icons.folder_open_rounded)]),
-    ('DEVICE TOOLS', [('ADB Toolkit','/adb',Icons.terminal_rounded),('Fastboot Toolkit','/fastboot',Icons.memory_rounded),('Android Debloater','/debloater',Icons.cleaning_services_rounded)]),
+    ('DEVICE TOOLS', [('ADB Toolkit','/adb',Icons.terminal_rounded),('Fastboot Toolkit','/fastboot',Icons.memory_rounded)]),
+    ('APPLICATIONS', [('App Manager','/apps',Icons.apps_rounded),('Android Debloater','/debloater',Icons.cleaning_services_rounded)]),
     ('OBSERVABILITY', [('Logs & Diagnostics','/logs',Icons.receipt_long_rounded),('Operation History','/history',Icons.history_rounded)]),
   ];
 
@@ -352,7 +353,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                       child: Text(
                         group.$1 == 'FIRMWARE' ? 'Firmware & OTA' :
                         group.$1 == 'OBSERVABILITY' ? 'Observability' :
-                        group.$1 == 'WORKSPACE' ? 'Workspace' : 'Device Tools',
+                        group.$1 == 'WORKSPACE' ? 'Workspace' :
+                        group.$1 == 'APPLICATIONS' ? 'Applications' : 'Device Tools',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: colors.onSurfaceVariant, fontWeight: FontWeight.w700,
                         ),
