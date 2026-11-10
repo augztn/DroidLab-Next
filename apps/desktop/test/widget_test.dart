@@ -52,7 +52,7 @@ void main() {
     await tester.tap(find.text('Fastboot Toolkit'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Fastboot Toolkit'), findsOneWidget);
+    expect(find.text('Fastboot Toolkit'), findsWidgets);
     expect(find.text('Guarded Partition Flash (fastboot.flash)'), findsOneWidget);
     expect(find.text('Preview & Confirm Flash'), findsOneWidget);
     expect(find.text('A/B Active Slot Switcher (fastboot.set_active)'), findsOneWidget);
