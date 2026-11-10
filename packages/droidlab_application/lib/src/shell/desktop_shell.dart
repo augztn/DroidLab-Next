@@ -32,7 +32,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
   static const _groups = <(String, List<(String, String, IconData)>)>[
     ('WORKSPACE', [('Dashboard','/dashboard',Icons.grid_view_rounded),('Device Manager','/devices',Icons.devices_rounded)]),
     ('FIRMWARE', [('Firmware & Payload','/firmware',Icons.folder_open_rounded)]),
-    ('DEVICE TOOLS', [('ADB Toolkit','/adb',Icons.terminal_rounded),('Fastboot Toolkit','/fastboot',Icons.memory_rounded),('Android Debloater','/debloater',Icons.cleaning_services_rounded)]),
+    ('DEVICE TOOLS', [('ADB Toolkit','/adb',Icons.terminal_rounded),('Fastboot Toolkit','/fastboot',Icons.memory_rounded),('App Manager','/debloater',Icons.apps_rounded)]),
     ('OBSERVABILITY', [('Logs & Diagnostics','/logs',Icons.receipt_long_rounded),('Operation History','/history',Icons.history_rounded)]),
   ];
 
