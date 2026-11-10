@@ -343,7 +343,8 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
       }
       return Scaffold(body: SafeArea(child: Row(children: [
           AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeInOutCubic,
             width: expanded ? 276 : (constraints.maxWidth < 620 ? 56 : 64),
             decoration: BoxDecoration(
               color: colors.surface,
@@ -397,30 +398,44 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
                                     : Colors.transparent,
                             borderRadius: BorderRadius.circular(11),
                             clipBehavior: Clip.antiAlias,
-                            child: expanded
-                                ? ListTile(
-                                    selected: widget.currentLocation == item.$2,
-                                    leading: Icon(item.$3, size: 19),
-                                    title: Text(item.$1, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                                    minLeadingWidth: 24,
-                                    minTileHeight: 48,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
-                                    onTap: () => context.go(item.$2),
-                                  )
-                                : SizedBox(
-                                    height: 46,
-                                    child: InkWell(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 180),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              transitionBuilder: (child, animation) => FadeTransition(
+                                opacity: animation,
+                                child: ScaleTransition(
+                                  scale: Tween<double>(begin: 0.96, end: 1).animate(animation),
+                                  child: child,
+                                ),
+                              ),
+                              child: expanded
+                                  ? ListTile(
+                                      key: const ValueKey('expanded-navigation-item'),
+                                      selected: widget.currentLocation == item.$2,
+                                      leading: Icon(item.$3, size: 19),
+                                      title: Text(item.$1, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                                      minLeadingWidth: 24,
+                                      minTileHeight: 48,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
                                       onTap: () => context.go(item.$2),
-                                      child: Center(child: Icon(
-                                        item.$3,
-                                        size: 20,
-                                        color: widget.currentLocation == item.$2
-                                            ? colors.primary
-                                            : colors.onSurfaceVariant,
-                                      )),
+                                    )
+                                  : SizedBox(
+                                      key: const ValueKey('collapsed-navigation-item'),
+                                      height: 46,
+                                      child: InkWell(
+                                        onTap: () => context.go(item.$2),
+                                        child: Center(child: Icon(
+                                          item.$3,
+                                          size: 20,
+                                          color: widget.currentLocation == item.$2
+                                              ? colors.primary
+                                              : colors.onSurfaceVariant,
+                                        )),
+                                      ),
                                     ),
-                                  ),
+                            ),
                           ),
                         ),
                       ),
