@@ -92,6 +92,8 @@ void main() {
     expect(find.text('Cyberpunk Glass'), findsOneWidget);
     expect(find.text('Standard Dark'), findsOneWidget);
     expect(find.text('OLED Black'), findsOneWidget);
+    expect(find.text('Minimalist Dark'), findsOneWidget);
+    expect(find.text('Monochromatic'), findsOneWidget);
     expect(find.text('Switch to Light Surface'), findsOneWidget);
 
     await tester.tap(find.text('Device Tools').last);
