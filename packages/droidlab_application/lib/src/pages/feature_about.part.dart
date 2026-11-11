@@ -3,6 +3,29 @@ part of 'feature_pages.dart';
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
 
+  static const _githubUrl = 'https://github.com/augztn';
+  static const _instagramUrl = 'https://www.instagram.com/augztn/';
+
+  Future<void> _openExternalLink(BuildContext context, String url) async {
+    try {
+      if (Platform.isWindows) {
+        await Process.start('rundll32.exe', ['url.dll,FileProtocolHandler', url],
+            mode: ProcessStartMode.detached);
+      } else if (Platform.isMacOS) {
+        await Process.start('open', [url], mode: ProcessStartMode.detached);
+      } else if (Platform.isLinux) {
+        await Process.start('xdg-open', [url], mode: ProcessStartMode.detached);
+      } else {
+        throw UnsupportedError('Opening external links is not supported on this platform.');
+      }
+    } on Object {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the link. Please check your default browser.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final platform = '${Platform.operatingSystem} · ${Platform.operatingSystemVersion}';
@@ -53,21 +76,43 @@ class AboutPage extends StatelessWidget {
       ]),
     );
 
+    final socialButtons = Align(
+      alignment: Alignment.centerLeft,
+      child: Wrap(spacing: 10, runSpacing: 10, children: [
+        OutlinedButton.icon(
+          onPressed: () => _openExternalLink(context, _githubUrl),
+          icon: const Icon(Icons.code_rounded, size: 18),
+          label: const Text('GitHub'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => _openExternalLink(context, _instagramUrl),
+          icon: const Icon(Icons.camera_alt_outlined, size: 18),
+          label: const Text('Instagram'),
+        ),
+      ]),
+    );
+
     return _PageFrame(
       title: 'About DroidLab',
       subtitle: 'Developed by augztn',
       child: LayoutBuilder(builder: (context, constraints) {
         if (constraints.maxWidth < 900) {
           return ListView(children: [
+            socialButtons,
+            const SizedBox(height: 14),
             principles,
             const SizedBox(height: 14),
             topology,
           ]);
         }
-        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: principles),
-          const SizedBox(width: 24),
-          Expanded(child: topology),
+        return ListView(children: [
+          socialButtons,
+          const SizedBox(height: 18),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: principles),
+            const SizedBox(width: 24),
+            Expanded(child: topology),
+          ]),
         ]);
       }),
     );
