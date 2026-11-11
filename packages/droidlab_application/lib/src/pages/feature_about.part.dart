@@ -4,7 +4,7 @@ class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
 
   static const _githubUrl = 'https://github.com/augztn';
-  static const _instagramUrl = 'https://www.instagram.com/augztn/';
+  static const _sourceUrl = 'https://github.com/augztn/DroidLab-Next';
 
   Future<void> _openExternalLink(BuildContext context, String url) async {
     try {
@@ -79,22 +79,22 @@ class AboutPage extends StatelessWidget {
     final socialButtons = Align(
       alignment: Alignment.centerLeft,
       child: Wrap(spacing: 10, runSpacing: 10, children: [
-        OutlinedButton.icon(
+        FilledButton.tonalIcon(
           onPressed: () => _openExternalLink(context, _githubUrl),
-          icon: const Icon(Icons.code_rounded, size: 18),
+          icon: const Icon(Icons.person_outline_rounded, size: 18),
           label: const Text('GitHub'),
         ),
         OutlinedButton.icon(
-          onPressed: () => _openExternalLink(context, _instagramUrl),
-          icon: const Icon(Icons.camera_alt_outlined, size: 18),
-          label: const Text('Instagram'),
+          onPressed: () => _openExternalLink(context, _sourceUrl),
+          icon: const Icon(Icons.code_rounded, size: 18),
+          label: const Text('View source'),
         ),
       ]),
     );
 
     return _PageFrame(
       title: 'About DroidLab',
-      subtitle: 'Developed by augztn',
+      subtitle: 'Created by augztn',
       child: LayoutBuilder(builder: (context, constraints) {
         if (constraints.maxWidth < 900) {
           return ListView(children: [
