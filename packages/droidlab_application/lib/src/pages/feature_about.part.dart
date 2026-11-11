@@ -82,19 +82,19 @@ class AboutPage extends StatelessWidget {
         FilledButton.tonalIcon(
           onPressed: () => _openExternalLink(context, _githubUrl),
           icon: const Icon(Icons.person_outline_rounded, size: 18),
-          label: const Text('GitHub'),
+          label: const Text('GitHub profile'),
         ),
         OutlinedButton.icon(
           onPressed: () => _openExternalLink(context, _sourceUrl),
           icon: const Icon(Icons.code_rounded, size: 18),
-          label: const Text('View source'),
+          label: const Text('Source code'),
         ),
       ]),
     );
 
     return _PageFrame(
       title: 'About DroidLab',
-      subtitle: 'Created by augztn',
+      subtitle: 'Creator · augztn',
       child: LayoutBuilder(builder: (context, constraints) {
         if (constraints.maxWidth < 900) {
           return ListView(children: [
